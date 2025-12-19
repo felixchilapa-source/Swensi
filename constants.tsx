@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const COLORS = {
@@ -7,19 +8,20 @@ export const COLORS = {
   NEUTRAL: '#F8FAFC',
   HOSPITALITY: '#7C3AED', // Violet
   DANGER: '#DC2626',
-  SUCCESS: '#2563EB',
+  SUCCESS: '#059669', // Emerald Green (Zambia)
   WARNING: '#D97706'
 };
 
-export const CATEGORIES = [
-  { id: 'transport', name: 'Transport (Taxi/Bike)', icon: <i className="fa-solid fa-car"></i>, requiresLicense: true, basePrice: 65 },
-  { id: 'lodging', name: 'Lodges & Stays', icon: <i className="fa-solid fa-bed"></i>, subscriptionFee: 250, basePrice: 350 },
-  { id: 'beauty', name: 'Beauty (Salons)', icon: <i className="fa-solid fa-scissors"></i>, basePrice: 100 },
-  { id: 'errands', name: 'Errands/Shopping', icon: <i className="fa-solid fa-basket-shopping"></i>, trustThreshold: 20, basePrice: 50 },
-  { id: 'trades', name: 'Skilled Trades', icon: <i className="fa-solid fa-hammer"></i>, basePrice: 150 },
-];
+// Fix: Define the missing bonus multiplier for trusted partners
+export const TRUSTED_COMMISSION_BONUS = 0.05;
 
-export const TRUSTED_COMMISSION_BONUS = 0.0005; 
+export const CATEGORIES = [
+  { id: 'transport', name: 'Taxi & Bike', icon: <i className="fa-solid fa-car-side"></i>, requiresLicense: true, basePrice: 65, hint: "Fast movement in Nakonde" },
+  { id: 'customs', name: 'Customs Clearing', icon: <i className="fa-solid fa-file-contract"></i>, trustThreshold: 50, basePrice: 200, hint: "Help with border paperwork" },
+  { id: 'lodging', name: 'Lodges & Rooms', icon: <i className="fa-solid fa-bed"></i>, subscriptionFee: 250, basePrice: 350, hint: "Safe stays near the border" },
+  { id: 'errands', name: 'Shopping/Errands', icon: <i className="fa-solid fa-cart-shopping"></i>, trustThreshold: 20, basePrice: 50, hint: "Get groceries or goods" },
+  { id: 'trades', name: 'Skilled Workers', icon: <i className="fa-solid fa-wrench"></i>, basePrice: 150, hint: "Mechanics, plumbers, etc." },
+];
 
 export const SUPER_ADMIN = '0961179384';
 
@@ -33,46 +35,43 @@ export const LANGUAGES = [
   { code: 'bem', name: 'Bemba', flag: '🇿🇲' },
   { code: 'nya', name: 'Nyanja', flag: '🇿🇲' },
   { code: 'sw', name: 'Swahili', flag: '🇰🇪' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷' },
 ];
 
 export const TRANSLATIONS: Record<string, Record<string, string>> = {
   en: {
-    welcome: "Welcome back!",
-    greeting: "Hello",
-    slogan: "Border Town Trusted Logistics",
-    login_phone: "Sign in with Phone",
-    verify_phone: "Initiate Secure Link",
-    home: "Terminal",
-    active: "Operations",
+    welcome: "Mwapoleni! Welcome to Swensi",
+    slogan: "Border Trade Made Simple",
+    login_phone: "Enter Phone Number",
+    verify_phone: "Secure Sign In",
+    home: "Home",
+    active: "Trips",
     account: "Profile",
-    logout: "Disconnect",
-    language: "Linguistics",
-    lodging: "Residency",
-    book_room: "Reserve Space",
-    trusted_only: "Verified Nodes Only",
-    terms_agree: "Accept Trade Protocols",
-    become_provider: "Partner Registration",
-    provider_desc: "Join the Nakonde Trade link. Monetize your local expertise.",
-    apply_now: "Register Node"
+    book_now: "Book Service",
+    wallet: "Mobile Money Wallet",
+    landmark_placeholder: "e.g. Near Nakonde Market or Total Station"
   },
   bem: {
-    welcome: "Mwapoleni!",
-    greeting: "Mwapoleni",
+    welcome: "Mwapoleni! Karibu kuli Swensi",
     slogan: "Ubusuma ku mupaka wa Nakonde",
-    login_phone: "Ingileni na foni",
+    login_phone: "Ingileni na foni yenu",
     verify_phone: "Ishibeni foni",
-    home: "Ku Ng'anda",
-    active: "Ilebomba",
-    account: "Ipepala lyenu",
-    logout: "Fumeni",
-    language: "Ululimi",
-    lodging: "Amayanda",
-    book_room: "Iseni Mu Ng'anda",
-    trusted_only: "Abantu ba Cishinka Fye",
-    terms_agree: "Naisumina amalamulo",
-    become_provider: "Sanguka Uwakubombela Abantu",
-    provider_desc: "Ilyo ulesanguka wakubombela, ulasangula indalama mu Nakonde.",
-    apply_now: "Bembuleni Nomba"
+    home: "Pa Ng'anda",
+    active: "Imilimo",
+    account: "Ipepala",
+    book_now: "Order Nomba",
+    wallet: "Indalama sha foni",
+    landmark_placeholder: "Papi na marketi nangu ku stationi"
   },
+  nya: {
+    welcome: "Takulandirani ku Swensi",
+    slogan: "Zamalonda pa mpaka wa Nakonde",
+    login_phone: "Lembani nambala yafoni",
+    verify_phone: "Lowani mu app",
+    home: "Pakhomo",
+    active: "Ntchito",
+    account: "Mbiri yanu",
+    book_now: "Pangani Order",
+    wallet: "Ndalama za pafoni",
+    landmark_placeholder: "Pafupi na marketi kapena ku stationi"
+  }
 };
