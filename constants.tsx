@@ -1,11 +1,14 @@
+
 import React from 'react';
 
 export const COLORS = {
-  PRIMARY: '#FF6B00', // Electric Orange
+  PRIMARY: '#008751', // Zambian Emerald Green
+  ACCENT: '#FFD700',  // Golden Sun (Golden Sun)
   SECONDARY: '#0A1F44', // Deep Navy
-  ACCENT: '#2ECC71', // Bright Green
   NEUTRAL: '#F2F2F2',
-  HOSPITALITY: '#8E44AD', // Purple for Hospitality
+  HOSPITALITY: '#8E44AD',
+  NAKONDE_GREEN: '#008751',
+  NAKONDE_GOLD: '#FFD700'
 };
 
 export const CATEGORIES = [
