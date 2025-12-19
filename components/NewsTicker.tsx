@@ -3,50 +3,53 @@ import React, { useEffect, useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
 
 const NewsTicker: React.FC = () => {
-  const [news, setNews] = useState<string[]>(["Loading Nakonde Trade Updates..."]);
+  const [news, setNews] = useState<string[]>(["Initializing Swensi Trade Signal...", "Nakonde Corridor Scanning..."]);
 
   useEffect(() => {
     const fetchNews = async () => {
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+        // Fix: Use direct API key reference as per coding guidelines
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: 'Generate 5 short, one-sentence news updates for Nakonde border town in Zambia. Include: ZMW/USD exchange rate, ZMW/TSH exchange rate, fuel price update, border crossing traffic status, and a general trade tip. Keep each under 10 words. Format as a simple list of strings.',
+          contents: 'Generate 5 very short (under 8 words) news items for Nakonde trade link: include ZMW/USD rate, border status, and a trade tip. Format as plain text lines.',
           config: {
-            systemInstruction: "You are a local trade news bot for Nakonde, Zambia. Provide real-time or highly realistic simulated trade data relevant to cross-border logistics between Zambia and Tanzania.",
+            systemInstruction: "You are a professional trade intelligence bot for the Nakonde border corridor.",
           }
         });
 
         const text = response.text || "";
-        const lines = text.split('\n').map(l => l.replace(/^[0-9.-]+\s*/, '').trim()).filter(l => l.length > 0);
+        const lines = text.split('\n')
+          .map(l => l.replace(/^[0-9.-]+\s*/, '').trim())
+          .filter(l => l.length > 5);
+          
         if (lines.length > 0) setNews(lines);
       } catch (err) {
-        setNews(["Nakonde Border: Smooth flow reported.", "ZMW/USD stable today.", "Tip: Verify documentation before crossing."]);
+        setNews([
+          "Nakonde: T1 Corridor traffic clear.",
+          "USD/ZMW: Stability observed today.",
+          "Trade Tip: Use verified Swensi partners.",
+          "Weather: Clear skies for transport.",
+          "Safety: Security protocols active."
+        ]);
       }
     };
 
     fetchNews();
-    const interval = setInterval(fetchNews, 300000); // Update every 5 mins
+    const interval = setInterval(fetchNews, 300000); 
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <div className="w-full bg-secondary py-2 overflow-hidden border-y border-white/5 relative h-8 flex items-center">
-      <div className="absolute left-0 top-0 bottom-0 px-3 bg-secondary z-10 flex items-center border-r border-white/5 shadow-lg">
-        <span className="text-[7px] font-black uppercase text-green-500 tracking-[0.2em] italic">Live Trade</span>
+    <div className="w-full bg-secondary py-2.5 overflow-hidden border-y border-white/5 relative h-9 flex items-center shadow-2xl">
+      <div className="absolute left-0 top-0 bottom-0 px-4 bg-secondary/95 backdrop-blur-md z-10 flex items-center border-r border-white/5 shadow-[10px_0_20px_rgba(0,0,0,0.5)]">
+        <span className="text-[8px] font-black uppercase text-blue-500 tracking-[0.3em] italic">Signal</span>
       </div>
-      <div className="flex animate-[ticker_30s_linear_infinite] whitespace-nowrap items-center pl-[100px]">
-        {news.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-4 px-4 border-r border-white/5 last:border-0">
-             <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse"></div>
-             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{item}</span>
-          </div>
-        ))}
-        {/* Duplicate for seamless looping */}
-        {news.map((item, idx) => (
-          <div key={`dup-${idx}`} className="flex items-center gap-4 px-4 border-r border-white/5 last:border-0">
-             <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse"></div>
-             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{item}</span>
+      <div className="flex animate-[ticker_35s_linear_infinite] whitespace-nowrap items-center pl-10">
+        {news.concat(news).map((item, idx) => (
+          <div key={idx} className="flex items-center gap-6 px-6 border-r border-white/10">
+             <div className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse"></div>
+             <span className="text-[11px] font-black text-slate-300/80 uppercase tracking-tight italic">{item}</span>
           </div>
         ))}
       </div>

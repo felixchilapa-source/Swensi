@@ -5,10 +5,11 @@ import { Location } from '../types';
 interface MapProps {
   center: Location;
   markers?: Array<{ loc: Location; color: string; label: string }>;
-  showRoute?: boolean;
+  trackingHistory?: Location[]; // The "Actual Path"
+  showRoute?: boolean; // The "Proposed Path"
 }
 
-const Map: React.FC<MapProps> = ({ center, markers = [], showRoute = true }) => {
+const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], showRoute = true }) => {
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -19,116 +20,122 @@ const Map: React.FC<MapProps> = ({ center, markers = [], showRoute = true }) => 
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
-    // Background
+    // Night Vision Dark Slate Background
     svg.append("rect")
       .attr("width", width)
       .attr("height", height)
-      .attr("fill", "#f8fafc");
+      .attr("fill", "#0F172A");
 
-    // Grid (Mock Streets)
+    // Strategic Logistics Grid (Low Opacity)
     for (let i = 0; i < 20; i++) {
-      svg.append("line").attr("x1", i * 30).attr("y1", 0).attr("x2", i * 30).attr("y2", height).attr("stroke", "#e2e8f0").attr("stroke-width", 1).attr("opacity", 0.5);
-      svg.append("line").attr("x1", 0).attr("y1", i * 30).attr("x2", width).attr("y2", i * 30).attr("stroke", "#e2e8f0").attr("stroke-width", 1).attr("opacity", 0.5);
+      svg.append("line").attr("x1", i * 30).attr("y1", 0).attr("x2", i * 30).attr("y2", height).attr("stroke", "#ffffff").attr("stroke-width", 0.5).attr("opacity", 0.05);
+      svg.append("line").attr("x1", 0).attr("y1", i * 30).attr("x2", width).attr("y2", i * 30).attr("stroke", "#ffffff").attr("stroke-width", 0.5).attr("opacity", 0.05);
     }
 
     const xScale = d3.scaleLinear().domain([center.lng - 0.04, center.lng + 0.04]).range([0, width]);
     const yScale = d3.scaleLinear().domain([center.lat - 0.04, center.lat + 0.04]).range([height, 0]);
 
-    // Draw Route Line
+    // 1. Proposed Path (Dashed Copper)
     if (showRoute && markers.length >= 2) {
       const lineGenerator = d3.line<any>()
         .x(d => xScale(d.lng))
         .y(d => yScale(d.lat))
         .curve(d3.curveBasis);
 
-      // Create a slightly wiggly path between the two primary markers to simulate city streets
-      const routeData = [
+      const proposedData = [
         markers[0].loc,
-        { lat: markers[0].loc.lat + (markers[1].loc.lat - markers[0].loc.lat) * 0.3 + 0.002, lng: markers[0].loc.lng + (markers[1].loc.lng - markers[0].loc.lng) * 0.7 - 0.002 },
-        { lat: markers[0].loc.lat + (markers[1].loc.lat - markers[0].loc.lat) * 0.7 - 0.002, lng: markers[0].loc.lng + (markers[1].loc.lng - markers[0].loc.lng) * 0.3 + 0.002 },
+        { lat: (markers[0].loc.lat + markers[1].loc.lat) / 2 + 0.003, lng: (markers[0].loc.lng + markers[1].loc.lng) / 2 - 0.003 },
         markers[1].loc
       ];
 
-      // Route Glow
       svg.append("path")
-        .datum(routeData)
+        .datum(proposedData)
         .attr("fill", "none")
-        .attr("stroke", "#FF6B00")
-        .attr("stroke-width", 8)
-        .attr("stroke-linecap", "round")
-        .attr("d", lineGenerator)
-        .attr("opacity", 0.1);
-
-      // Animated Dash Path
-      const path = svg.append("path")
-        .datum(routeData)
-        .attr("fill", "none")
-        .attr("stroke", "#FF6B00")
-        .attr("stroke-width", 3)
-        .attr("stroke-dasharray", "10,5")
-        .attr("stroke-linecap", "round")
+        .attr("stroke", "#B87333") // Burnished Copper
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "8,5")
+        .attr("opacity", 0.5)
         .attr("d", lineGenerator);
-
-      path.append("animate")
-        .attr("attributeName", "stroke-dashoffset")
-        .attr("from", "100")
-        .attr("to", "0")
-        .attr("dur", "3s")
-        .attr("repeatCount", "indefinite");
     }
 
-    // Draw markers
+    // 2. Actual Tracking History (Solid Royal Blue + Breadcrumbs)
+    if (trackingHistory && trackingHistory.length > 1) {
+      const actualLineGenerator = d3.line<any>()
+        .x(d => xScale(d.lng))
+        .y(d => yScale(d.lat))
+        .curve(d3.curveLinear);
+
+      svg.append("path")
+        .datum(trackingHistory)
+        .attr("fill", "none")
+        .attr("stroke", "#1E40AF") // Royal Blue
+        .attr("stroke-width", 3)
+        .attr("stroke-linecap", "round")
+        .attr("d", actualLineGenerator);
+
+      // Persistent dots for others to see the exact path maintained
+      trackingHistory.forEach((loc, idx) => {
+        if (idx % 3 === 0) {
+          svg.append("circle")
+            .attr("cx", xScale(loc.lng))
+            .attr("cy", yScale(loc.lat))
+            .attr("r", 2)
+            .attr("fill", "#1E40AF")
+            .attr("opacity", 0.4);
+        }
+      });
+    }
+
+    // 3. Dynamic Markers
     markers.forEach(m => {
       const g = svg.append("g");
       
-      // Pulse for active markers (like Partner/Courier)
-      if (m.label === 'Partner' || m.label === 'Courier') {
-        g.append("circle")
-          .attr("cx", xScale(m.loc.lng))
-          .attr("cy", yScale(m.loc.lat))
-          .attr("r", 15)
-          .attr("fill", m.color)
-          .attr("opacity", 0.3)
-          .append("animate")
-          .attr("attributeName", "r")
-          .attr("values", "8;22;8")
-          .attr("dur", "1.5s")
-          .attr("repeatCount", "indefinite");
-      }
-
-      // Marker Shadow
-      g.append("circle")
-        .attr("cx", xScale(m.loc.lng))
-        .attr("cy", yScale(m.loc.lat) + 2)
-        .attr("r", 8)
-        .attr("fill", "black")
-        .attr("opacity", 0.1);
-
-      // Main Marker
+      // Node Pulse (Radar Effect)
       g.append("circle")
         .attr("cx", xScale(m.loc.lng))
         .attr("cy", yScale(m.loc.lat))
-        .attr("r", 8)
+        .attr("r", 15)
         .attr("fill", m.color)
-        .attr("stroke", "white")
-        .attr("stroke-width", 2.5);
+        .attr("opacity", 0.2)
+        .append("animate")
+        .attr("attributeName", "r")
+        .attr("values", "10;30;10")
+        .attr("dur", "3s")
+        .attr("repeatCount", "indefinite");
 
-      // Label
+      g.append("circle")
+        .attr("cx", xScale(m.loc.lng))
+        .attr("cy", yScale(m.loc.lat))
+        .attr("r", 7)
+        .attr("fill", m.color)
+        .attr("stroke", "#ffffff")
+        .attr("stroke-width", 2);
+
       g.append("text")
         .attr("x", xScale(m.loc.lng))
-        .attr("y", yScale(m.loc.lat) - 14)
+        .attr("y", yScale(m.loc.lat) - 18)
         .attr("text-anchor", "middle")
-        .attr("font-size", "10px")
+        .attr("font-size", "8px")
         .attr("font-weight", "900")
-        .attr("fill", "#0A1F44")
-        .attr("class", "uppercase tracking-tighter")
+        .attr("fill", "#ffffff")
+        .attr("class", "uppercase tracking-[0.2em] italic")
         .text(m.label);
     });
 
-  }, [center, markers, showRoute]);
+  }, [center, markers, trackingHistory, showRoute]);
 
   return (
-    <div className="w-full bg-slate-50 dark:bg-slate-900 overflow-hidden shadow-inner border-b border-slate-100 dark:border-white/5">
+    <div className="w-full bg-slate-950 overflow-hidden relative shadow-2xl border-y border-white/5">
+      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+        <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+          <span className="text-[7px] font-black uppercase text-white tracking-widest italic">Live Breadcrumbs</span>
+        </div>
+        <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-amber-600"></div>
+          <span className="text-[7px] font-black uppercase text-white tracking-widest italic">Target Corridor</span>
+        </div>
+      </div>
       <svg ref={svgRef} viewBox="0 0 400 300" className="w-full h-auto"></svg>
     </div>
   );

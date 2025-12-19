@@ -9,10 +9,7 @@ export enum Role {
 export enum BookingStatus {
   PENDING = 'PENDING',
   ACCEPTED = 'ACCEPTED',
-  WAITING_FOR_SHOP_PICKUP = 'WAITING_FOR_SHOP_PICKUP',
   SO_TICKING = 'SO_TICKING',
-  TP_CONFIRMING_ITEMS = 'TP_CONFIRMING_ITEMS',
-  PAYMENT_TO_SO_PENDING = 'PAYMENT_TO_SO_PENDING',
   GOODS_IN_TRANSIT = 'GOODS_IN_TRANSIT',
   ON_TRIP = 'ON_TRIP',
   DELIVERED = 'DELIVERED',
@@ -33,14 +30,6 @@ export interface ShoppingItem {
   isAvailable: boolean;
 }
 
-export interface TripStop {
-  id: string;
-  startTime?: number;
-  endTime?: number;
-  status: 'PENDING' | 'ACTIVE' | 'COMPLETED';
-  waitTimeCharge: number;
-}
-
 export interface SystemLog {
   id: string;
   timestamp: number;
@@ -59,26 +48,25 @@ export interface User {
   isActive: boolean;
   location?: Location;
   balance: number; 
-  plan?: 'BASIC' | 'PREMIUM';
-  subscriptionExpiry?: number;
+  earnings?: number;
   memberSince: number;
   rating: number;
-  category?: string;
-  earnings?: number;
-  worksDone?: number;
   language: string;
   trustScore: number; 
-  cancellationRate: number; 
   isVerified: boolean;
-  isHospitalityPartner?: boolean;
-  hospitalityCashflow?: number; 
-  lodgeReceptionPhone?: string;
+  hospitalityCashflow?: number;
+  // Trust Indicators
+  cancellationRate?: number;
+  onTimeRate?: number;
+  completedMissions?: number;
+  isPremium?: boolean;
 }
 
 export interface Booking {
   id: string;
   customerId: string;
   providerId?: string;
+  lodgeId?: string;
   category: string;
   description: string;
   status: BookingStatus;
@@ -90,27 +78,18 @@ export interface Booking {
   price: number;
   commission: number; 
   isPaid: boolean;
-  roomNumber?: string;
-  receiptId?: string;
-  checkInDate?: number;
-  checkOutDate?: number;
-  lodgeId?: string;
   isTrustedTransportOnly?: boolean;
-  activeStop?: TripStop;
-  stopHistory: TripStop[];
-  pendingDestination?: Location;
-  etaMinutes?: number;
+  trackingHistory: Location[];
   isShoppingOrder?: boolean;
   shoppingItems?: ShoppingItem[];
   shopOwnerPhone?: string;
-  soPaid?: boolean;
-}
-
-export interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'BOOKING_REQUEST' | 'STATUS_UPDATE' | 'ADMIN_ALERT' | 'PAYMENT_REQUEST';
-  timestamp: number;
-  read: boolean;
+  roomNumber?: string;
+  receiptId?: string;
+  cancellationReason?: string;
+  // Support for Booking for Others
+  recipientName?: string;
+  recipientPhone?: string;
+  // Performance snapshots
+  customerTrustSnapshot?: number;
+  providerTrustSnapshot?: number;
 }

@@ -1,7 +1,7 @@
 {
-  "name": "Swensi",
-  "description": "Nakonde's local trade and transport link. Connecting the T1 border corridor with reliable services.",
   "requestFramePermissions": [
     "geolocation"
-  ]
+  ],
+  "name": "",
+  "description": ""
 }
