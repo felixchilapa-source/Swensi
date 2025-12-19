@@ -1,22 +1,35 @@
+
 {
-  "name": "Swensi Nakonde",
+  "name": "Swensi Nakonde - Trade & Transport",
   "short_name": "Swensi",
-  "description": "Nakonde's local trade and transport link.",
-  "start_url": "./",
+  "description": "Trusted logistics link for the Nakonde border corridor. Transport, Lodging, and Errands.",
+  "id": "com.swensi.nakonde.app",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#0A1F44",
-  "theme_color": "#FF6B00",
+  "orientation": "portrait",
+  "background_color": "#0F172A",
+  "theme_color": "#1E40AF",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/713/713311.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "https://cdn-icons-png.flaticon.com/512/713/713311.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/713/713311.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Swensi Nakonde Interface"
     }
   ]
 }
