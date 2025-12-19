@@ -22,7 +22,7 @@ interface CustomerDashboardProps {
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, onAddBooking, onConfirmCompletion, onUpdateBooking, t, location
+  user, logout, bookings, onAddBooking, onConfirmCompletion, onUpdateBooking, t, location, onBecomeProvider
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<any>(null);
@@ -362,7 +362,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         )}
 
         {activeTab === 'account' && (
-          <div className="animate-fade-in space-y-6">
+          <div className="animate-fade-in space-y-6 pb-12">
             <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl text-center">
               <div className="relative mx-auto w-24 h-24 mb-6">
                 <div className="absolute inset-0 rounded-full bg-blue-600 blur-2xl opacity-20 animate-pulse"></div>
@@ -393,6 +393,18 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                  <div className="w-full h-1 bg-current opacity-20 rounded-full mt-4">
                     <div className="h-full bg-current rounded-full" style={{ width: `${user.trustScore}%` }}></div>
                  </div>
+              </div>
+
+              {/* Account Upgrade Option */}
+              <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/5 space-y-4">
+                 <h4 className="text-[9px] font-black uppercase text-slate-500 tracking-widest italic">Partner Programs</h4>
+                 <button 
+                  onClick={onBecomeProvider}
+                  className="w-full bg-amber-600/10 text-amber-600 border border-amber-600/20 py-4 rounded-3xl flex items-center justify-center gap-3 active:scale-95 transition-all"
+                 >
+                   <i className="fa-solid fa-rocket text-sm"></i>
+                   <span className="text-[10px] font-black uppercase tracking-widest italic">Elevate to Partner Node</span>
+                 </button>
               </div>
             </div>
 

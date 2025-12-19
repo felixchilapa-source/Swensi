@@ -33,12 +33,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onToggleTheme, isDarkMode, languag
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      if (isAdmin) {
-        setStep('role_select');
-      } else {
-        setStep(2);
-        alert('Swensi Link Code: 123456');
-      }
+      // Everyone now chooses their role to ensure a customized experience
+      setStep('role_select');
     }, 800);
   };
 
@@ -50,9 +46,12 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onToggleTheme, isDarkMode, languag
 
   const verifyOtp = () => {
     if (otp === '123456') {
-      if (selectedRole === Role.ADMIN) {
+      if (selectedRole === Role.ADMIN && isAdmin) {
         setStep(3);
         alert('Layer 2 Challenge: 999888');
+      } else if (selectedRole === Role.ADMIN && !isAdmin) {
+        alert('Unauthorized Phone for Command Node access.');
+        setStep('role_select');
       } else {
         onLogin(phone, language, selectedRole);
       }
@@ -75,7 +74,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onToggleTheme, isDarkMode, languag
     <div className="flex flex-col justify-center items-center px-6 h-full relative overflow-hidden bg-white dark:bg-slate-950">
       <TermsModal isOpen={showTermsModal} onClose={() => setShowTermsModal(false)} />
       
-      {/* Premium Background Orbs */}
       <div className="absolute -top-40 -right-40 w-[400px] h-[400px] rounded-full blur-[100px] bg-blue-600/10 transition-colors"></div>
       <div className="absolute -bottom-40 -left-40 w-[400px] h-[400px] rounded-full blur-[100px] bg-amber-600/10 transition-colors"></div>
 
@@ -92,38 +90,23 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onToggleTheme, isDarkMode, languag
         <button onClick={onToggleTheme} className="w-11 h-11 rounded-2xl flex items-center justify-center bg-slate-50 dark:bg-white/5 text-slate-400 border border-slate-100 dark:border-white/10">
           <i className={`fa-solid ${isDarkMode ? 'fa-sun' : 'fa-moon'}`}></i>
         </button>
-
-        {showLangPicker && (
-          <div className="absolute top-14 left-0 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-white/10 z-50 animate-zoom-in">
-            {LANGUAGES.map(lang => (
-              <button
-                key={lang.code}
-                onClick={() => { onLanguageChange(lang.code); setShowLangPicker(false); }}
-                className={`w-full text-left px-4 py-3.5 flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-white/5 ${language === lang.code ? 'bg-blue-500/5' : ''}`}
-              >
-                <span className="text-lg">{lang.flag}</span>
-                <span className={`text-[11px] font-black uppercase ${language === lang.code ? 'text-blue-600' : 'text-slate-500'}`}>{lang.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="text-center mb-10 w-full animate-fade-in relative z-10">
-        <div className="relative mx-auto w-24 h-24 mb-6 group">
-           <div className="absolute inset-0 rounded-[32px] animate-pulse blur-xl opacity-20 bg-blue-600"></div>
-           <div className="relative w-full h-full bg-white dark:bg-slate-900 rounded-[32px] flex items-center justify-center shadow-2xl border-2 border-slate-100 dark:border-slate-800 rotate-3 group-hover:rotate-0 transition-transform duration-700">
-             <div className="bg-gradient-to-br from-blue-700 to-amber-600 w-full h-full rounded-[28px] flex items-center justify-center">
-                <i className={`fas ${selectedRole === Role.ADMIN && step !== 1 ? 'fa-shield-halved' : 'fa-route'} text-white text-4xl -rotate-3`}></i>
+        <div className="relative mx-auto w-20 h-20 mb-6 group">
+           <div className="absolute inset-0 rounded-[28px] animate-pulse blur-xl opacity-20 bg-blue-600"></div>
+           <div className="relative w-full h-full bg-white dark:bg-slate-900 rounded-[28px] flex items-center justify-center shadow-2xl border-2 border-slate-100 dark:border-slate-800 rotate-3 transition-transform duration-700">
+             <div className="bg-gradient-to-br from-blue-700 to-indigo-900 w-full h-full rounded-[24px] flex items-center justify-center">
+                <i className="fas fa-route text-white text-3xl -rotate-3"></i>
              </div>
            </div>
         </div>
         
         <h1 className="text-4xl font-black tracking-tighter text-secondary dark:text-white leading-none italic uppercase">
-          SWENSI <span className="text-blue-600">NAKONDE</span>
+          SWENSI <span className="text-blue-600">LINK</span>
         </h1>
         <p className="text-slate-400 font-black tracking-[0.3em] uppercase text-[8px] mt-2 opacity-80">
-          Trusted Border Town Logistics Link
+          Select Your Operational Path
         </p>
       </div>
 
@@ -161,36 +144,70 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onToggleTheme, isDarkMode, languag
                 disabled={loading || !termsAccepted}
                 className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] text-base tracking-tight shadow-xl shadow-blue-600/20 active:scale-95 transition-all disabled:opacity-40"
               >
-                {loading ? <i className="fa-solid fa-circle-notch animate-spin"></i> : t('verify_phone')}
+                {loading ? <i className="fa-solid fa-circle-notch animate-spin"></i> : "Verify Signal"}
               </button>
             </div>
           </div>
         )}
 
         {step === 'role_select' && (
-          <div className="animate-fade-in space-y-6">
-             <div className="text-center">
-               <h2 className="text-xl font-black text-blue-600 italic uppercase">Access Level Detected</h2>
-               <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Select authorization path</p>
-             </div>
+          <div className="animate-fade-in space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar pb-4">
              <div className="grid gap-3">
                 <button 
                   onClick={() => handleRoleSelection(Role.CUSTOMER)}
-                  className="p-8 bg-white dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[40px] text-left hover:border-blue-600 transition-all shadow-sm"
+                  className="p-5 bg-white dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[32px] text-left hover:border-blue-600 transition-all shadow-sm flex items-center gap-5"
                 >
-                   <i className="fa-solid fa-user text-blue-600 text-3xl mb-4"></i>
-                   <p className="text-[11px] font-black text-secondary dark:text-white uppercase tracking-tighter">Market User</p>
-                   <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Standard Node</p>
+                   <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-600">
+                     <i className="fa-solid fa-user text-xl"></i>
+                   </div>
+                   <div>
+                     <p className="text-[11px] font-black text-secondary dark:text-white uppercase tracking-tighter">Market User</p>
+                     <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">Logistics & Services</p>
+                   </div>
                 </button>
+
                 <button 
-                  onClick={() => handleRoleSelection(Role.ADMIN)}
-                  className="p-8 bg-slate-900 border-2 border-blue-600/30 rounded-[40px] text-left hover:border-blue-600 transition-all shadow-2xl"
+                  onClick={() => handleRoleSelection(Role.PROVIDER)}
+                  className="p-5 bg-white dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[32px] text-left hover:border-amber-600 transition-all shadow-sm flex items-center gap-5"
                 >
-                   <i className="fa-solid fa-shield-halved text-amber-500 text-3xl mb-4"></i>
-                   <p className="text-[11px] font-black text-white uppercase tracking-tighter">Command Node</p>
-                   <p className="text-[8px] font-bold text-blue-400/50 uppercase mt-1">Admin Center</p>
+                   <div className="w-12 h-12 bg-amber-600/10 rounded-2xl flex items-center justify-center text-amber-600">
+                     <i className="fa-solid fa-truck-fast text-xl"></i>
+                   </div>
+                   <div>
+                     <p className="text-[11px] font-black text-secondary dark:text-white uppercase tracking-tighter">Corridor Partner</p>
+                     <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">Driver / Service Node</p>
+                   </div>
                 </button>
+
+                <button 
+                  onClick={() => handleRoleSelection(Role.LODGE)}
+                  className="p-5 bg-white dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[32px] text-left hover:border-purple-600 transition-all shadow-sm flex items-center gap-5"
+                >
+                   <div className="w-12 h-12 bg-purple-600/10 rounded-2xl flex items-center justify-center text-purple-600">
+                     <i className="fa-solid fa-hotel text-xl"></i>
+                   </div>
+                   <div>
+                     <p className="text-[11px] font-black text-secondary dark:text-white uppercase tracking-tighter">Station Manager</p>
+                     <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">Lodge & Stay Hub</p>
+                   </div>
+                </button>
+
+                {isAdmin && (
+                  <button 
+                    onClick={() => handleRoleSelection(Role.ADMIN)}
+                    className="p-5 bg-slate-900 border-2 border-red-600/30 rounded-[32px] text-left hover:border-red-600 transition-all shadow-2xl flex items-center gap-5"
+                  >
+                     <div className="w-12 h-12 bg-red-600/10 rounded-2xl flex items-center justify-center text-red-600">
+                       <i className="fa-solid fa-shield-halved text-xl"></i>
+                     </div>
+                     <div>
+                       <p className="text-[11px] font-black text-white uppercase tracking-tighter">Command Node</p>
+                       <p className="text-[8px] font-bold text-red-400/50 uppercase mt-0.5">System Administration</p>
+                     </div>
+                  </button>
+                )}
              </div>
+             <button onClick={() => setStep(1)} className="w-full text-center text-[9px] font-black text-slate-400 uppercase tracking-widest pt-2 italic">Back to Signal</button>
           </div>
         )}
 
@@ -207,7 +224,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onToggleTheme, isDarkMode, languag
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 placeholder="000000"
-                className={`w-full border-2 rounded-[28px] py-5 text-center text-4xl font-black tracking-[0.15em] outline-none transition-all border-slate-100 focus:border-blue-600 bg-slate-50/30 dark:bg-white/5 text-slate-800 dark:text-white shadow-inner`}
+                className="w-full border-2 rounded-[28px] py-5 text-center text-4xl font-black tracking-[0.15em] outline-none transition-all border-slate-100 focus:border-blue-600 bg-slate-50/30 dark:bg-white/5 text-slate-800 dark:text-white shadow-inner"
               />
               <p className="text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Code for Demo: 123456</p>
               <button 

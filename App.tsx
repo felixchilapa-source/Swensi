@@ -82,12 +82,8 @@ const App: React.FC = () => {
     const isAdmin = adminNumbers.includes(phone);
     const finalLang = selectedLang || language;
     
+    // Use the role selected in the Auth screen
     let role = forcedRole || Role.CUSTOMER;
-    if (!forcedRole) {
-      if (isAdmin) role = Role.ADMIN;
-      else if (phone.endsWith('1')) role = Role.PROVIDER;
-      else if (phone.endsWith('2')) role = Role.LODGE;
-    }
 
     // Simulate tenure for test users
     const oneYearAgo = Date.now() - (366 * 24 * 60 * 60 * 1000);
@@ -111,9 +107,34 @@ const App: React.FC = () => {
       isPremium: role === Role.PROVIDER && Math.random() > 0.3
     };
 
-    if (!existingUser) setAllUsers(prev => [...prev, newUser]);
+    if (!existingUser) {
+      setAllUsers(prev => [...prev, newUser]);
+    } else {
+      // Update existing user with their new session role choice if it's different
+      // but only if they are not downgraded from Admin.
+      if (forcedRole && existingUser.role !== Role.ADMIN) {
+        newUser.role = forcedRole;
+      }
+    }
+
     setLanguage(newUser.language);
     setUser(newUser);
+  };
+
+  const handleBecomeProvider = () => {
+    if (!user) return;
+    const confirmMsg = "Do you wish to upgrade to a Partner Node? This will allow you to accept missions in the Nakonde Corridor.";
+    if (window.confirm(confirmMsg)) {
+      const updatedUser = { 
+        ...user, 
+        role: Role.PROVIDER, 
+        isVerified: true, 
+        trustScore: Math.max(user.trustScore, 90) 
+      };
+      setUser(updatedUser);
+      setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+      addNotification('NODE ELEVATED', 'You are now a verified Swensi Partner.', 'SUCCESS');
+    }
   };
 
   const addBooking = (bookingData: Partial<Booking>) => {
@@ -153,7 +174,6 @@ const App: React.FC = () => {
       if (b.id === id) {
         let finalUpdates = { ...updates };
 
-        // Handle Status Change Logic for Notifications
         if (updates.status === BookingStatus.CANCELLED) {
           if (user?.role === Role.CUSTOMER) {
             addNotification('MISSION ABORTED', 'Operational link terminated successfully.', 'INFO');
@@ -192,7 +212,6 @@ const App: React.FC = () => {
 
   return (
     <div className={`mobile-container ${isDarkMode ? 'dark' : ''}`}>
-      {/* System Notifications Overlay */}
       <div className="absolute top-20 left-6 right-6 z-[400] pointer-events-none flex flex-col gap-3">
          {notifications.map(n => (
            <div key={n.id} className={`p-4 rounded-[20px] shadow-2xl backdrop-blur-xl border border-white/10 animate-slide-up pointer-events-auto ${n.type === 'ALERT' ? 'bg-red-600/90 text-white' : n.type === 'SUCCESS' ? 'bg-blue-600/90 text-white' : 'bg-slate-900/90 text-white'}`}>
@@ -217,7 +236,7 @@ const App: React.FC = () => {
             <AdminDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} systemLogs={systemLogs} onToggleBlock={() => {}} onDeleteUser={() => {}} onToggleVerification={() => {}} onUpdateUserRole={() => {}} adminNumbers={adminNumbers} onAddAdmin={() => {}} onRemoveAdmin={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={() => {}} t={t} />
           )}
           {user.role === Role.CUSTOMER && (
-            <CustomerDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} onAddBooking={addBooking} location={currentLocation} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onBecomeProvider={() => {}} t={t} />
+            <CustomerDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} onAddBooking={addBooking} location={currentLocation} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onBecomeProvider={handleBecomeProvider} t={t} />
           )}
           {user.role === Role.PROVIDER && (
             <ProviderDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} onUpdateStatus={(id, status, pid) => updateBooking(id, { status, providerId: pid })} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onUpdateSubscription={() => {}} location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} t={t} />
