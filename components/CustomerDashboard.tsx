@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo } from 'react';
 import { User, Booking, Location, BookingStatus, ShoppingItem } from '../types';
-import { CATEGORIES, COLORS } from '../constants';
+import { CATEGORIES, Category } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 import AIAssistant from './AIAssistant';
@@ -24,12 +23,12 @@ interface CustomerDashboardProps {
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, onAddBooking, onConfirmCompletion, onUpdateBooking, t, location, onBecomeProvider
+  user, logout, bookings, onAddBooking, onConfirmCompletion, t, onBecomeProvider
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
-  const [selectedCategory, setSelectedCategory] = useState<any>(null);
-  const [isScheduling, setIsScheduling] = useState(false);
-  const [scheduleTime, setScheduleTime] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [isScheduling] = useState(false);
+  const [scheduleTime] = useState('');
   const [missionDesc, setMissionDesc] = useState('');
   const [landmark, setLandmark] = useState('');
   const [shoppingItems, setShoppingItems] = useState<string[]>([]);
@@ -47,6 +46,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings]);
 
   const handleLaunch = () => {
+    if (!selectedCategory) return;
+    
     const isShopping = selectedCategory.id === 'errands';
     const finalItems: ShoppingItem[] = shoppingItems.map(name => ({
       id: Math.random().toString(36).substr(2, 5),
@@ -70,7 +71,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     setMissionDesc('');
     setLandmark('');
     setShoppingItems([]);
-    setIsScheduling(false);
     setIsForOther(false);
     setRecipientName('');
     setRecipientPhone('');
@@ -95,7 +95,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
            <div className="relative w-full max-w-[420px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto no-scrollbar">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-black italic tracking-tighter text-secondary dark:text-white uppercase flex items-center gap-3">
-                   <span className="text-emerald-600">{selectedCategory.icon}</span>
+                   <span className="text-emerald-600"><i className={selectedCategory.icon}></i></span>
                    {selectedCategory.name}
                 </h3>
                 <button onClick={() => setSelectedCategory(null)} className="text-slate-400"><i className="fa-solid fa-circle-xmark text-xl"></i></button>
@@ -211,25 +211,13 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             <div className="grid grid-cols-2 gap-4">
               {CATEGORIES.map(cat => (
                 <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[160px] service-card shadow-sm hover:border-emerald-600 group">
-                  <div className="bg-emerald-50 dark:bg-emerald-500/10 w-12 h-12 rounded-2xl flex items-center justify-center text-emerald-700 text-xl group-hover:scale-110 transition-all">{cat.icon}</div>
+                  <div className="bg-emerald-50 dark:bg-emerald-500/10 w-12 h-12 rounded-2xl flex items-center justify-center text-emerald-700 text-xl group-hover:scale-110 transition-all"><i className={cat.icon}></i></div>
                   <div className="w-full">
                     <p className="text-[10px] font-black uppercase text-secondary dark:text-white tracking-tight italic">{cat.name}</p>
                     <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-1">{cat.hint}</p>
                   </div>
                 </button>
               ))}
-            </div>
-
-            <div className="bg-indigo-600/5 p-6 rounded-[32px] border border-indigo-500/10 flex items-center justify-between">
-              <div>
-                <p className="text-[8px] font-black text-indigo-600 uppercase tracking-widest italic mb-1">Trusted Partners</p>
-                <p className="text-xs font-black text-slate-800 dark:text-white uppercase italic">15 Verified Nodes Nearby</p>
-              </div>
-              <div className="flex -space-x-2">
-                {[1,2,3].map(i => (
-                  <div key={i} className="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white dark:border-slate-900 flex items-center justify-center text-[8px] font-black text-white italic">P</div>
-                ))}
-              </div>
             </div>
           </div>
         )}

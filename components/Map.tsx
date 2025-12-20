@@ -5,8 +5,8 @@ import { Location } from '../types';
 interface MapProps {
   center: Location;
   markers?: Array<{ loc: Location; color: string; label: string }>;
-  trackingHistory?: Location[]; // The "Actual Path"
-  showRoute?: boolean; // The "Proposed Path"
+  trackingHistory?: Location[];
+  showRoute?: boolean;
 }
 
 const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], showRoute = true }) => {
@@ -20,13 +20,11 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
-    // Night Vision Dark Slate Background
     svg.append("rect")
       .attr("width", width)
       .attr("height", height)
       .attr("fill", "#0F172A");
 
-    // Strategic Logistics Grid (Low Opacity)
     for (let i = 0; i < 20; i++) {
       svg.append("line").attr("x1", i * 30).attr("y1", 0).attr("x2", i * 30).attr("y2", height).attr("stroke", "#ffffff").attr("stroke-width", 0.5).attr("opacity", 0.05);
       svg.append("line").attr("x1", 0).attr("y1", i * 30).attr("x2", width).attr("y2", i * 30).attr("stroke", "#ffffff").attr("stroke-width", 0.5).attr("opacity", 0.05);
@@ -35,14 +33,13 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
     const xScale = d3.scaleLinear().domain([center.lng - 0.04, center.lng + 0.04]).range([0, width]);
     const yScale = d3.scaleLinear().domain([center.lat - 0.04, center.lat + 0.04]).range([height, 0]);
 
-    // 1. Proposed Path (Dashed Copper)
     if (showRoute && markers.length >= 2) {
-      const lineGenerator = d3.line<any>()
+      const lineGenerator = d3.line<Location>()
         .x(d => xScale(d.lng))
         .y(d => yScale(d.lat))
         .curve(d3.curveBasis);
 
-      const proposedData = [
+      const proposedData: Location[] = [
         markers[0].loc,
         { lat: (markers[0].loc.lat + markers[1].loc.lat) / 2 + 0.003, lng: (markers[0].loc.lng + markers[1].loc.lng) / 2 - 0.003 },
         markers[1].loc
@@ -51,16 +48,15 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
       svg.append("path")
         .datum(proposedData)
         .attr("fill", "none")
-        .attr("stroke", "#B87333") // Burnished Copper
+        .attr("stroke", "#B87333")
         .attr("stroke-width", 2)
         .attr("stroke-dasharray", "8,5")
         .attr("opacity", 0.5)
         .attr("d", lineGenerator);
     }
 
-    // 2. Actual Tracking History (Solid Royal Blue + Breadcrumbs)
     if (trackingHistory && trackingHistory.length > 1) {
-      const actualLineGenerator = d3.line<any>()
+      const actualLineGenerator = d3.line<Location>()
         .x(d => xScale(d.lng))
         .y(d => yScale(d.lat))
         .curve(d3.curveLinear);
@@ -68,12 +64,11 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
       svg.append("path")
         .datum(trackingHistory)
         .attr("fill", "none")
-        .attr("stroke", "#1E40AF") // Royal Blue
+        .attr("stroke", "#1E40AF")
         .attr("stroke-width", 3)
         .attr("stroke-linecap", "round")
         .attr("d", actualLineGenerator);
 
-      // Persistent dots for others to see the exact path maintained
       trackingHistory.forEach((loc, idx) => {
         if (idx % 3 === 0) {
           svg.append("circle")
@@ -86,11 +81,9 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
       });
     }
 
-    // 3. Dynamic Markers
     markers.forEach(m => {
       const g = svg.append("g");
       
-      // Node Pulse (Radar Effect)
       g.append("circle")
         .attr("cx", xScale(m.loc.lng))
         .attr("cy", yScale(m.loc.lat))
@@ -118,7 +111,6 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
         .attr("font-size", "8px")
         .attr("font-weight", "900")
         .attr("fill", "#ffffff")
-        .attr("class", "uppercase tracking-[0.2em] italic")
         .text(m.label);
     });
 
@@ -130,10 +122,6 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
         <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
           <span className="text-[7px] font-black uppercase text-white tracking-widest italic">Live Breadcrumbs</span>
-        </div>
-        <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-amber-600"></div>
-          <span className="text-[7px] font-black uppercase text-white tracking-widest italic">Target Corridor</span>
         </div>
       </div>
       <svg ref={svgRef} viewBox="0 0 400 300" className="w-full h-auto"></svg>
