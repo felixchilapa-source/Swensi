@@ -138,12 +138,11 @@ const App: React.FC = () => {
           ...bookingData
         } as Booking;
 
-        // Create accompanying Council Order
         const newCouncilOrder: CouncilOrder = {
           id: councilOrderId,
           bookingId: bookingId,
           customerPhone: user?.phone || '',
-          levyAmount: price * 0.05, // 5% Council Levy
+          levyAmount: price * 0.05,
           type: bookingData.category === 'transport' ? 'TRANSPORT_LEVY' : 'TRADE_PERMIT',
           status: 'ISSUED',
           issuedAt: Date.now()
@@ -292,15 +291,15 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className={`app-container ${isDarkMode ? 'dark' : ''}`}>
-      <div className="absolute top-20 left-6 right-6 z-[400] pointer-events-none flex flex-col gap-3">
+    <div className={`app-container ${isDarkMode ? 'dark' : ''} safe-pb`}>
+      <div className="fixed top-4 left-6 right-6 z-[999] pointer-events-none flex flex-col gap-3">
          {notifications.map(n => (
            <div key={n.id} className="p-4 rounded-[20px] shadow-2xl backdrop-blur-xl border border-white/10 bg-slate-900/90 text-white animate-slide-up pointer-events-auto">
              <div className="flex items-center gap-3">
                <div className={`w-2 h-2 rounded-full ${n.type === 'SUCCESS' ? 'bg-emerald-500' : 'bg-blue-500'} animate-pulse`}></div>
                <div>
                  <p className="text-[9px] font-black uppercase italic tracking-widest">{n.title}</p>
-                 <p className="text-[11px] font-bold mt-0.5">{n.message}</p>
+                 <p className="text-[11px] font-bold mt-0.5 leading-tight">{n.message}</p>
                </div>
              </div>
            </div>
@@ -312,13 +311,13 @@ const App: React.FC = () => {
       ) : renderDashboard()}
 
       {pendingPayment && (
-        <div className="fixed inset-0 z-[600] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[1000] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6">
            <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl border-2 border-blue-600 text-center animate-zoom-in">
               <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto mb-6">
                 <i className="fa-solid fa-fingerprint text-blue-600 text-3xl"></i>
               </div>
               <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 italic uppercase tracking-tighter">Authorize Escrow</h3>
-              <p className="text-4xl font-black text-blue-700 mb-8 italic tracking-tight">ZMW {pendingPayment.amount.toFixed(2)}</p>
+              <p className="text-4xl font-black text-blue-700 mb-8 italic tracking-tight leading-none">ZMW {pendingPayment.amount.toFixed(2)}</p>
               <div className="space-y-3">
                 <button onClick={pendingPayment.onComplete} className="w-full py-5 bg-blue-700 text-white font-black rounded-[24px] text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 italic">Commit Funds</button>
                 <button onClick={() => setPendingPayment(null)} className="w-full py-3 text-slate-400 font-black text-[9px] uppercase tracking-widest">Abort Transaction</button>

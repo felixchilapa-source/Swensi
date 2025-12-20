@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { Role, User } from '../types';
 import { COLORS, LANGUAGES } from '../constants';
@@ -25,7 +26,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   
-  // Registration States
   const [regName, setRegName] = useState('');
   const [regAvatar, setRegAvatar] = useState('');
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -91,22 +91,21 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
   const selectedLanguage = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];
 
   return (
-    <div className="flex flex-col justify-center items-center px-6 h-full relative overflow-hidden bg-white dark:bg-slate-950 transition-colors duration-500 mesh-gradient">
+    <div className="flex flex-col justify-center items-center px-6 h-full relative overflow-hidden bg-white dark:bg-slate-950 transition-colors duration-500 mesh-gradient safe-pt safe-pb">
       <TermsModal isOpen={showTermsModal} onClose={() => setShowTermsModal(false)} />
       
-      {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600 blur-[120px] animate-pulse-slow"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-amber-600 blur-[120px] animate-pulse-slow delay-1000"></div>
       </div>
 
-      <div className="absolute top-8 left-6 right-6 flex justify-between items-center z-20">
+      <div className="absolute top-12 left-6 right-6 flex justify-between items-center z-20">
         <button 
           onClick={() => setShowLangPicker(!showLangPicker)}
           className="px-4 py-2 rounded-2xl flex items-center gap-2 bg-slate-50/80 dark:bg-white/5 text-slate-500 backdrop-blur-md border border-slate-200/50 dark:border-white/10 shadow-sm"
         >
-          <span className="text-base">{selectedLanguage.flag}</span>
-          <span className="text-[10px] font-black uppercase tracking-widest">{selectedLanguage.name}</span>
+          <span className="text-base leading-none">{selectedLanguage.flag}</span>
+          <span className="text-[10px] font-black uppercase tracking-widest leading-none">{selectedLanguage.name}</span>
           <i className="fa-solid fa-chevron-down text-[8px] opacity-40"></i>
         </button>
 
@@ -115,8 +114,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
         </button>
       </div>
 
-      <div className="text-center mb-10 w-full animate-fade-in relative z-10">
-        <div className="relative mx-auto w-24 h-24 mb-8 group animate-float">
+      <div className="text-center mb-12 w-full animate-fade-in relative z-10">
+        <div className="relative mx-auto w-24 h-24 mb-6 group animate-float">
            <div className="absolute inset-[-10px] rounded-[32px] blur-2xl opacity-40 bg-gradient-to-tr from-blue-600 to-indigo-600 group-hover:opacity-60 transition-opacity"></div>
            <div className="relative w-full h-full bg-white dark:bg-slate-900 rounded-[30px] flex items-center justify-center shadow-2xl border-2 border-slate-100 dark:border-slate-800 transform group-hover:scale-105 transition-transform duration-500">
              <div className="bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 w-[85%] h-[85%] rounded-[24px] flex items-center justify-center shadow-inner">
@@ -126,10 +125,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
         </div>
         
         <div className="inline-block px-3 py-1 bg-blue-600/10 dark:bg-blue-500/10 rounded-full border border-blue-600/20 mb-4">
-           <span className="text-[9px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-[0.2em] italic">Nakonde Corridor Hub</span>
+           <span className="text-[9px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-[0.2em] italic leading-none">Nakonde Corridor Hub</span>
         </div>
 
-        <h1 className="text-5xl font-black tracking-tighter text-secondary dark:text-white leading-none italic uppercase">
+        <h1 className="text-4xl font-black tracking-tighter text-secondary dark:text-white leading-tight italic uppercase">
           SWENSI <span className="bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">LINK</span>
         </h1>
       </div>
@@ -138,20 +137,20 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
         {step === 1 && (
           <div className="animate-fade-in space-y-6">
             <div className="space-y-4">
-              <div className="flex items-center border-2 rounded-[28px] px-6 py-5 focus-within:border-blue-600 transition-all border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 shadow-inner backdrop-blur-sm">
-                <span className="text-slate-400 font-black mr-4 text-lg border-r border-slate-200 dark:border-white/10 pr-4 italic">ZM</span>
+              <div className="flex items-center border-2 rounded-[28px] px-6 py-4.5 focus-within:border-blue-600 transition-all border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 shadow-inner backdrop-blur-sm">
+                <span className="text-slate-400 font-black mr-4 text-lg border-r border-slate-200 dark:border-white/10 pr-4 italic leading-none">ZM</span>
                 <input 
                   type="tel" 
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="09XXXXXXXX"
-                  className="flex-1 outline-none text-xl font-black text-slate-800 dark:text-white bg-transparent placeholder:opacity-30"
+                  className="flex-1 outline-none text-xl font-black text-slate-800 dark:text-white bg-transparent placeholder:opacity-30 leading-none"
                 />
               </div>
 
               <div className="px-4">
                 <label className="flex items-center gap-3 cursor-pointer group">
-                  <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${termsAccepted ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-700'}`}>
+                  <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all flex-shrink-0 ${termsAccepted ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-700'}`}>
                     {termsAccepted && <i className="fa-solid fa-check text-white text-[10px]"></i>}
                     <input 
                       type="checkbox" 
@@ -160,7 +159,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
                       onChange={(e) => setTermsAccepted(e.target.checked)}
                     />
                   </div>
-                  <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wide group-hover:text-blue-600 transition-colors">
+                  <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wide group-hover:text-blue-600 transition-colors leading-normal">
                     Accept <button onClick={(e) => { e.preventDefault(); setShowTermsModal(true); }} className="text-blue-600 underline font-black decoration-blue-600/30 underline-offset-2">Trade Protocols</button>
                   </span>
                 </label>
@@ -169,7 +168,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
               <button 
                 onClick={requestOtp}
                 disabled={loading || !termsAccepted}
-                className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-5 rounded-[28px] text-base tracking-tight shadow-2xl shadow-blue-600/30 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed uppercase italic flex items-center justify-center gap-3"
+                className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-5 rounded-[28px] text-base tracking-tight shadow-2xl shadow-blue-600/30 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed uppercase italic flex items-center justify-center gap-3 leading-none"
               >
                 {loading ? <i className="fa-solid fa-circle-notch animate-spin"></i> : "Establish Signal"}
               </button>
@@ -179,41 +178,41 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
 
         {step === 2 && (
           <div className="animate-slide-up space-y-6 text-center">
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2 italic">Authentication: +260 {phone}</p>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2 italic leading-none">Authentication: +260 {phone}</p>
             <input 
               type="text" 
               maxLength={6}
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
               placeholder="000000"
-              className="w-full border-2 rounded-[28px] py-5 text-center text-5xl font-black tracking-[0.2em] outline-none border-slate-100 dark:border-white/5 focus:border-blue-600 bg-slate-50/50 dark:bg-white/5 text-slate-800 dark:text-white shadow-inner"
+              className="w-full border-2 rounded-[28px] py-6 text-center text-5xl font-black tracking-[0.2em] outline-none border-slate-100 dark:border-white/5 focus:border-blue-600 bg-slate-50/50 dark:bg-white/5 text-slate-800 dark:text-white shadow-inner leading-none"
             />
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Verification code: 123456</p>
-            <button onClick={verifyOtp} className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] shadow-2xl uppercase italic">Establish Link</button>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic leading-none">Verification code: 123456</p>
+            <button onClick={verifyOtp} className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] shadow-2xl uppercase italic leading-none">Establish Link</button>
           </div>
         )}
 
         {step === 3 && (
           <div className="animate-fade-in space-y-6 text-center">
-            <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase">Override Required</h2>
+            <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase leading-none">Override Required</h2>
             <input 
               type="text" 
               maxLength={6}
               value={extraOtp}
               onChange={(e) => setExtraOtp(e.target.value)}
               placeholder="000000"
-              className="w-full border-2 border-amber-500/50 rounded-[28px] py-5 text-center text-5xl font-black tracking-[0.2em] outline-none text-slate-800 dark:text-white bg-amber-50/10 shadow-inner"
+              className="w-full border-2 border-amber-500/50 rounded-[28px] py-6 text-center text-5xl font-black tracking-[0.2em] outline-none text-slate-800 dark:text-white bg-amber-50/10 shadow-inner leading-none"
             />
-            <p className="text-[9px] font-black text-amber-600/70 uppercase tracking-widest italic">Bypass Challenge: 999888</p>
-            <button onClick={verifyExtraOtp} className="w-full bg-slate-900 text-white font-black py-5 rounded-[28px] border-2 border-amber-500/30 uppercase italic">Unlock Command</button>
+            <p className="text-[9px] font-black text-amber-600/70 uppercase tracking-widest italic leading-none">Bypass Challenge: 999888</p>
+            <button onClick={verifyExtraOtp} className="w-full bg-slate-900 text-white font-black py-5 rounded-[28px] border-2 border-amber-500/30 uppercase italic leading-none">Unlock Command</button>
           </div>
         )}
 
         {step === 'profile_setup' && (
           <div className="animate-fade-in space-y-6">
-            <div className="text-center mb-4">
-              <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">Identity Setup</h2>
-              <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mt-1">Registering new corridor node</p>
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase tracking-tighter leading-none">Identity Setup</h2>
+              <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mt-2 leading-none">Registering new corridor node</p>
             </div>
             
             <div className="flex flex-col items-center gap-4 mb-4">
@@ -225,8 +224,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
                   <img src={regAvatar} className="w-full h-full object-cover" />
                 ) : (
                   <div className="text-center p-4">
-                    <i className="fa-solid fa-camera text-2xl text-blue-600/40 mb-1"></i>
-                    <p className="text-[7px] font-black uppercase text-slate-500">Avatar Capture</p>
+                    <i className="fa-solid fa-camera text-2xl text-blue-600/40 mb-2"></i>
+                    <p className="text-[7px] font-black uppercase text-slate-500 leading-none">Avatar Capture</p>
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -237,18 +236,18 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
             </div>
 
             <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-3 italic">Full Operational Alias (Name)</label>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-3 italic leading-none">Full Operational Alias (Name)</label>
                 <input 
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
                   placeholder="e.g. John Mwansa"
-                  className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-sm font-black outline-none focus:border-blue-600 shadow-inner"
+                  className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-sm font-black outline-none focus:border-blue-600 shadow-inner leading-none"
                 />
               </div>
               <button 
                 onClick={handleCompleteRegistration}
-                className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] text-[10px] uppercase tracking-[0.2em] shadow-xl italic"
+                className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] text-[10px] uppercase tracking-[0.2em] shadow-xl italic leading-none"
               >
                 Register & Enter Terminal
               </button>
@@ -257,8 +256,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
         )}
       </div>
 
-      <div className="absolute bottom-10 w-full text-center z-10">
-        <p className="text-[8px] text-slate-400 dark:text-slate-600 font-black uppercase tracking-[0.4em] italic">
+      <div className="absolute bottom-10 w-full text-center z-10 safe-pb">
+        <p className="text-[8px] text-slate-400 dark:text-slate-600 font-black uppercase tracking-[0.4em] italic leading-none">
           Synchronized by <span className="text-blue-600">Swensi Protocols</span>
         </p>
       </div>
