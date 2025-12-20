@@ -3,17 +3,13 @@ import { createRoot } from 'react-dom/client';
 import * as d3 from 'd3';
 import { GoogleGenAI } from "@google/genai";
 
-/**
- * CORE POLYFILLS & CONFIG
- * Ensures the app doesn't crash in browser environments.
- */
+// Ensure process is polyfilled for the browser if env-config.js failed or is slow
 if (typeof (window as any).process === 'undefined') {
   (window as any).process = { env: {} };
 }
 const process = (window as any).process;
-const getApiKey = () => process.env.API_KEY || '';
 
-// --- 1. TYPES & CONSTANTS ---
+// --- 1. CORE TYPES ---
 enum Role { CUSTOMER = 'CUSTOMER', PROVIDER = 'PROVIDER', ADMIN = 'ADMIN', LODGE = 'LODGE' }
 enum BookingStatus { PENDING = 'PENDING', ACCEPTED = 'ACCEPTED', ON_TRIP = 'ON_TRIP', DELIVERED = 'DELIVERED', COMPLETED = 'COMPLETED', CANCELLED = 'CANCELLED' }
 
@@ -37,18 +33,23 @@ const NewsTicker = () => {
   const [news, setNews] = useState(["Connecting to Nakonde Trade Signal...", "Scanning Corridor..."]);
   useEffect(() => {
     const fetchNews = async () => {
-      const apiKey = getApiKey();
+      const apiKey = process.env.API_KEY;
       if (!apiKey) return;
       try {
         const ai = new GoogleGenAI({ apiKey });
         const res = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: 'Generate 3 short trade news items for Nakonde (max 8 words each).'
+          contents: 'Generate 3 short news items for Nakonde trade link (max 8 words each).'
         });
-        if (res.text) setNews(res.text.split('\n').filter(l => l.length > 5).slice(0, 3));
+        if (res.text) {
+          const lines = res.text.split('\n').filter(l => l.length > 5).slice(0, 3);
+          if (lines.length > 0) setNews(lines);
+        }
       } catch (e) { console.debug("Ticker offline"); }
     };
     fetchNews();
+    const interval = setInterval(fetchNews, 600000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -62,6 +63,61 @@ const NewsTicker = () => {
   );
 };
 
+const AIAssistant = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<{role: 'user' | 'bot', text: string}[]>([
+    { role: 'bot', text: "Mwapoleni! I'm Swensi AI. Ask me about Nakonde border procedures!" }
+  ]);
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, isOpen]);
+
+  const handleSend = async () => {
+    if (!input.trim() || loading || !process.env.API_KEY) return;
+    const userText = input;
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: userText }]);
+    setLoading(true);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: userText,
+        config: { systemInstruction: `You are Swensi AI, helping with Nakonde border trade. Keep it brief and friendly.` },
+      });
+      setMessages(prev => [...prev, { role: 'bot', text: response.text || "Signal lost, zikomo." }]);
+    } catch (err) { setMessages(prev => [...prev, { role: 'bot', text: "I'm currently offline." }]); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <>
+      <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl z-[500] flex items-center justify-center animate-bounce border-4 border-slate-900">
+        <i className={`fa-solid ${isOpen ? 'fa-xmark' : 'fa-robot'} text-xl`}></i>
+      </button>
+      {isOpen && (
+        <div className="fixed inset-x-6 bottom-40 bg-slate-900 rounded-[32px] shadow-2xl z-[500] border border-blue-500/20 flex flex-col max-h-[50vh] overflow-hidden">
+          <div className="p-4 bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest italic">Swensi Assistant</div>
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] p-3 rounded-2xl text-xs ${m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-200'}`}>{m.text}</div>
+              </div>
+            ))}
+          </div>
+          <div className="p-3 bg-slate-800 flex gap-2">
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSend()} placeholder="Ask something..." className="flex-1 bg-slate-700 border-none rounded-xl px-4 py-3 text-xs text-white outline-none" />
+            <button onClick={handleSend} className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center"><i className="fa-solid fa-paper-plane text-xs"></i></button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 const MapView = ({ center, history = [] }: { center: { lat: number, lng: number }, history?: any[] }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   useEffect(() => {
@@ -70,16 +126,13 @@ const MapView = ({ center, history = [] }: { center: { lat: number, lng: number 
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
     svg.append("rect").attr("width", width).attr("height", height).attr("fill", "#020617");
-    
     const xScale = d3.scaleLinear().domain([center.lng - 0.01, center.lng + 0.01]).range([0, width]);
     const yScale = d3.scaleLinear().domain([center.lat - 0.01, center.lat + 0.01]).range([height, 0]);
-
     if (history.length > 1) {
       svg.append("path").datum(history).attr("fill", "none").attr("stroke", "#1E40AF").attr("stroke-width", 3).attr("d", d3.line<any>().x(d => xScale(d.lng)).y(d => yScale(d.lat)));
     }
     svg.append("circle").attr("cx", xScale(center.lng)).attr("cy", yScale(center.lat)).attr("r", 8).attr("fill", "#059669").attr("stroke", "#fff").attr("stroke-width", 2);
   }, [center, history]);
-
   return <div className="w-full bg-slate-950 overflow-hidden shadow-inner"><svg ref={svgRef} viewBox="0 0 400 250" className="w-full h-auto"></svg></div>;
 };
 
@@ -87,7 +140,6 @@ const Auth = ({ onLogin }: { onLogin: any }) => {
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState(Role.CUSTOMER);
   const [step, setStep] = useState(1);
-
   return (
     <div className="flex flex-col justify-center items-center px-8 h-full bg-slate-950 text-white">
       <div className="text-center mb-12">
@@ -119,11 +171,8 @@ const Auth = ({ onLogin }: { onLogin: any }) => {
   );
 };
 
-// --- 3. MAIN DASHBOARD ---
-
 const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any) => {
   const [tab, setTab] = useState('home');
-
   return (
     <div className="flex flex-col h-full bg-slate-950 text-white">
       <header className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
@@ -134,14 +183,13 @@ const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any)
         </div>
       </header>
       <NewsTicker />
-      
       <div className="flex-1 overflow-y-auto p-6 pb-32 space-y-6 no-scrollbar">
         {tab === 'home' ? (
           user.role === Role.CUSTOMER ? (
             <div className="grid grid-cols-2 gap-4">
               {CATEGORIES.map(c => (
                 <button key={c.id} onClick={() => onAddBooking(c)} className="bg-slate-900 p-8 rounded-[32px] border border-white/5 flex flex-col items-center gap-4 shadow-xl active:scale-95 transition-all">
-                  <i className={`fa-solid ${c.icon === 'fa-car-side' ? 'fa-car-side' : c.icon === 'fa-file-contract' ? 'fa-file-contract' : c.icon === 'fa-bed' ? 'fa-bed' : 'fa-shopping-cart'} text-3xl text-blue-600`}></i>
+                  <i className={`fa-solid ${c.icon} text-3xl text-blue-600`}></i>
                   <p className="text-[10px] font-black uppercase tracking-widest">{c.name}</p>
                 </button>
               ))}
@@ -150,7 +198,7 @@ const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any)
             <div className="space-y-4">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Available Missions</h3>
               {bookings.filter((b:any) => b.status === BookingStatus.PENDING).map((b:any) => (
-                <div key={b.id} className="bg-slate-900 p-6 rounded-[32px] border border-white/5 flex justify-between items-center animate-fade-in">
+                <div key={b.id} className="bg-slate-900 p-6 rounded-[32px] border border-white/5 flex justify-between items-center">
                   <div>
                     <p className="text-[9px] font-black uppercase text-blue-500 italic tracking-widest">{b.category}</p>
                     <p className="text-lg font-black italic">ZMW {b.price}</p>
@@ -158,15 +206,12 @@ const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any)
                   <button onClick={() => onUpdateBooking(b.id, BookingStatus.ACCEPTED)} className="bg-blue-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase italic">Accept</button>
                 </div>
               ))}
-              {bookings.filter((b:any) => b.status === BookingStatus.PENDING).length === 0 && (
-                <p className="text-center text-slate-700 py-10 uppercase text-[10px] font-black tracking-widest italic">Scanning corridor for trade signals...</p>
-              )}
             </div>
           )
         ) : (
           <div className="space-y-6">
             {bookings.filter((b:any) => b.status !== BookingStatus.COMPLETED).map((b:any) => (
-              <div key={b.id} className="bg-slate-900 rounded-[40px] border border-white/5 overflow-hidden shadow-2xl animate-fade-in">
+              <div key={b.id} className="bg-slate-900 rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
                 {b.status === BookingStatus.ON_TRIP && <MapView center={b.location} history={b.trackingHistory} />}
                 <div className="p-8">
                   <div className="flex justify-between items-center mb-4">
@@ -175,18 +220,14 @@ const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any)
                   </div>
                   <p className="text-sm font-medium text-slate-400 italic">"{b.description}"</p>
                   {user.role === Role.PROVIDER && b.status === BookingStatus.ACCEPTED && (
-                    <button onClick={() => onUpdateBooking(b.id, BookingStatus.COMPLETED)} className="w-full bg-blue-600 mt-6 py-4 rounded-2xl font-black uppercase italic text-xs active:scale-95 transition-all shadow-lg shadow-blue-600/20">Complete Mission</button>
+                    <button onClick={() => onUpdateBooking(b.id, BookingStatus.COMPLETED)} className="w-full bg-blue-600 mt-6 py-4 rounded-2xl font-black uppercase italic text-xs">Complete Mission</button>
                   )}
                 </div>
               </div>
             ))}
-            {bookings.filter((b:any) => b.status !== BookingStatus.COMPLETED).length === 0 && (
-              <p className="text-center text-slate-700 py-20 uppercase text-[10px] font-black tracking-widest italic">No active missions linked.</p>
-            )}
           </div>
         )}
       </div>
-
       <nav className="absolute bottom-8 left-8 right-8 h-20 bg-slate-900/90 border border-white/10 rounded-[35px] flex justify-around items-center backdrop-blur-xl shadow-2xl z-[100]">
         <button onClick={() => setTab('home')} className={tab === 'home' ? 'text-blue-500 scale-110' : 'text-slate-500'}><i className="fa-solid fa-house-chimney text-xl"></i></button>
         <button onClick={() => setTab('active')} className={tab === 'active' ? 'text-blue-600 scale-110' : 'text-slate-500'}><i className="fa-solid fa-route text-xl"></i></button>
@@ -196,48 +237,21 @@ const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any)
   );
 };
 
-// --- 4. CORE APP ---
-
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>(() => JSON.parse(localStorage.getItem('swensi-v6-db') || '[]'));
-
-  useEffect(() => localStorage.setItem('swensi-v6-db', JSON.stringify(bookings)), [bookings]);
-
-  const onLogin = (phone: string, role: Role) => {
-    setUser({ 
-      id: 'U' + Math.random().toString(36).substr(2, 5).toUpperCase(), 
-      phone, 
-      role, 
-      name: 'Node-' + phone.slice(-4), 
-      balance: 1500, 
-      trustScore: 98, 
-      isVerified: true 
-    });
-  };
-
+  const [bookings, setBookings] = useState<Booking[]>(() => JSON.parse(localStorage.getItem('swensi-v7-db') || '[]'));
+  useEffect(() => localStorage.setItem('swensi-v7-db', JSON.stringify(bookings)), [bookings]);
+  const onLogin = (phone: string, role: Role) => setUser({ id: 'U' + Math.random().toString(36).substr(2, 5).toUpperCase(), phone, role, name: 'Node-' + phone.slice(-4), balance: 1500, trustScore: 98, isVerified: true });
   const onAddBooking = (cat: any) => {
-    const b: Booking = { 
-      id: 'SW-' + Math.random().toString(36).substr(2, 4).toUpperCase(), 
-      customerId: user!.id, 
-      category: cat.name, 
-      description: `Trade Request: ${cat.name}`, 
-      status: BookingStatus.PENDING, 
-      price: cat.basePrice || 100, 
-      createdAt: Date.now(), 
-      location: { lat: -9.3283, lng: 32.7569 }, 
-      trackingHistory: [{ lat: -9.3283, lng: 32.7569 }] 
-    };
+    const b: Booking = { id: 'SW-' + Math.random().toString(36).substr(2, 4).toUpperCase(), customerId: user!.id, category: cat.name, description: `Trade Request: ${cat.name}`, status: BookingStatus.PENDING, price: cat.basePrice || 100, createdAt: Date.now(), location: { lat: -9.3283, lng: 32.7569 }, trackingHistory: [{ lat: -9.3283, lng: 32.7569 }] };
     setBookings([b, ...bookings]);
   };
-
-  const onUpdateBooking = (id: string, status: BookingStatus) => {
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status, providerId: user?.id } : b));
-  };
+  const onUpdateBooking = (id: string, status: BookingStatus) => setBookings(prev => prev.map(b => b.id === id ? { ...b, status, providerId: user?.id } : b));
 
   return (
     <div className="app-container">
       {!user ? <Auth onLogin={onLogin} /> : <MainApp user={user} logout={() => setUser(null)} bookings={bookings} onAddBooking={onAddBooking} onUpdateBooking={onUpdateBooking} />}
+      <AIAssistant />
     </div>
   );
 };
