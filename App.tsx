@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Booking, BookingStatus, Location, SystemLog, CouncilOrder } from './types';
 import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS } from './constants';
 import Auth from './components/Auth';
@@ -12,7 +12,7 @@ interface SwensiNotification {
   id: string;
   title: string;
   message: string;
-  type: 'INFO' | 'ALERT' | 'SUCCESS';
+  type: 'INFO' | 'ALERT' | 'SUCCESS' | 'SMS';
 }
 
 const App: React.FC = () => {
@@ -62,13 +62,19 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
-  const addNotification = (title: string, message: string, type: 'INFO' | 'ALERT' | 'SUCCESS' = 'INFO') => {
+  const addNotification = useCallback((title: string, message: string, type: 'INFO' | 'ALERT' | 'SUCCESS' | 'SMS' = 'INFO') => {
     const id = Math.random().toString(36).substr(2, 9);
     setNotifications(prev => [{ id, title, message, type }, ...prev]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 5000);
-  };
+  }, []);
+
+  // Mock SMS Service
+  const sendMockSMS = useCallback((phone: string, message: string) => {
+    console.log(`%c[SMS SENT TO ${phone}]: ${message}`, "color: #3b82f6; font-weight: bold; border: 1px solid #3b82f6; padding: 4px; border-radius: 4px;");
+    addNotification('SMS GATEWAY', `Message sent to ${phone}`, 'SMS');
+  }, [addNotification]);
 
   const t = (key: string) => TRANSLATIONS[language]?.[key] || TRANSLATIONS['en'][key] || key;
 
@@ -80,6 +86,7 @@ const App: React.FC = () => {
       if (existingUser.role !== Role.CUSTOMER) setViewMode('MANAGEMENT');
       else setViewMode('CUSTOMER');
       addNotification('TERMINAL AUTH', `Welcome back, ${existingUser.name}`, 'SUCCESS');
+      sendMockSMS(phone, `Swensi Alert: Secure login detected on your account at ${new Date().toLocaleTimeString()}.`);
     }
   };
 
@@ -107,6 +114,7 @@ const App: React.FC = () => {
     setUser(newUser);
     setViewMode(isAdmin ? 'MANAGEMENT' : 'CUSTOMER');
     addNotification('NODE REGISTERED', `Welcome to the Corridor, ${name}`, 'SUCCESS');
+    sendMockSMS(phone, `Welcome to Swensi Link, ${name}! Your trade terminal is now active.`);
   };
 
   const addBooking = (bookingData: Partial<Booking>) => {
@@ -156,6 +164,7 @@ const App: React.FC = () => {
         setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance } : u));
         setPendingPayment(null);
         addNotification('MISSION LOGGED', 'Mission & Council Compliance established.', 'SUCCESS');
+        sendMockSMS(user?.phone || '', `Swensi Booking: Your mission ${bookingId} has been logged. Escrow ZMW ${price.toFixed(2)} secured.`);
       }
     });
   };
@@ -164,10 +173,19 @@ const App: React.FC = () => {
     setBookings(prev => prev.map(b => {
       if (b.id === id) {
         const updated = { ...b, ...updates };
+        
+        // SMS Notifications for Status Changes
+        if (updates.status && updates.status !== b.status) {
+          sendMockSMS(b.customerPhone, `Swensi Alert: Mission ${b.id} status updated to ${updates.status}.`);
+        }
+
         if (updates.status === BookingStatus.COMPLETED && !b.isPaid) {
           const providerPay = b.price - b.commission;
           setAllUsers(uPrev => uPrev.map(u => {
-            if (u.id === b.providerId) return { ...u, balance: u.balance + providerPay, completedMissions: (u.completedMissions || 0) + 1 };
+            if (u.id === b.providerId) {
+              sendMockSMS(u.phone, `Swensi Payout: Mission ${b.id} completed. ZMW ${providerPay.toFixed(2)} added to your node balance.`);
+              return { ...u, balance: u.balance + providerPay, completedMissions: (u.completedMissions || 0) + 1 };
+            }
             if (u.phone === SUPER_ADMIN) return { ...u, balance: u.balance + b.commission };
             return u;
           }));
@@ -214,6 +232,7 @@ const App: React.FC = () => {
             setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
             setViewMode('MANAGEMENT');
             addNotification('KYC SUBMITTED', 'Dossier received for clearance.', 'SUCCESS');
+            sendMockSMS(user.phone, `Swensi KYC: Your provider application is under review. You will be notified upon verification.`);
           }} 
           onUpdateUser={handleUpdateUser} 
           t={t} 
@@ -235,7 +254,14 @@ const App: React.FC = () => {
             onToggleBlock={() => {}} 
             onDeleteUser={() => {}} 
             onToggleVerification={(userId) => {
-              setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: !u.isVerified } : u));
+              setAllUsers(prev => prev.map(u => {
+                if (u.id === userId) {
+                  const newVerified = !u.isVerified;
+                  if (newVerified) sendMockSMS(u.phone, `Swensi Alert: Your node has been VERIFIED. You can now accept missions in the corridor!`);
+                  return { ...u, isVerified: newVerified };
+                }
+                return u;
+              }));
               if (user.id === userId) setUser(prev => prev ? { ...prev, isVerified: !prev.isVerified } : null);
             }} 
             onUpdateUserRole={() => {}} 
@@ -292,14 +318,14 @@ const App: React.FC = () => {
 
   return (
     <div className={`app-container ${isDarkMode ? 'dark' : ''} safe-pb`}>
-      <div className="fixed top-4 left-6 right-6 z-[999] pointer-events-none flex flex-col gap-3">
+      <div className="fixed top-6 left-6 right-6 z-[2000] pointer-events-none flex flex-col gap-3">
          {notifications.map(n => (
-           <div key={n.id} className="p-4 rounded-[20px] shadow-2xl backdrop-blur-xl border border-white/10 bg-slate-900/90 text-white animate-slide-up pointer-events-auto">
+           <div key={n.id} className={`p-4 rounded-[24px] shadow-2xl backdrop-blur-xl border border-white/10 ${n.type === 'SMS' ? 'bg-blue-600/90' : 'bg-slate-900/95'} text-white animate-slide-up pointer-events-auto`}>
              <div className="flex items-center gap-3">
-               <div className={`w-2 h-2 rounded-full ${n.type === 'SUCCESS' ? 'bg-emerald-500' : 'bg-blue-500'} animate-pulse`}></div>
+               <div className={`w-2 h-2 rounded-full ${n.type === 'SUCCESS' ? 'bg-emerald-500' : n.type === 'SMS' ? 'bg-white' : 'bg-blue-500'} animate-pulse`}></div>
                <div>
-                 <p className="text-[9px] font-black uppercase italic tracking-widest">{n.title}</p>
-                 <p className="text-[11px] font-bold mt-0.5 leading-tight">{n.message}</p>
+                 <p className="text-[9px] font-black uppercase italic tracking-widest leading-none opacity-80">{n.title}</p>
+                 <p className="text-[11px] font-bold mt-1.5 leading-tight">{n.message}</p>
                </div>
              </div>
            </div>
@@ -311,7 +337,7 @@ const App: React.FC = () => {
       ) : renderDashboard()}
 
       {pendingPayment && (
-        <div className="fixed inset-0 z-[1000] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[1500] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6">
            <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl border-2 border-blue-600 text-center animate-zoom-in">
               <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto mb-6">
                 <i className="fa-solid fa-fingerprint text-blue-600 text-3xl"></i>

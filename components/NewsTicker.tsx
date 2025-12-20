@@ -45,10 +45,10 @@ const NewsTicker: React.FC = () => {
 
   return (
     <div className="w-full bg-slate-900 py-2.5 overflow-hidden border-y border-white/5 relative h-10 flex items-center shadow-2xl z-40">
-      <div className="absolute left-0 top-0 bottom-0 px-5 bg-slate-900 z-50 flex items-center border-r border-white/5 shadow-[15px_0_20px_rgba(0,0,0,0.8)]">
+      <div className="absolute left-0 top-0 bottom-0 px-5 bg-slate-900 z-[51] flex items-center border-r border-white/5 shadow-[20px_0_20px_rgba(0,0,0,0.9)]">
         <span className="text-[8px] font-black uppercase text-blue-500 tracking-[0.3em] italic whitespace-nowrap">Intelligence</span>
       </div>
-      <div className="flex animate-[ticker_40s_linear_infinite] whitespace-nowrap items-center pl-[120px]">
+      <div className="flex animate-[ticker_40s_linear_infinite] whitespace-nowrap items-center pl-[140px]">
         {news.concat(news).map((item, idx) => (
           <div key={idx} className="flex items-center gap-6 px-6 border-r border-white/10">
              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0"></div>

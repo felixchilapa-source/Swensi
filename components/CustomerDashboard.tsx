@@ -175,9 +175,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
             <div className="relative">
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] italic mb-1">Station Status: Active</p>
-                <h1 className="text-3xl font-black text-secondary dark:text-white tracking-tighter italic leading-tight uppercase">
+                <h1 className="text-3xl font-black text-secondary dark:text-white tracking-tighter italic leading-[1.1] uppercase">
                     {t('welcome').split(' ')[0]} <br/> 
                     <span className="text-emerald-600">{user.name.split(' ')[0]}!</span>
                 </h1>
@@ -211,7 +211,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 pb-4">
               {CATEGORIES.map(cat => (
                 <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] service-card shadow-sm hover:border-emerald-600 group transition-all duration-300 relative overflow-hidden text-left">
                   <div className="bg-emerald-50 dark:bg-emerald-500/10 w-14 h-14 rounded-2xl flex items-center justify-center text-emerald-700 dark:text-emerald-500 text-2xl group-hover:scale-110 group-hover:rotate-6 transition-all border border-emerald-100 dark:border-emerald-500/10"><i className={cat.icon}></i></div>
