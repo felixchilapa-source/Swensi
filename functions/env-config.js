@@ -4,6 +4,7 @@ exports.handler = async (event, context) => {
     statusCode: 200,
     headers: {
       "Content-Type": "application/javascript",
+      "Access-Control-Allow-Origin": "*"
     },
     body: `window.process = { env: { API_KEY: '${apiKey}' } };`,
   };
