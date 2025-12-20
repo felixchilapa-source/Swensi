@@ -24,27 +24,25 @@ interface AdminDashboardProps {
 }
 
 interface NavItem {
-  id: 'stats' | 'finance' | 'users' | 'hospitality';
+  id: 'stats' | 'registry' | 'hospitality';
   icon: string;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-  user, logout, allUsers, bookings, systemLogs, onToggleBlock, onDeleteUser, onToggleVerification, onUpdateUserRole, 
-  adminNumbers, onAddAdmin, onRemoveAdmin, onToggleTheme, isDarkMode, onLanguageChange, sysDefaultLang, onUpdateSysDefaultLang, t
+  user, logout, allUsers, bookings, onToggleVerification, t
 }) => {
-  const [view, setView] = useState<'stats' | 'finance' | 'users' | 'hospitality'>('stats');
+  const [view, setView] = useState<'stats' | 'registry' | 'hospitality'>('stats');
   
   const stats = useMemo(() => {
     const totalVolume = bookings.reduce((acc, b) => acc + b.price, 0);
     const lodgeSubscriptions = allUsers.filter(u => u.role === Role.LODGE).length * 250;
     const totalCommissions = bookings.filter(b => b.isPaid).reduce((acc, b) => acc + b.commission, 0) + lodgeSubscriptions;
-    return { totalVolume, totalCommissions, lodgeSubscriptions };
+    return { totalVolume, totalCommissions, lodgeSubscriptions, activeUsers: allUsers.length };
   }, [bookings, allUsers]);
 
   const navItems: NavItem[] = [
     { id: 'stats', icon: 'fa-chart-pie' },
-    { id: 'finance', icon: 'fa-wallet' },
-    { id: 'users', icon: 'fa-users' },
+    { id: 'registry', icon: 'fa-users' },
     { id: 'hospitality', icon: 'fa-hotel' }
   ];
 
@@ -52,12 +50,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="flex flex-col h-full bg-slate-950 text-white no-scrollbar relative overflow-hidden">
       <header className="px-5 py-6 border-b border-white/5 flex justify-between items-center sticky top-0 bg-slate-950/90 backdrop-blur-xl z-50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg border-2 border-indigo-400/20">
-            <i className="fa-solid fa-truck-fast text-xs"></i>
+          <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-lg border-2 border-red-400/20">
+            <i className="fa-solid fa-shield-halved text-xs"></i>
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-black tracking-tighter uppercase italic leading-none">Swensi Strategic</h2>
-            <p className="text-[7px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">Nakonde Command Center</p>
+            <h2 className="text-base font-black tracking-tighter uppercase italic leading-none">Swensi Command</h2>
+            <p className="text-[7px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">Strategic Operations</p>
           </div>
         </div>
         <button onClick={logout} className="w-9 h-9 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center border border-red-500/20">
@@ -65,11 +63,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 pb-24 no-scrollbar">
         <nav className="flex bg-white/5 p-1 rounded-2xl border border-white/5 sticky top-0 z-40 backdrop-blur-md">
           {navItems.map((v) => (
             <button key={v.id} onClick={() => setView(v.id)}
-              className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-1 ${view === v.id ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500'}`}>
+              className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-1 ${view === v.id ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500'}`}>
               <i className={`fa-solid ${v.icon} text-[10px]`}></i>
               {v.id}
             </button>
@@ -78,34 +76,88 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {view === 'stats' && (
           <div className="space-y-4 animate-fade-in">
-             <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 rounded-[40px] shadow-xl">
-                <p className="text-indigo-200 text-[9px] font-black uppercase mb-1 tracking-widest">Treasury (Inc. Lodge Subs)</p>
-                <p className="text-5xl font-black italic">ZMW {stats.totalCommissions.toFixed(2)}</p>
+             <div className="bg-gradient-to-br from-red-600 to-slate-900 p-8 rounded-[40px] shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl translate-x-10 -translate-y-10"></div>
+                <p className="text-white/60 text-[9px] font-black uppercase mb-1 tracking-widest italic">Total Corridor Treasury</p>
+                <p className="text-5xl font-black italic tracking-tighter">ZMW {stats.totalCommissions.toFixed(2)}</p>
+                <div className="mt-8 grid grid-cols-2 gap-4">
+                   <div className="bg-black/20 p-4 rounded-2xl">
+                      <p className="text-[7px] font-black uppercase text-white/50 mb-1 italic">Total Volume</p>
+                      <p className="text-sm font-black tracking-tight">ZMW {stats.totalVolume.toFixed(0)}</p>
+                   </div>
+                   <div className="bg-black/20 p-4 rounded-2xl">
+                      <p className="text-[7px] font-black uppercase text-white/50 mb-1 italic">Active Nodes</p>
+                      <p className="text-sm font-black tracking-tight">{stats.activeUsers}</p>
+                   </div>
+                </div>
              </div>
-             <div className="bg-white/5 p-6 rounded-[32px] border border-white/5">
-                <h4 className="text-[10px] font-black uppercase text-slate-500 mb-4">Lodge Revenue (ZMW 250 ea)</h4>
-                <div className="text-2xl font-black text-indigo-400">ZMW {stats.lodgeSubscriptions}</div>
+             
+             <div className="bg-white/5 p-6 rounded-[32px] border border-white/5 flex items-center justify-between">
+                <div>
+                   <p className="text-[10px] font-black uppercase text-slate-500 mb-1 italic">Lodge Subscriptions</p>
+                   <p className="text-2xl font-black text-white">ZMW {stats.lodgeSubscriptions}</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-600/10 rounded-2xl flex items-center justify-center text-purple-500 border border-purple-500/10">
+                   <i className="fa-solid fa-hotel"></i>
+                </div>
              </div>
           </div>
         )}
 
+        {view === 'registry' && (
+           <div className="space-y-6 animate-fade-in">
+              <h3 className="text-xl font-black italic tracking-tighter uppercase px-2">Node Registry</h3>
+              <div className="space-y-3">
+                 {allUsers.map(u => (
+                    <div key={u.id} className="bg-white/5 p-5 rounded-3xl border border-white/10 flex justify-between items-center group hover:bg-white/10 transition-colors">
+                       <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black italic shadow-lg border-2 ${u.role === Role.PROVIDER ? 'bg-blue-600 border-blue-400/20' : u.role === Role.LODGE ? 'bg-purple-600 border-purple-400/20' : 'bg-slate-800 border-slate-700'}`}>
+                             {u.avatarUrl ? <img src={u.avatarUrl} className="w-full h-full object-cover rounded-[14px]" /> : u.name.charAt(0)}
+                          </div>
+                          <div>
+                             <p className="text-xs font-black uppercase italic tracking-tight">{u.name}</p>
+                             <p className="text-[8px] text-slate-500 font-bold tracking-widest">{u.phone}</p>
+                             <div className="flex items-center gap-2 mt-1">
+                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase ${u.role === Role.PROVIDER ? 'bg-blue-500/10 text-blue-500' : 'bg-slate-500/10 text-slate-500'}`}>{u.role}</span>
+                                {u.isVerified && <i className="fa-solid fa-circle-check text-blue-500 text-[8px]"></i>}
+                             </div>
+                          </div>
+                       </div>
+                       <button 
+                        onClick={() => onToggleVerification(u.id)}
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${u.isVerified ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-white/5 text-slate-500 border border-white/10'}`}
+                       >
+                          <i className="fa-solid fa-certificate"></i>
+                       </button>
+                    </div>
+                 ))}
+              </div>
+           </div>
+        )}
+
         {view === 'hospitality' && (
            <div className="space-y-4 animate-fade-in">
-              <h3 className="text-xl font-black italic tracking-tighter">Hospitality Intelligence</h3>
-              <p className="text-[10px] text-slate-500 font-bold leading-relaxed">Lodges are billed monthly. Only elite transport providers are assigned to guests to ensure maximum safety at the border.</p>
-              
+              <h3 className="text-xl font-black italic tracking-tighter uppercase px-2">Stay Hubs</h3>
               <div className="space-y-3 mt-6">
                  {allUsers.filter(u => u.role === Role.LODGE).map(lodge => (
-                    <div key={lodge.id} className="bg-white/5 p-5 rounded-3xl border border-white/10 flex justify-between items-center">
-                       <div>
-                          <p className="text-xs font-black uppercase">{lodge.name}</p>
-                          <p className="text-[8px] text-slate-500 font-bold">{lodge.phone}</p>
+                    <div key={lodge.id} className="bg-white/5 p-6 rounded-[35px] border border-white/10 flex justify-between items-center">
+                       <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 bg-purple-600 rounded-3xl flex items-center justify-center text-white shadow-xl border-2 border-purple-400/30">
+                             <i className="fa-solid fa-bed"></i>
+                          </div>
+                          <div>
+                             <p className="text-sm font-black uppercase italic tracking-tighter">{lodge.name}</p>
+                             <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Station Phone: {lodge.phone}</p>
+                          </div>
                        </div>
-                       <span className="bg-green-500/10 text-green-500 text-[8px] font-black px-3 py-1 rounded-full uppercase">Subscription Active</span>
+                       <div className="bg-emerald-500/10 text-emerald-500 text-[8px] font-black px-4 py-1.5 rounded-full uppercase border border-emerald-500/20 italic">Verified Station</div>
                     </div>
                  ))}
                  {allUsers.filter(u => u.role === Role.LODGE).length === 0 && (
-                   <p className="text-center text-slate-600 text-[10px] py-10 uppercase font-black">No active lodge partners recorded</p>
+                   <div className="py-20 text-center opacity-10">
+                      <i className="fa-solid fa-hotel text-6xl mb-4"></i>
+                      <p className="text-[10px] font-black uppercase tracking-[0.5em]">No Stay Nodes Synced</p>
+                   </div>
                  )}
               </div>
            </div>
@@ -113,7 +165,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       <footer className="p-5 text-center bg-black/80 border-t border-white/5 absolute bottom-0 left-0 right-0 z-40">
-        <p className="text-[7px] text-slate-700 font-black tracking-[0.4em] uppercase mb-1 italic">Swensi Nakonde Command v2.9.5</p>
+        <p className="text-[7px] text-slate-700 font-black tracking-[0.4em] uppercase mb-1 italic">Swensi Strategic Node v2.9.5</p>
       </footer>
     </div>
   );

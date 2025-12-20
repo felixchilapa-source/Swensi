@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, BookingStatus, Role, Location } from '../types';
 import { TRUSTED_COMMISSION_BONUS } from '../constants';
@@ -23,7 +22,8 @@ interface ProviderDashboardProps {
 }
 
 const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, bookings, allUsers, onUpdateStatus, onUpdateBooking, onUpdateUser }) => {
-  const [activeTab, setActiveTab] = useState<'leads' | 'market' | 'active' | 'account'>('leads');
+  const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'account'>('leads');
+  const [isOnline, setIsOnline] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isTrusted = user.trustScore >= 95;
 
@@ -39,12 +39,15 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
     return !!(user.isPremium && hasMinRating && isMemberForAYear);
   }, [user.isPremium, user.rating, user.memberSince]);
   
-  const pendingLeads = useMemo(() => bookings.filter(b => {
-    if (b.status !== BookingStatus.PENDING) return false;
-    if (b.isTrustedTransportOnly && !isTrusted) return false;
-    if (b.category === 'errands' && !isEligibleForShopping) return false;
-    return true;
-  }), [bookings, isTrusted, isEligibleForShopping]);
+  const pendingLeads = useMemo(() => {
+    if (!isOnline) return [];
+    return bookings.filter(b => {
+      if (b.status !== BookingStatus.PENDING) return false;
+      if (b.isTrustedTransportOnly && !isTrusted) return false;
+      if (b.category === 'errands' && !isEligibleForShopping) return false;
+      return true;
+    });
+  }, [bookings, isTrusted, isEligibleForShopping, isOnline]);
 
   const activeJobs = useMemo(() => bookings.filter(b => b.providerId === user.id && b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings, user.id]);
   const hospitalityEarnings = (user.hospitalityCashflow || 0) * TRUSTED_COMMISSION_BONUS;
@@ -78,11 +81,24 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
                <i className="fas fa-satellite text-white text-lg"></i>
              </div>
              <div>
-               <h2 className="text-xl font-bold italic tracking-tighter uppercase">Swensi</h2>
-               <span className="text-[10px] font-bold text-blue-500 tracking-[0.2em] uppercase mt-2 inline-block">Partner Terminal</span>
+               <h2 className="text-xl font-bold italic tracking-tighter uppercase leading-none">Swensi</h2>
+               <span className="text-[10px] font-bold text-blue-500 tracking-[0.2em] uppercase mt-1 inline-block">Partner Node</span>
              </div>
           </div>
-          <button onClick={logout} className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-white/50 border border-white/10"><i className="fa-solid fa-power-off text-xs"></i></button>
+          <div className="flex items-center gap-3">
+             <div className="flex flex-col items-end">
+                <span className={`text-[8px] font-black uppercase tracking-widest ${isOnline ? 'text-emerald-500' : 'text-red-500'}`}>
+                  {isOnline ? 'Signal Active' : 'Offline'}
+                </span>
+                <button 
+                  onClick={() => setIsOnline(!isOnline)}
+                  className={`w-10 h-5 rounded-full mt-1 relative transition-colors ${isOnline ? 'bg-emerald-600' : 'bg-slate-700'}`}
+                >
+                  <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${isOnline ? 'right-1' : 'left-1'}`}></div>
+                </button>
+             </div>
+             <button onClick={logout} className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-white/50 border border-white/10"><i className="fa-solid fa-power-off text-xs"></i></button>
+          </div>
         </div>
       </header>
 
@@ -91,24 +107,53 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
       <div className="flex-1 overflow-y-auto pb-32 px-5 pt-6 space-y-8 no-scrollbar">
         {activeTab === 'leads' && (
           <div className="space-y-6 animate-fade-in">
-            {isTrusted && (
-               <div className="bg-gradient-to-br from-blue-700 via-blue-800 to-slate-950 p-8 rounded-[40px] text-white shadow-2xl shadow-blue-600/30 relative overflow-hidden group">
-                  <p className="text-[9px] font-black uppercase tracking-[0.3em] text-blue-100 opacity-80 italic">Trusted Partner Multiplier Active</p>
-                  <h4 className="text-4xl font-black italic mt-1 tracking-tighter leading-none">ZMW {hospitalityEarnings.toFixed(2)}</h4>
+            <div className="grid grid-cols-2 gap-4">
+               <div className="bg-white dark:bg-slate-900 p-5 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-sm">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Total Earnings</p>
+                  <p className="text-xl font-black text-secondary dark:text-white tracking-tighter">ZMW {user.balance.toFixed(0)}</p>
                </div>
+               <div className="bg-white dark:bg-slate-900 p-5 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-sm">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Missions</p>
+                  <p className="text-xl font-black text-secondary dark:text-white tracking-tighter">{user.completedMissions || 0}</p>
+               </div>
+            </div>
+
+            {!isOnline && (
+              <div className="bg-amber-600/10 border border-amber-600/20 p-8 rounded-[40px] text-center space-y-4">
+                 <div className="w-16 h-16 bg-amber-600/10 rounded-full flex items-center justify-center mx-auto text-amber-600">
+                    <i className="fa-solid fa-signal-slash text-2xl"></i>
+                 </div>
+                 <h4 className="text-lg font-black text-amber-600 italic uppercase">Signal Inhibited</h4>
+                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Toggle your duty status to receive live mission leads from the corridor.</p>
+              </div>
+            )}
+
+            {isOnline && pendingLeads.length === 0 && (
+              <div className="py-20 text-center opacity-20 space-y-4">
+                 <div className="w-20 h-20 border-4 border-dashed border-slate-300 dark:border-slate-800 rounded-full flex items-center justify-center mx-auto">
+                    <i className="fa-solid fa-radar text-4xl animate-pulse"></i>
+                 </div>
+                 <p className="text-[10px] font-black uppercase tracking-[0.4em]">Scanning Corridor...</p>
+              </div>
             )}
             
             {pendingLeads.map(lead => (
-              <div key={lead.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 p-7 shadow-xl hover:border-blue-500 transition-all">
-                 <div className="flex justify-between items-start mb-6">
+              <div key={lead.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 p-7 shadow-xl hover:border-blue-500 transition-all group relative overflow-hidden">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full blur-3xl -translate-y-10 translate-x-10 group-hover:scale-150 transition-transform"></div>
+                 <div className="flex justify-between items-start mb-6 relative z-10">
                     <div>
                         <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] italic">{lead.category}</p>
                         <h4 className="text-3xl font-black text-secondary dark:text-white italic tracking-tighter">ZMW {lead.price}</h4>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Comm: ZMW {lead.commission}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-slate-50 dark:bg-white/5 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-white/10">
+                       <i className="fa-solid fa-map-location-dot text-slate-400"></i>
                     </div>
                  </div>
+                 <p className="text-xs font-black text-slate-600 dark:text-slate-400 italic mb-8 line-clamp-2">"{lead.description}"</p>
                  <button 
                   onClick={() => onUpdateStatus(lead.id, BookingStatus.ACCEPTED, user.id)} 
-                  className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] text-[10px] uppercase tracking-[0.2em] italic"
+                  className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-blue-600/20 active:scale-95 transition-all italic"
                  >
                    Establish Mission Link
                  </button>
@@ -119,6 +164,12 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
 
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in">
+            {activeJobs.length === 0 && (
+              <div className="py-40 text-center opacity-10 flex flex-col items-center gap-6">
+                 <i className="fa-solid fa-shuttle-van text-6xl"></i>
+                 <p className="text-[10px] font-black uppercase tracking-[0.5em]">No Active Deployments</p>
+              </div>
+            )}
             {activeJobs.map(job => (
               <div key={job.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl relative overflow-hidden mb-8">
                 <Map 
@@ -135,12 +186,20 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic">{job.category} Node</p>
                     <p className="text-[10px] font-black uppercase text-blue-500 animate-pulse italic tracking-widest">{job.status}</p>
                   </div>
-                  <button 
-                    onClick={() => onUpdateStatus(job.id, BookingStatus.DELIVERED, user.id)} 
-                    className="w-full bg-blue-700 text-white font-black py-5 rounded-[24px] text-[10px] uppercase shadow-xl italic"
-                  >
-                    Broadcast Reach
-                  </button>
+                  <div className="flex gap-2">
+                     <button 
+                        onClick={() => window.open(`tel:${job.customerPhone}`)}
+                        className="w-14 h-14 rounded-2xl bg-emerald-600/10 text-emerald-600 flex items-center justify-center border border-emerald-600/20 active:scale-90 transition-all"
+                     >
+                        <i className="fa-solid fa-phone"></i>
+                     </button>
+                     <button 
+                        onClick={() => onUpdateStatus(job.id, BookingStatus.DELIVERED, user.id)} 
+                        className="flex-1 bg-blue-700 text-white font-black py-5 rounded-[24px] text-[10px] uppercase shadow-xl italic tracking-[0.1em]"
+                     >
+                        Broadcast Reach
+                     </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -149,18 +208,14 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
 
         {activeTab === 'account' && (
           <div className="animate-fade-in space-y-6">
-            <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl text-center">
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*" 
-                onChange={handleFileChange} 
-              />
+            <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-blue-600/10 to-transparent"></div>
+              
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
               
               <div 
                 onClick={handleAvatarClick}
-                className="w-24 h-24 mx-auto bg-indigo-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic border-4 border-white dark:border-slate-800 shadow-2xl mb-6 overflow-hidden relative group cursor-pointer"
+                className="w-24 h-24 mx-auto bg-indigo-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic border-4 border-white dark:border-slate-800 shadow-2xl mb-6 overflow-hidden relative group cursor-pointer z-10"
               >
                 {user.avatarUrl ? (
                   <img src={user.avatarUrl} alt="Profile" className="w-full h-full object-cover" />
@@ -173,16 +228,20 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
               </div>
               
               {!isEditing ? (
-                <>
+                <div className="relative z-10">
+                  <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full mb-3">
+                     <span className="text-[9px] font-black text-blue-600 uppercase italic tracking-widest">Partner Node v2.1</span>
+                  </div>
                   <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">{user.name}</h2>
                   <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1 italic">{user.phone}</p>
+                  
                   <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/5 space-y-3">
-                    <button onClick={() => setIsEditing(true)} className="w-full bg-white dark:bg-white/5 text-blue-600 border border-blue-600/20 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest active:scale-95 transition-all italic">Edit Profile</button>
-                    <button onClick={logout} className="w-full bg-red-500/10 text-red-500 font-black py-5 rounded-[28px] text-[10px] uppercase border border-red-500/20 italic">Disconnect</button>
+                    <button onClick={() => setIsEditing(true)} className="w-full bg-white dark:bg-white/5 text-blue-600 border border-blue-600/20 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest active:scale-95 transition-all italic">Modify Ops ID</button>
+                    <button onClick={logout} className="w-full bg-red-500/10 text-red-500 font-black py-5 rounded-[28px] text-[10px] uppercase border border-red-500/20 italic">Disconnect Terminal</button>
                   </div>
-                </>
+                </div>
               ) : (
-                <div className="space-y-4 animate-fade-in">
+                <div className="space-y-4 animate-fade-in relative z-10">
                   <div className="text-left space-y-2">
                     <label className="text-[8px] font-black uppercase tracking-widest text-slate-500 ml-2">Partner Alias</label>
                     <input 
@@ -212,7 +271,10 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
 
       <nav className="absolute bottom-6 left-6 right-6 h-20 glass-nav rounded-[32px] border border-white/10 flex justify-around items-center px-4 shadow-2xl z-50">
         <button onClick={() => setActiveTab('leads')} className={`flex-1 flex flex-col items-center ${activeTab === 'leads' ? 'text-blue-500 scale-110' : 'text-slate-400'}`}>
-          <i className="fa-solid fa-satellite text-lg"></i>
+          <div className="relative">
+             <i className="fa-solid fa-satellite text-lg"></i>
+             {pendingLeads.length > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-ping"></span>}
+          </div>
           <span className="text-[8px] font-black uppercase mt-1.5 italic">Signal</span>
         </button>
         <button onClick={() => setActiveTab('active')} className={`flex-1 flex flex-col items-center ${activeTab === 'active' ? 'text-blue-500 scale-110' : 'text-slate-400'}`}>

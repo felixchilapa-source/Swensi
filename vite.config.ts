@@ -7,5 +7,17 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 2000, // Adjusted to silence large chunk warnings
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'd3'],
+        },
+      },
+    },
+  },
+  server: {
+    port: 3000,
+    strictPort: true,
   }
 });

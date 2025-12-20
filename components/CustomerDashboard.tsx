@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, Location, BookingStatus, ShoppingItem } from '../types';
 import { CATEGORIES, Category } from '../constants';
@@ -235,6 +234,28 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               <div className="absolute -right-2 top-0 w-16 h-16 bg-emerald-600/5 rounded-full blur-2xl"></div>
             </div>
             
+            {/* Quick Action Tiles */}
+            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+               <div className="min-w-[140px] bg-emerald-600/10 border border-emerald-600/20 rounded-3xl p-5 flex flex-col gap-3">
+                  <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                    <i className="fa-solid fa-plus"></i>
+                  </div>
+                  <p className="text-[10px] font-black uppercase italic text-emerald-600">Quick Deposit</p>
+               </div>
+               <div className="min-w-[140px] bg-blue-600/10 border border-blue-600/20 rounded-3xl p-5 flex flex-col gap-3">
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                    <i className="fa-solid fa-headset"></i>
+                  </div>
+                  <p className="text-[10px] font-black uppercase italic text-blue-600">SOS Support</p>
+               </div>
+               <div className="min-w-[140px] bg-amber-600/10 border border-amber-600/20 rounded-3xl p-5 flex flex-col gap-3">
+                  <div className="w-10 h-10 bg-amber-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                    <i className="fa-solid fa-star"></i>
+                  </div>
+                  <p className="text-[10px] font-black uppercase italic text-amber-600">Saved Nodes</p>
+               </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               {CATEGORIES.map(cat => (
                 <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] service-card shadow-sm hover:border-emerald-600 group transition-all duration-300 relative overflow-hidden">
@@ -339,6 +360,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               
               {!isEditing ? (
                 <div className="relative z-10">
+                  <div className="inline-block px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-4">
+                     <span className="text-[9px] font-black text-emerald-600 uppercase italic tracking-widest">Market Client</span>
+                  </div>
                   <h2 className="text-3xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">{user.name}</h2>
                   <div className="flex items-center justify-center gap-2 mt-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

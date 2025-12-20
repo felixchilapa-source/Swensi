@@ -222,13 +222,6 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
       )}
 
       <svg ref={svgRef} viewBox="0 0 400 300" className="w-full h-auto cursor-crosshair touch-none"></svg>
-      
-      {/* Zoom / Interaction Indicator */}
-      <div className="absolute top-1/2 right-4 -translate-y-1/2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-        <div className="w-1 h-8 bg-white/10 rounded-full relative overflow-hidden">
-          <div className="absolute top-1/4 left-0 right-0 h-1/2 bg-blue-500 rounded-full"></div>
-        </div>
-      </div>
     </div>
   );
 };
