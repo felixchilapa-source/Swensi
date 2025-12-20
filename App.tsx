@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Role, User, Booking, BookingStatus, Location, SystemLog } from './types';
-import { SUPER_ADMIN, TRANSLATIONS } from './constants';
-import Auth from './components/Auth';
-import CustomerDashboard from './components/CustomerDashboard';
-import ProviderDashboard from './components/ProviderDashboard';
-import AdminDashboard from './components/AdminDashboard';
-import LodgeDashboard from './components/LodgeDashboard';
+
+import React, { useState, useEffect } from 'react';
+import { Role, User, Booking, BookingStatus, Location, SystemLog } from './types.ts';
+import { SUPER_ADMIN, TRANSLATIONS } from './constants.tsx';
+import Auth from './components/Auth.tsx';
+import CustomerDashboard from './components/CustomerDashboard.tsx';
+import ProviderDashboard from './components/ProviderDashboard.tsx';
+import AdminDashboard from './components/AdminDashboard.tsx';
+import LodgeDashboard from './components/LodgeDashboard.tsx';
 
 interface SwensiNotification {
   id: string;
@@ -58,7 +59,7 @@ const App: React.FC = () => {
           return {
             ...b,
             location: newLoc,
-            trackingHistory: [...b.trackingHistory, newLoc].slice(-50)
+            trackingHistory: [...(b.trackingHistory || []), newLoc].slice(-50)
           };
         }
         return b;
@@ -81,11 +82,8 @@ const App: React.FC = () => {
     const existingUser = allUsers.find(u => u.phone === phone);
     const isAdmin = adminNumbers.includes(phone);
     const finalLang = selectedLang || language;
-    
-    // Use the role selected in the Auth screen
     let role = forcedRole || Role.CUSTOMER;
 
-    // Simulate tenure for test users
     const oneYearAgo = Date.now() - (366 * 24 * 60 * 60 * 1000);
     const randomMemberSince = Math.random() > 0.5 ? oneYearAgo : Date.now();
 
@@ -109,12 +107,8 @@ const App: React.FC = () => {
 
     if (!existingUser) {
       setAllUsers(prev => [...prev, newUser]);
-    } else {
-      // Update existing user with their new session role choice if it's different
-      // but only if they are not downgraded from Admin.
-      if (forcedRole && existingUser.role !== Role.ADMIN) {
-        newUser.role = forcedRole;
-      }
+    } else if (forcedRole && existingUser.role !== Role.ADMIN) {
+      newUser.role = forcedRole;
     }
 
     setLanguage(newUser.language);
@@ -123,14 +117,8 @@ const App: React.FC = () => {
 
   const handleBecomeProvider = () => {
     if (!user) return;
-    const confirmMsg = "Do you wish to upgrade to a Partner Node? This will allow you to accept missions in the Nakonde Corridor.";
-    if (window.confirm(confirmMsg)) {
-      const updatedUser = { 
-        ...user, 
-        role: Role.PROVIDER, 
-        isVerified: true, 
-        trustScore: Math.max(user.trustScore, 90) 
-      };
+    if (window.confirm("Do you wish to upgrade to a Partner Node?")) {
+      const updatedUser = { ...user, role: Role.PROVIDER, isVerified: true, trustScore: Math.max(user.trustScore, 90) };
       setUser(updatedUser);
       setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
       addNotification('NODE ELEVATED', 'You are now a verified Swensi Partner.', 'SUCCESS');
@@ -165,6 +153,7 @@ const App: React.FC = () => {
         const newBalance = (user?.balance || 0) - price;
         setUser(u => u ? { ...u, balance: newBalance } : null);
         setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance } : u));
+        setPendingPayment(null);
       }
     });
   };
@@ -173,33 +162,13 @@ const App: React.FC = () => {
     setBookings(prev => prev.map(b => {
       if (b.id === id) {
         let finalUpdates = { ...updates };
-
-        if (updates.status === BookingStatus.CANCELLED) {
-          if (user?.role === Role.CUSTOMER) {
-            addNotification('MISSION ABORTED', 'Operational link terminated successfully.', 'INFO');
-          } else if (user?.role === Role.PROVIDER) {
-            const reason = updates.cancellationReason || 'Operational Constraint';
-            addNotification('SIGNAL LOST', `Active Mission Terminated. Reason: ${reason}`, 'ALERT');
-          }
-        }
-
-        if (updates.status === BookingStatus.ACCEPTED && user?.role === Role.PROVIDER) {
-          finalUpdates.providerTrustSnapshot = user.trustScore;
-        }
-
         const updated = { ...b, ...finalUpdates };
         
         if (updates.status === BookingStatus.COMPLETED && !b.isPaid) {
           const providerPay = b.price - b.commission;
           setAllUsers(uPrev => uPrev.map(u => {
-            if (u.id === b.providerId) return { 
-              ...u, 
-              balance: u.balance + providerPay, 
-              hospitalityCashflow: (u.hospitalityCashflow || 0) + b.price,
-              completedMissions: (u.completedMissions || 0) + 1
-            };
+            if (u.id === b.providerId) return { ...u, balance: u.balance + providerPay, completedMissions: (u.completedMissions || 0) + 1 };
             if (u.phone === SUPER_ADMIN) return { ...u, balance: u.balance + b.commission };
-            if (u.id === b.customerId) return { ...u, completedMissions: (u.completedMissions || 0) + 1 };
             return u;
           }));
           return { ...updated, isPaid: true };
@@ -211,17 +180,15 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className={`mobile-container ${isDarkMode ? 'dark' : ''}`}>
+    <div className={`app-container ${isDarkMode ? 'dark' : ''}`}>
       <div className="absolute top-20 left-6 right-6 z-[400] pointer-events-none flex flex-col gap-3">
          {notifications.map(n => (
-           <div key={n.id} className={`p-4 rounded-[20px] shadow-2xl backdrop-blur-xl border border-white/10 animate-slide-up pointer-events-auto ${n.type === 'ALERT' ? 'bg-red-600/90 text-white' : n.type === 'SUCCESS' ? 'bg-blue-600/90 text-white' : 'bg-slate-900/90 text-white'}`}>
+           <div key={n.id} className="p-4 rounded-[20px] shadow-2xl backdrop-blur-xl border border-white/10 bg-slate-900/90 text-white animate-slide-up pointer-events-auto">
              <div className="flex items-center gap-3">
-               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                 <i className={`fa-solid ${n.type === 'ALERT' ? 'fa-triangle-exclamation' : 'fa-signal'} text-[10px]`}></i>
-               </div>
+               <i className="fa-solid fa-signal text-[10px]"></i>
                <div>
-                 <p className="text-[9px] font-black uppercase tracking-widest italic">{n.title}</p>
-                 <p className="text-[11px] font-bold leading-tight mt-0.5">{n.message}</p>
+                 <p className="text-[9px] font-black uppercase italic">{n.title}</p>
+                 <p className="text-[11px] font-bold mt-0.5">{n.message}</p>
                </div>
              </div>
            </div>
@@ -232,35 +199,22 @@ const App: React.FC = () => {
         <Auth onLogin={handleLogin} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={t} adminNumbers={adminNumbers} />
       ) : (
         <>
-          {user.role === Role.ADMIN && (
-            <AdminDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} systemLogs={systemLogs} onToggleBlock={() => {}} onDeleteUser={() => {}} onToggleVerification={() => {}} onUpdateUserRole={() => {}} adminNumbers={adminNumbers} onAddAdmin={() => {}} onRemoveAdmin={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={() => {}} t={t} />
-          )}
-          {user.role === Role.CUSTOMER && (
-            <CustomerDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} onAddBooking={addBooking} location={currentLocation} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onBecomeProvider={handleBecomeProvider} t={t} />
-          )}
-          {user.role === Role.PROVIDER && (
-            <ProviderDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} onUpdateStatus={(id, status, pid) => updateBooking(id, { status, providerId: pid })} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onUpdateSubscription={() => {}} location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} t={t} />
-          )}
-          {user.role === Role.LODGE && (
-            <LodgeDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.lodgeId === user.id || b.category === 'lodging')} onUpdateBooking={updateBooking} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} t={t} />
-          )}
+          {user.role === Role.ADMIN && <AdminDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} systemLogs={systemLogs} onToggleBlock={() => {}} onDeleteUser={() => {}} onToggleVerification={() => {}} onUpdateUserRole={() => {}} adminNumbers={adminNumbers} onAddAdmin={() => {}} onRemoveAdmin={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={() => {}} t={t} />}
+          {user.role === Role.CUSTOMER && <CustomerDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} onAddBooking={addBooking} location={currentLocation} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onBecomeProvider={handleBecomeProvider} t={t} />}
+          {user.role === Role.PROVIDER && <ProviderDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} onUpdateStatus={(id, status, pid) => updateBooking(id, { status, providerId: pid })} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onUpdateSubscription={() => {}} location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} t={t} />}
+          {user.role === Role.LODGE && <LodgeDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.lodgeId === user.id || b.category === 'lodging')} onUpdateBooking={updateBooking} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} t={t} />}
         </>
       )}
 
       {pendingPayment && (
-        <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in">
-           <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl border-2 border-blue-600 animate-zoom-in text-center">
-              <div className="w-16 h-16 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <i className="fa-solid fa-fingerprint text-blue-600 text-3xl"></i>
-              </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 italic uppercase tracking-tighter">Authorize Escrow</h3>
-              <p className="text-[9px] font-black uppercase text-slate-400 mb-6 tracking-widest">{pendingPayment.desc}</p>
-              <div className="bg-slate-50 dark:bg-white/5 rounded-3xl p-6 mb-8 border border-slate-100 dark:border-white/5">
-                <p className="text-3xl font-black text-blue-700 dark:text-blue-500 tracking-tighter">ZMW {pendingPayment.amount.toFixed(2)}</p>
-              </div>
+        <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6">
+           <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl border-2 border-blue-600 text-center">
+              <i className="fa-solid fa-fingerprint text-blue-600 text-3xl mb-6"></i>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 italic uppercase">Authorize Escrow</h3>
+              <p className="text-3xl font-black text-blue-700 mb-8">ZMW {pendingPayment.amount.toFixed(2)}</p>
               <div className="space-y-4">
-                <button onClick={pendingPayment.onComplete} className="w-full py-5 bg-blue-700 text-white font-black rounded-3xl text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-blue-600/20 active:scale-95 transition-all">Lock Funds</button>
-                <button onClick={() => setPendingPayment(null)} className="w-full py-3 text-slate-400 font-black text-[9px] uppercase tracking-widest">Abort</button>
+                <button onClick={pendingPayment.onComplete} className="w-full py-5 bg-blue-700 text-white font-black rounded-3xl text-[11px] uppercase tracking-widest">Lock Funds</button>
+                <button onClick={() => setPendingPayment(null)} className="w-full py-3 text-slate-400 font-black text-[9px] uppercase">Abort</button>
               </div>
            </div>
         </div>
