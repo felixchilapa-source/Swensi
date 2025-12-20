@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import * as d3 from 'd3';
 import { GoogleGenAI } from "@google/genai";
 
+// Safe access to environment variables injected by server.js
+const getApiKey = () => (window as any).process?.env?.API_KEY || '';
+
 // --- 1. TYPES ---
 enum Role {
   CUSTOMER = 'CUSTOMER',
@@ -104,8 +107,10 @@ const NewsTicker: React.FC = () => {
   
   useEffect(() => {
     const fetchNews = async () => {
+      const apiKey = getApiKey();
+      if (!apiKey) return;
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI({ apiKey });
         const res = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: 'Short trade news items for Nakonde border.',
@@ -134,10 +139,11 @@ const AIAssistant: React.FC = () => {
   const [messages, setMessages] = useState<{role: 'user' | 'bot', text: string}[]>([{role: 'bot', text: "Mwapoleni! Swensi AI at your service."}]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    const apiKey = getApiKey();
+    if (!input.trim() || !apiKey) return;
     const userText = input; setInput(''); setMessages(prev => [...prev, {role: 'user', text: userText}]);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const res = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: userText });
       setMessages(prev => [...prev, {role: 'bot', text: res.text || "Zikomo!"}]);
     } catch { setMessages(prev => [...prev, {role: 'bot', text: "Signal lost."}]); }
@@ -328,5 +334,8 @@ const App: React.FC = () => {
   );
 };
 
-const root = createRoot(document.getElementById('root')!);
-root.render(<App />);
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  const root = createRoot(rootElement);
+  root.render(<App />);
+}
