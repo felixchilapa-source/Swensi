@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Role, User, Booking, BookingStatus, Location, SystemLog } from './types';
+import { Role, User, Booking, BookingStatus, Location, SystemLog, CouncilOrder } from './types';
 import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS } from './constants';
 import Auth from './components/Auth';
 import CustomerDashboard from './components/CustomerDashboard';
@@ -18,18 +19,22 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [viewMode, setViewMode] = useState<'MANAGEMENT' | 'CUSTOMER'>('CUSTOMER');
   const [allUsers, setAllUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('swensi-users-v2');
+    const saved = localStorage.getItem('swensi-users-v3');
     return saved ? JSON.parse(saved) : [];
   });
   const [bookings, setBookings] = useState<Booking[]>(() => {
-    const saved = localStorage.getItem('swensi-bookings-v2');
+    const saved = localStorage.getItem('swensi-bookings-v3');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [councilOrders, setCouncilOrders] = useState<CouncilOrder[]>(() => {
+    const saved = localStorage.getItem('swensi-council-v3');
     return saved ? JSON.parse(saved) : [];
   });
   const [notifications, setNotifications] = useState<SwensiNotification[]>([]);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [currentLocation] = useState<Location>({ lat: -9.3283, lng: 32.7569 });
   const [adminNumbers, setAdminNumbers] = useState<string[]>(() => {
-    const saved = localStorage.getItem('swensi-admins-v2');
+    const saved = localStorage.getItem('swensi-admins-v3');
     return saved ? JSON.parse(saved) : VERIFIED_ADMINS;
   });
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('swensi-theme') === 'dark');
@@ -37,42 +42,25 @@ const App: React.FC = () => {
   const [pendingPayment, setPendingPayment] = useState<{ amount: number; desc: string; onComplete: () => void } | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('swensi-users-v2', JSON.stringify(allUsers));
+    localStorage.setItem('swensi-users-v3', JSON.stringify(allUsers));
   }, [allUsers]);
 
   useEffect(() => {
-    localStorage.setItem('swensi-bookings-v2', JSON.stringify(bookings));
+    localStorage.setItem('swensi-bookings-v3', JSON.stringify(bookings));
   }, [bookings]);
 
   useEffect(() => {
-    localStorage.setItem('swensi-admins-v2', JSON.stringify(adminNumbers));
+    localStorage.setItem('swensi-council-v3', JSON.stringify(councilOrders));
+  }, [councilOrders]);
+
+  useEffect(() => {
+    localStorage.setItem('swensi-admins-v3', JSON.stringify(adminNumbers));
   }, [adminNumbers]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setBookings(prev => prev.map(b => {
-        if (b.status === BookingStatus.ON_TRIP || b.status === BookingStatus.GOODS_IN_TRANSIT) {
-          const lastLoc = b.location;
-          const newLoc = {
-            lat: lastLoc.lat + (Math.random() - 0.5) * 0.001,
-            lng: lastLoc.lng + (Math.random() - 0.5) * 0.001
-          };
-          return {
-            ...b,
-            location: newLoc,
-            trackingHistory: [...(b.trackingHistory || []), newLoc].slice(-50)
-          };
-        }
-        return b;
-      }));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   const addNotification = (title: string, message: string, type: 'INFO' | 'ALERT' | 'SUCCESS' = 'INFO') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -89,7 +77,6 @@ const App: React.FC = () => {
     if (existingUser) {
       setLanguage(selectedLang);
       setUser(existingUser);
-      // Auto-switch to management if applicable
       if (existingUser.role !== Role.CUSTOMER) setViewMode('MANAGEMENT');
       else setViewMode('CUSTOMER');
       addNotification('TERMINAL AUTH', `Welcome back, ${existingUser.name}`, 'SUCCESS');
@@ -122,57 +109,6 @@ const App: React.FC = () => {
     addNotification('NODE REGISTERED', `Welcome to the Corridor, ${name}`, 'SUCCESS');
   };
 
-  const handleUpdateUser = (updates: Partial<User>) => {
-    if (!user) return;
-    const updatedUser = { ...user, ...updates };
-    setUser(updatedUser);
-    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-  };
-
-  const handleAddAdmin = (phone: string) => {
-    if (adminNumbers.includes(phone)) return alert("Node already holds admin clearance.");
-    setAdminNumbers(prev => [...prev, phone]);
-    addNotification('SECURITY UPDATE', `Admin node ${phone} authorized.`, 'SUCCESS');
-  };
-
-  const handleRemoveAdmin = (phone: string) => {
-    if (phone === SUPER_ADMIN) return alert("System Root (Super Admin) cannot be deauthorized.");
-    setAdminNumbers(prev => prev.filter(p => p !== phone));
-    addNotification('SECURITY UPDATE', `Admin node ${phone} deauthorized.`, 'ALERT');
-  };
-
-  const handleToggleVerification = (userId: string) => {
-    setAllUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        const newStatus = !u.isVerified;
-        addNotification('VERIFICATION', `${u.name} verification status: ${newStatus ? 'AUTHORIZED' : 'REVOKED'}`, 'INFO');
-        return { ...u, isVerified: newStatus };
-      }
-      return u;
-    }));
-    if (user && user.id === userId) {
-      setUser(prev => prev ? { ...prev, isVerified: !prev.isVerified } : null);
-    }
-  };
-
-  const handleBecomeProviderWithKYC = (kycData: { license: string, address: string, photo: string }) => {
-    if (!user) return;
-    const updatedUser: User = { 
-      ...user, 
-      role: Role.PROVIDER, 
-      isVerified: false, 
-      trustScore: 50,
-      licenseNumber: kycData.license,
-      homeAddress: kycData.address,
-      avatarUrl: kycData.photo,
-      kycSubmittedAt: Date.now()
-    };
-    setUser(updatedUser);
-    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-    setViewMode('MANAGEMENT');
-    addNotification('KYC SUBMITTED', 'Dossier received. Admin approval required for signal access.', 'SUCCESS');
-  };
-
   const addBooking = (bookingData: Partial<Booking>) => {
     const price = bookingData.price || 50;
     if (user && user.balance < price) return alert("Insufficient Escrow Balance");
@@ -181,8 +117,11 @@ const App: React.FC = () => {
       amount: price,
       desc: `Initiate Mission: ${bookingData.category}`,
       onComplete: () => {
+        const bookingId = 'SW-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+        const councilOrderId = 'CNC-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+        
         const newBooking: Booking = {
-          id: 'SW-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+          id: bookingId,
           customerId: user?.id || '',
           customerPhone: user?.phone || '',
           status: BookingStatus.PENDING,
@@ -195,14 +134,29 @@ const App: React.FC = () => {
           isPaid: false,
           trackingHistory: [currentLocation],
           customerTrustSnapshot: user?.trustScore || 90,
+          councilOrderId: councilOrderId,
           ...bookingData
         } as Booking;
+
+        // Create accompanying Council Order
+        const newCouncilOrder: CouncilOrder = {
+          id: councilOrderId,
+          bookingId: bookingId,
+          customerPhone: user?.phone || '',
+          levyAmount: price * 0.05, // 5% Council Levy
+          type: bookingData.category === 'transport' ? 'TRANSPORT_LEVY' : 'TRADE_PERMIT',
+          status: 'ISSUED',
+          issuedAt: Date.now()
+        };
+
         setBookings(prev => [newBooking, ...prev]);
+        setCouncilOrders(prev => [newCouncilOrder, ...prev]);
+        
         const newBalance = (user?.balance || 0) - price;
         setUser(u => u ? { ...u, balance: newBalance } : null);
         setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance } : u));
         setPendingPayment(null);
-        addNotification('MISSION LOGGED', 'Mission successfully synchronized with the corridor.', 'SUCCESS');
+        addNotification('MISSION LOGGED', 'Mission & Council Compliance established.', 'SUCCESS');
       }
     });
   };
@@ -210,9 +164,7 @@ const App: React.FC = () => {
   const updateBooking = (id: string, updates: Partial<Booking>) => {
     setBookings(prev => prev.map(b => {
       if (b.id === id) {
-        let finalUpdates = { ...updates };
-        const updated = { ...b, ...finalUpdates };
-        
+        const updated = { ...b, ...updates };
         if (updates.status === BookingStatus.COMPLETED && !b.isPaid) {
           const providerPay = b.price - b.commission;
           setAllUsers(uPrev => uPrev.map(u => {
@@ -228,7 +180,13 @@ const App: React.FC = () => {
     }));
   };
 
-  // Helper to determine what dashboard to show
+  const handleUpdateUser = (updates: Partial<User>) => {
+    if (!user) return;
+    const updatedUser = { ...user, ...updates };
+    setUser(updatedUser);
+    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+  };
+
   const renderDashboard = () => {
     if (!user) return null;
 
@@ -238,6 +196,7 @@ const App: React.FC = () => {
           user={user} 
           logout={() => setUser(null)} 
           bookings={bookings.filter(b => b.customerId === user.id)} 
+          councilOrders={councilOrders}
           onAddBooking={addBooking} 
           location={currentLocation} 
           onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} 
@@ -247,7 +206,16 @@ const App: React.FC = () => {
           onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
           isDarkMode={isDarkMode} 
           onLanguageChange={setLanguage} 
-          onBecomeProvider={handleBecomeProviderWithKYC} 
+          onBecomeProvider={(kyc) => {
+            const updatedUser: User = { 
+              ...user, role: Role.PROVIDER, isVerified: false, trustScore: 50,
+              licenseNumber: kyc.license, homeAddress: kyc.address, avatarUrl: kyc.photo, kycSubmittedAt: Date.now()
+            };
+            setUser(updatedUser);
+            setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+            setViewMode('MANAGEMENT');
+            addNotification('KYC SUBMITTED', 'Dossier received for clearance.', 'SUCCESS');
+          }} 
           onUpdateUser={handleUpdateUser} 
           t={t} 
           onToggleViewMode={() => setViewMode('MANAGEMENT')}
@@ -263,14 +231,18 @@ const App: React.FC = () => {
             logout={() => setUser(null)} 
             bookings={bookings} 
             allUsers={allUsers} 
+            councilOrders={councilOrders}
             systemLogs={systemLogs} 
             onToggleBlock={() => {}} 
             onDeleteUser={() => {}} 
-            onToggleVerification={handleToggleVerification} 
+            onToggleVerification={(userId) => {
+              setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: !u.isVerified } : u));
+              if (user.id === userId) setUser(prev => prev ? { ...prev, isVerified: !prev.isVerified } : null);
+            }} 
             onUpdateUserRole={() => {}} 
             adminNumbers={adminNumbers} 
-            onAddAdmin={handleAddAdmin} 
-            onRemoveAdmin={handleRemoveAdmin} 
+            onAddAdmin={(phone) => setAdminNumbers(prev => [...prev, phone])} 
+            onRemoveAdmin={(phone) => setAdminNumbers(prev => prev.filter(p => p !== phone))} 
             onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
             isDarkMode={isDarkMode} 
             onLanguageChange={setLanguage} 
@@ -336,17 +308,7 @@ const App: React.FC = () => {
       </div>
 
       {!user ? (
-        <Auth 
-          onLogin={handleLogin} 
-          onRegister={handleRegister}
-          onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-          isDarkMode={isDarkMode} 
-          language={language} 
-          onLanguageChange={setLanguage} 
-          t={t} 
-          adminNumbers={adminNumbers} 
-          existingUsers={allUsers}
-        />
+        <Auth onLogin={handleLogin} onRegister={handleRegister} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={t} adminNumbers={adminNumbers} existingUsers={allUsers} />
       ) : renderDashboard()}
 
       {pendingPayment && (

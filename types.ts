@@ -31,6 +31,16 @@ export interface ShoppingItem {
   isAvailable: boolean;
 }
 
+export interface CouncilOrder {
+  id: string;
+  bookingId: string;
+  customerPhone: string;
+  levyAmount: number;
+  type: 'TRANSPORT_LEVY' | 'TRADE_PERMIT' | 'BORDER_CLEARANCE';
+  status: 'ISSUED' | 'PAID' | 'VERIFIED';
+  issuedAt: number;
+}
+
 export interface SystemLog {
   id: string;
   timestamp: number;
@@ -91,6 +101,7 @@ export interface Booking {
   shopOwnerPhone?: string;
   roomNumber?: string;
   receiptId?: string;
+  councilOrderId?: string;
   cancellationReason?: string;
   // Support for Booking for Others
   recipientName?: string;
