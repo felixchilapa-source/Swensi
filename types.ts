@@ -67,6 +67,8 @@ export interface User {
   isVerified: boolean;
   hospitalityCashflow?: number;
   avatarUrl?: string;
+  // Subscription Fields
+  subscriptionExpiry?: number;
   // KYC Fields
   licenseNumber?: string;
   homeAddress?: string;

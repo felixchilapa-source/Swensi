@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Booking, BookingStatus, Location, SystemLog, CouncilOrder } from './types';
-import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS } from './constants';
+import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS, CATEGORIES, PLATFORM_COMMISSION_RATE, SUBSCRIPTION_PLANS } from './constants';
 import Auth from './components/Auth';
 import CustomerDashboard from './components/CustomerDashboard';
 import ProviderDashboard from './components/ProviderDashboard';
@@ -31,7 +31,6 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [notifications, setNotifications] = useState<SwensiNotification[]>([]);
-  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [currentLocation] = useState<Location>({ lat: -9.3283, lng: 32.7569 });
   const [adminNumbers, setAdminNumbers] = useState<string[]>(() => {
     const saved = localStorage.getItem('swensi-admins-v3');
@@ -70,51 +69,29 @@ const App: React.FC = () => {
     }, 5000);
   }, []);
 
-  // Mock SMS Service
   const sendMockSMS = useCallback((phone: string, message: string) => {
     console.log(`%c[SMS SENT TO ${phone}]: ${message}`, "color: #3b82f6; font-weight: bold; border: 1px solid #3b82f6; padding: 4px; border-radius: 4px;");
     addNotification('SMS GATEWAY', `Message sent to ${phone}`, 'SMS');
   }, [addNotification]);
 
-  const t = (key: string) => TRANSLATIONS[language]?.[key] || TRANSLATIONS['en'][key] || key;
+  const handleSubscribe = (userId: string, fee: number) => {
+    if (user && user.balance < fee) return alert("Insufficient Balance for Subscription");
 
-  const handleLogin = (phone: string, selectedLang: string) => {
-    const existingUser = allUsers.find(u => u.phone === phone);
-    if (existingUser) {
-      setLanguage(selectedLang);
-      setUser(existingUser);
-      if (existingUser.role !== Role.CUSTOMER) setViewMode('MANAGEMENT');
-      else setViewMode('CUSTOMER');
-      addNotification('TERMINAL AUTH', `Welcome back, ${existingUser.name}`, 'SUCCESS');
-      sendMockSMS(phone, `Swensi Alert: Secure login detected on your account at ${new Date().toLocaleTimeString()}.`);
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    const newExpiry = Date.now() + thirtyDays;
+
+    setAllUsers(prev => prev.map(u => {
+      if (u.id === userId) return { ...u, balance: u.balance - fee, subscriptionExpiry: newExpiry };
+      if (u.phone === SUPER_ADMIN) return { ...u, balance: u.balance + fee }; // Revenue routed to Admin
+      return u;
+    }));
+
+    if (user?.id === userId) {
+      setUser(prev => prev ? { ...prev, balance: prev.balance - fee, subscriptionExpiry: newExpiry } : null);
     }
-  };
 
-  const handleRegister = (phone: string, name: string, avatar: string, lang: string) => {
-    const isAdmin = adminNumbers.includes(phone);
-    const newUser: User = {
-      id: Math.random().toString(36).substr(2, 9),
-      phone,
-      role: isAdmin ? Role.ADMIN : Role.CUSTOMER,
-      name,
-      avatarUrl: avatar,
-      isActive: true,
-      balance: 1500.00,
-      rating: 5.0,
-      memberSince: Date.now(),
-      trustScore: 85,
-      isVerified: isAdmin,
-      language: lang,
-      completedMissions: 0,
-      isPremium: false
-    };
-
-    setAllUsers(prev => [...prev, newUser]);
-    setLanguage(lang);
-    setUser(newUser);
-    setViewMode(isAdmin ? 'MANAGEMENT' : 'CUSTOMER');
-    addNotification('NODE REGISTERED', `Welcome to the Corridor, ${name}`, 'SUCCESS');
-    sendMockSMS(phone, `Welcome to Swensi Link, ${name}! Your trade terminal is now active.`);
+    addNotification('REVENUE LOGGED', `Subscription active until ${new Date(newExpiry).toLocaleDateString()}`, 'SUCCESS');
+    sendMockSMS(user?.phone || '', `Swensi Billing: Subscription renewed. ZMW ${fee.toFixed(2)} deducted. Active until ${new Date(newExpiry).toLocaleDateString()}.`);
   };
 
   const addBooking = (bookingData: Partial<Booking>) => {
@@ -138,7 +115,7 @@ const App: React.FC = () => {
           category: bookingData.category || 'transport',
           description: bookingData.description || '',
           price: price,
-          commission: price * 0.10,
+          commission: price * PLATFORM_COMMISSION_RATE, // 0.24% Platform Slice
           isPaid: false,
           trackingHistory: [currentLocation],
           customerTrustSnapshot: user?.trustScore || 90,
@@ -173,20 +150,18 @@ const App: React.FC = () => {
     setBookings(prev => prev.map(b => {
       if (b.id === id) {
         const updated = { ...b, ...updates };
-        
-        // SMS Notifications for Status Changes
-        if (updates.status && updates.status !== b.status) {
-          sendMockSMS(b.customerPhone, `Swensi Alert: Mission ${b.id} status updated to ${updates.status}.`);
-        }
-
         if (updates.status === BookingStatus.COMPLETED && !b.isPaid) {
           const providerPay = b.price - b.commission;
           setAllUsers(uPrev => uPrev.map(u => {
+            // Pay Provider
             if (u.id === b.providerId) {
               sendMockSMS(u.phone, `Swensi Payout: Mission ${b.id} completed. ZMW ${providerPay.toFixed(2)} added to your node balance.`);
               return { ...u, balance: u.balance + providerPay, completedMissions: (u.completedMissions || 0) + 1 };
             }
-            if (u.phone === SUPER_ADMIN) return { ...u, balance: u.balance + b.commission };
+            // Pay Platform Admin (Commission Slice)
+            if (u.phone === SUPER_ADMIN) {
+              return { ...u, balance: u.balance + b.commission };
+            }
             return u;
           }));
           return { ...updated, isPaid: true };
@@ -197,11 +172,39 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleUpdateUser = (updates: Partial<User>) => {
-    if (!user) return;
-    const updatedUser = { ...user, ...updates };
-    setUser(updatedUser);
-    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+  const handleLogin = (phone: string, lang: string) => {
+    const existingUser = allUsers.find(u => u.phone === phone);
+    if (existingUser) {
+      setUser(existingUser);
+      setLanguage(lang);
+      localStorage.setItem('swensi-lang', lang);
+      addNotification('ACCESS GRANTED', `Terminal linked to ${existingUser.name}`, 'SUCCESS');
+    }
+  };
+
+  const handleRegister = (phone: string, name: string, avatar: string, lang: string) => {
+    const newUser: User = {
+      id: 'USR-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+      phone,
+      name,
+      role: Role.CUSTOMER,
+      isActive: true,
+      balance: 500, // Starting balance for demo
+      memberSince: Date.now(),
+      rating: 5.0,
+      language: lang,
+      trustScore: 90,
+      isVerified: true,
+      avatarUrl: avatar,
+      completedMissions: 0
+    };
+    
+    setAllUsers(prev => [...prev, newUser]);
+    setUser(newUser);
+    setLanguage(lang);
+    localStorage.setItem('swensi-lang', lang);
+    addNotification('NODE ESTABLISHED', `Welcome to the Nakonde Hub, ${name}`, 'SUCCESS');
+    sendMockSMS(phone, `Swensi: Welcome ${name}! Your node is active. Initial balance: ZMW 500.00.`);
   };
 
   const renderDashboard = () => {
@@ -210,33 +213,27 @@ const App: React.FC = () => {
     if (viewMode === 'CUSTOMER') {
       return (
         <CustomerDashboard 
-          user={user} 
-          logout={() => setUser(null)} 
-          bookings={bookings.filter(b => b.customerId === user.id)} 
-          councilOrders={councilOrders}
-          onAddBooking={addBooking} 
-          location={currentLocation} 
+          user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} 
+          councilOrders={councilOrders} onAddBooking={addBooking} location={currentLocation} 
           onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} 
-          onUpdateBooking={updateBooking} 
-          onRate={() => {}} 
-          onUploadFacePhoto={() => {}} 
-          onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-          isDarkMode={isDarkMode} 
-          onLanguageChange={setLanguage} 
+          onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} 
+          onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} 
           onBecomeProvider={(kyc) => {
             const updatedUser: User = { 
               ...user, role: Role.PROVIDER, isVerified: false, trustScore: 50,
-              licenseNumber: kyc.license, homeAddress: kyc.address, avatarUrl: kyc.photo, kycSubmittedAt: Date.now()
+              licenseNumber: kyc.license, homeAddress: kyc.address, avatarUrl: kyc.photo, kycSubmittedAt: Date.now(),
+              subscriptionExpiry: 0 // New providers start with no subscription
             };
             setUser(updatedUser);
             setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
             setViewMode('MANAGEMENT');
             addNotification('KYC SUBMITTED', 'Dossier received for clearance.', 'SUCCESS');
-            sendMockSMS(user.phone, `Swensi KYC: Your provider application is under review. You will be notified upon verification.`);
           }} 
-          onUpdateUser={handleUpdateUser} 
-          t={t} 
-          onToggleViewMode={() => setViewMode('MANAGEMENT')}
+          onUpdateUser={(updates) => {
+            setUser(u => u ? { ...u, ...updates } : null);
+            setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...updates } : u));
+          }} 
+          t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('MANAGEMENT')}
         />
       );
     }
@@ -245,74 +242,39 @@ const App: React.FC = () => {
       case Role.ADMIN:
         return (
           <AdminDashboard 
-            user={user} 
-            logout={() => setUser(null)} 
-            bookings={bookings} 
-            allUsers={allUsers} 
-            councilOrders={councilOrders}
-            systemLogs={systemLogs} 
-            onToggleBlock={() => {}} 
-            onDeleteUser={() => {}} 
+            user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} councilOrders={councilOrders}
+            systemLogs={[]} onToggleBlock={() => {}} onDeleteUser={() => {}} 
             onToggleVerification={(userId) => {
               setAllUsers(prev => prev.map(u => {
                 if (u.id === userId) {
                   const newVerified = !u.isVerified;
-                  if (newVerified) sendMockSMS(u.phone, `Swensi Alert: Your node has been VERIFIED. You can now accept missions in the corridor!`);
+                  if (newVerified) sendMockSMS(u.phone, `Swensi Alert: Your node has been VERIFIED.`);
                   return { ...u, isVerified: newVerified };
                 }
                 return u;
               }));
-              if (user.id === userId) setUser(prev => prev ? { ...prev, isVerified: !prev.isVerified } : null);
             }} 
-            onUpdateUserRole={() => {}} 
-            adminNumbers={adminNumbers} 
-            onAddAdmin={(phone) => setAdminNumbers(prev => [...prev, phone])} 
-            onRemoveAdmin={(phone) => setAdminNumbers(prev => prev.filter(p => p !== phone))} 
-            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-            isDarkMode={isDarkMode} 
-            onLanguageChange={setLanguage} 
-            sysDefaultLang={language} 
-            onUpdateSysDefaultLang={() => {}} 
-            t={t}
-            onToggleViewMode={() => setViewMode('CUSTOMER')}
+            adminNumbers={adminNumbers} onAddAdmin={() => {}} onRemoveAdmin={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+            isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={() => {}} 
+            t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );
       case Role.PROVIDER:
         return (
           <ProviderDashboard 
-            user={user} 
-            logout={() => setUser(null)} 
-            bookings={bookings} 
-            allUsers={allUsers} 
+            user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} 
             onUpdateStatus={(id, status, pid) => updateBooking(id, { status, providerId: pid })} 
             onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} 
             onUpdateBooking={updateBooking} 
-            onUpdateSubscription={() => {}} 
-            location={currentLocation} 
-            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-            isDarkMode={isDarkMode} 
-            onLanguageChange={setLanguage} 
-            onUpdateUser={handleUpdateUser} 
-            t={t}
-            onToggleViewMode={() => setViewMode('CUSTOMER')}
+            onUpdateSubscription={(plan) => handleSubscribe(user.id, plan === 'PREMIUM' ? SUBSCRIPTION_PLANS.PREMIUM : SUBSCRIPTION_PLANS.BASIC)} 
+            location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} 
+            onLanguageChange={setLanguage} onUpdateUser={(updates) => {
+              setUser(u => u ? { ...u, ...updates } : null);
+              setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...updates } : u));
+            }} t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );
-      case Role.LODGE:
-        return (
-          <LodgeDashboard 
-            user={user} 
-            logout={() => setUser(null)} 
-            bookings={bookings.filter(b => b.lodgeId === user.id || b.category === 'lodging')} 
-            onUpdateBooking={updateBooking} 
-            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-            isDarkMode={isDarkMode} 
-            onLanguageChange={setLanguage} 
-            onUpdateUser={handleUpdateUser} 
-            t={t} 
-          />
-        );
-      default:
-        return null;
+      default: return null;
     }
   };
 
@@ -324,29 +286,25 @@ const App: React.FC = () => {
              <div className="flex items-center gap-3">
                <div className={`w-2 h-2 rounded-full ${n.type === 'SUCCESS' ? 'bg-emerald-500' : n.type === 'SMS' ? 'bg-white' : 'bg-blue-500'} animate-pulse`}></div>
                <div>
-                 <p className="text-[9px] font-black uppercase italic tracking-widest leading-none opacity-80">{n.title}</p>
+                 <p className="text-[9px] font-black uppercase italic tracking-widest opacity-80">{n.title}</p>
                  <p className="text-[11px] font-bold mt-1.5 leading-tight">{n.message}</p>
                </div>
              </div>
            </div>
          ))}
       </div>
-
-      {!user ? (
-        <Auth onLogin={handleLogin} onRegister={handleRegister} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={t} adminNumbers={adminNumbers} existingUsers={allUsers} />
-      ) : renderDashboard()}
-
+      {!user ? <Auth onLogin={handleLogin} onRegister={handleRegister} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={(k) => TRANSLATIONS[language]?.[k] || k} adminNumbers={adminNumbers} existingUsers={allUsers} /> : renderDashboard()}
       {pendingPayment && (
         <div className="fixed inset-0 z-[1500] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6">
            <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl border-2 border-blue-600 text-center animate-zoom-in">
               <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto mb-6">
                 <i className="fa-solid fa-fingerprint text-blue-600 text-3xl"></i>
               </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 italic uppercase tracking-tighter">Authorize Escrow</h3>
-              <p className="text-4xl font-black text-blue-700 mb-8 italic tracking-tight leading-none">ZMW {pendingPayment.amount.toFixed(2)}</p>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 italic uppercase tracking-tighter">Authorize Payment</h3>
+              <p className="text-4xl font-black text-blue-700 mb-8 italic tracking-tight">ZMW {pendingPayment.amount.toFixed(2)}</p>
               <div className="space-y-3">
-                <button onClick={pendingPayment.onComplete} className="w-full py-5 bg-blue-700 text-white font-black rounded-[24px] text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 italic">Commit Funds</button>
-                <button onClick={() => setPendingPayment(null)} className="w-full py-3 text-slate-400 font-black text-[9px] uppercase tracking-widest">Abort Transaction</button>
+                <button onClick={pendingPayment.onComplete} className="w-full py-5 bg-blue-700 text-white font-black rounded-[24px] text-[11px] uppercase tracking-[0.2em] italic">Commit Funds</button>
+                <button onClick={() => setPendingPayment(null)} className="w-full py-3 text-slate-400 font-black text-[9px] uppercase tracking-widest">Abort</button>
               </div>
            </div>
         </div>

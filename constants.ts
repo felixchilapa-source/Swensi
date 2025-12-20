@@ -1,3 +1,4 @@
+
 export const COLORS = {
   PRIMARY: '#1E40AF',
   ACCENT: '#B87333',
@@ -10,6 +11,8 @@ export const COLORS = {
 };
 
 export const TRUSTED_COMMISSION_BONUS = 0.05;
+// Updated to 0.24% as requested
+export const PLATFORM_COMMISSION_RATE = 0.0024; 
 
 export interface Category {
   id: string;
@@ -36,6 +39,12 @@ export const VERIFIED_ADMINS = ['0961179384', '0965722947'];
 export const PAYMENT_NUMBERS = {
   MTN: '0961179384',
   Airtel: '0973310250',
+  Zamtel: '0970312655',
+};
+
+export const SUBSCRIPTION_PLANS = {
+  BASIC: 10,
+  PREMIUM: 20
 };
 
 export const LANGUAGES = [
