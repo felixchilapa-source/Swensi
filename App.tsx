@@ -52,7 +52,6 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
-  // Simulate movement for active nodes
   useEffect(() => {
     const interval = setInterval(() => {
       setBookings(prev => prev.map(b => {
@@ -84,45 +83,40 @@ const App: React.FC = () => {
 
   const t = (key: string) => TRANSLATIONS[language]?.[key] || TRANSLATIONS['en'][key] || key;
 
-  const handleLogin = (phone: string, selectedLang?: string, forcedRole?: Role) => {
+  const handleLogin = (phone: string, selectedLang: string, forcedRole?: Role) => {
     const existingUser = allUsers.find(u => u.phone === phone);
-    const isAdmin = adminNumbers.includes(phone);
-    const finalLang = selectedLang || language;
-    let role = forcedRole || Role.CUSTOMER;
-
-    // Security check for forced admin role
-    if (forcedRole === Role.ADMIN && !isAdmin) {
-      alert("UNAUTHORIZED ACCESS DETECTED. CONTACT SYSTEM ADMINISTRATOR.");
-      return;
+    if (existingUser) {
+      // Allow role switching if specified, or use existing role
+      const finalUser = forcedRole ? { ...existingUser, role: forcedRole } : existingUser;
+      setLanguage(selectedLang);
+      setUser(finalUser);
+      addNotification('TERMINAL AUTH', `Welcome back, ${finalUser.name}`, 'SUCCESS');
     }
+  };
 
-    const newUser: User = existingUser || {
+  const handleRegister = (phone: string, name: string, avatar: string, lang: string, role: Role) => {
+    const isAdmin = adminNumbers.includes(phone);
+    const newUser: User = {
       id: Math.random().toString(36).substr(2, 9),
       phone,
-      role: role,
-      name: isAdmin ? 'System Admin' : role === Role.PROVIDER ? 'Partner ' + phone.slice(-4) : 'User ' + phone.slice(-4),
+      role: isAdmin ? Role.ADMIN : role,
+      name,
+      avatarUrl: avatar,
       isActive: true,
       balance: 1500.00,
-      rating: 4.2 + Math.random() * 0.8,
+      rating: 5.0,
       memberSince: Date.now(),
       trustScore: role === Role.PROVIDER ? 50 : 85,
-      isVerified: isAdmin, // Only admins are verified by default. Providers must be upgraded.
-      language: finalLang,
+      isVerified: isAdmin,
+      language: lang,
       completedMissions: 0,
       isPremium: false
     };
 
-    if (!existingUser) {
-      setAllUsers(prev => [...prev, newUser]);
-    } else if (forcedRole) {
-      newUser.role = forcedRole;
-      if (isAdmin && existingUser.name === 'Admin') {
-          newUser.name = 'System Admin';
-      }
-    }
-
-    setLanguage(newUser.language);
+    setAllUsers(prev => [...prev, newUser]);
+    setLanguage(lang);
     setUser(newUser);
+    addNotification('NODE REGISTERED', `Welcome to the Corridor, ${name}`, 'SUCCESS');
   };
 
   const handleUpdateUser = (updates: Partial<User>) => {
@@ -154,16 +148,26 @@ const App: React.FC = () => {
       }
       return u;
     }));
+    if (user && user.id === userId) {
+      setUser(prev => prev ? { ...prev, isVerified: !prev.isVerified } : null);
+    }
   };
 
-  const handleBecomeProvider = () => {
+  const handleBecomeProviderWithKYC = (kycData: { license: string, address: string, photo: string }) => {
     if (!user) return;
-    if (window.confirm("Do you wish to upgrade to a Partner Node? Official verification required.")) {
-      const updatedUser = { ...user, role: Role.PROVIDER, isVerified: false, trustScore: 50 };
-      setUser(updatedUser);
-      setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-      addNotification('NODE UPGRADE', 'Your request to become a Partner is pending admin verification.', 'INFO');
-    }
+    const updatedUser: User = { 
+      ...user, 
+      role: Role.PROVIDER, 
+      isVerified: false, 
+      trustScore: 50,
+      licenseNumber: kycData.license,
+      homeAddress: kycData.address,
+      avatarUrl: kycData.photo,
+      kycSubmittedAt: Date.now()
+    };
+    setUser(updatedUser);
+    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    addNotification('KYC SUBMITTED', 'Dossier received. Admin approval required for signal access.', 'SUCCESS');
   };
 
   const addBooking = (bookingData: Partial<Booking>) => {
@@ -222,7 +226,6 @@ const App: React.FC = () => {
 
   return (
     <div className={`app-container ${isDarkMode ? 'dark' : ''}`}>
-      {/* Global Notifications */}
       <div className="absolute top-20 left-6 right-6 z-[400] pointer-events-none flex flex-col gap-3">
          {notifications.map(n => (
            <div key={n.id} className="p-4 rounded-[20px] shadow-2xl backdrop-blur-xl border border-white/10 bg-slate-900/90 text-white animate-slide-up pointer-events-auto">
@@ -238,7 +241,17 @@ const App: React.FC = () => {
       </div>
 
       {!user ? (
-        <Auth onLogin={handleLogin} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={t} adminNumbers={adminNumbers} />
+        <Auth 
+          onLogin={handleLogin} 
+          onRegister={handleRegister}
+          onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+          isDarkMode={isDarkMode} 
+          language={language} 
+          onLanguageChange={setLanguage} 
+          t={t} 
+          adminNumbers={adminNumbers} 
+          existingUsers={allUsers}
+        />
       ) : (
         <>
           {user.role === Role.ADMIN && (
@@ -263,7 +276,7 @@ const App: React.FC = () => {
               t={t} 
             />
           )}
-          {user.role === Role.CUSTOMER && <CustomerDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} onAddBooking={addBooking} location={currentLocation} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onBecomeProvider={handleBecomeProvider} onUpdateUser={handleUpdateUser} t={t} />}
+          {user.role === Role.CUSTOMER && <CustomerDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} onAddBooking={addBooking} location={currentLocation} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onBecomeProvider={handleBecomeProviderWithKYC} onUpdateUser={handleUpdateUser} t={t} />}
           {user.role === Role.PROVIDER && <ProviderDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} onUpdateStatus={(id, status, pid) => updateBooking(id, { status, providerId: pid })} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onUpdateSubscription={() => {}} location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onUpdateUser={handleUpdateUser} t={t} />}
           {user.role === Role.LODGE && <LodgeDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.lodgeId === user.id || b.category === 'lodging')} onUpdateBooking={updateBooking} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onUpdateUser={handleUpdateUser} t={t} />}
         </>

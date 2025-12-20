@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo, useRef } from 'react';
-import { User, Booking, Location, BookingStatus, ShoppingItem } from '../types';
+import { User, Booking, Location, BookingStatus, ShoppingItem, Role } from '../types';
 import { CATEGORIES, Category } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
@@ -18,7 +19,7 @@ interface CustomerDashboardProps {
   onToggleTheme: () => void;
   isDarkMode: boolean;
   onLanguageChange: (lang: string) => void;
-  onBecomeProvider: () => void;
+  onBecomeProvider: (kyc: { license: string, address: string, photo: string }) => void;
   onUpdateUser: (updates: Partial<User>) => void;
   t: (key: string) => string;
 }
@@ -28,11 +29,19 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [showKYCModal, setShowKYCModal] = useState(false);
+  
+  // KYC Form State
+  const [kycLicense, setKycLicense] = useState('');
+  const [kycAddress, setKycAddress] = useState('');
+  const [kycPhoto, setKycPhoto] = useState(user.avatarUrl || '');
+
   const [missionDesc, setMissionDesc] = useState('');
   const [landmark, setLandmark] = useState('');
   const [shoppingItems, setShoppingItems] = useState<string[]>([]);
   const [newItem, setNewItem] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const kycPhotoRef = useRef<HTMLInputElement>(null);
   
   const [isForOther, setIsForOther] = useState(false);
   const [recipientName, setRecipientName] = useState('');
@@ -75,9 +84,27 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     setActiveTab('active');
   };
 
+  const handleKYCSubmit = () => {
+    if (!kycLicense || !kycAddress || !kycPhoto) {
+      alert("All security protocols require full disclosure. Please provide License, Address, and Passport Photo.");
+      return;
+    }
+    onBecomeProvider({ license: kycLicense, address: kycAddress, photo: kycPhoto });
+    setShowKYCModal(false);
+  };
+
   const handleSaveProfile = () => {
     onUpdateUser({ name: editName, phone: editPhone });
     setIsEditing(false);
+  };
+
+  const handleKYCPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setKycPhoto(reader.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAvatarClick = () => {
@@ -106,6 +133,74 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       <AIAssistant />
+
+      {/* KYC Modal */}
+      {showKYCModal && (
+        <div className="fixed inset-0 z-[700] flex items-end sm:items-center justify-center p-4 animate-fade-in">
+           <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl" onClick={() => setShowKYCModal(false)}></div>
+           <div className="relative w-full max-w-[440px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl border-2 border-emerald-600/20 max-h-[90vh] overflow-y-auto no-scrollbar">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h3 className="text-2xl font-black italic uppercase tracking-tighter text-secondary dark:text-white">Partner Dossier</h3>
+                  <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest mt-1">Official Corridor Registration</p>
+                </div>
+                <button onClick={() => setShowKYCModal(false)} className="text-slate-400"><i className="fa-solid fa-circle-xmark text-xl"></i></button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex flex-col items-center gap-4 mb-6">
+                  <div 
+                    onClick={() => kycPhotoRef.current?.click()}
+                    className="w-32 h-32 rounded-3xl bg-slate-100 dark:bg-white/5 border-2 border-dashed border-emerald-600/30 flex items-center justify-center overflow-hidden relative group cursor-pointer"
+                  >
+                    {kycPhoto ? (
+                      <img src={kycPhoto} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center p-4">
+                        <i className="fa-solid fa-passport text-3xl text-emerald-600/40 mb-2"></i>
+                        <p className="text-[8px] font-black uppercase text-slate-500">Upload Passport Photo</p>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <i className="fa-solid fa-camera text-white"></i>
+                    </div>
+                  </div>
+                  <input type="file" ref={kycPhotoRef} className="hidden" accept="image/*" onChange={handleKYCPhotoUpload} />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 pl-2 italic">License Number (RTSA / Trade)</label>
+                  <input 
+                    value={kycLicense}
+                    onChange={(e) => setKycLicense(e.target.value)}
+                    placeholder="e.g. ZM-992831-X"
+                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-sm font-black outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 pl-2 italic">Physical Address (Nakonde)</label>
+                  <textarea 
+                    value={kycAddress}
+                    onChange={(e) => setKycAddress(e.target.value)}
+                    placeholder="e.g. Plot 22, Tazara Area, Nakonde"
+                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-sm font-medium outline-none focus:border-emerald-600 min-h-[80px]"
+                  />
+                </div>
+
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
+                  <p className="text-[9px] font-bold text-emerald-700 dark:text-emerald-500 leading-relaxed italic">
+                    Note: Your application will be reviewed by Swensi Command. Verification typically takes 2-4 hours during business cycles.
+                  </p>
+                </div>
+
+                <button onClick={handleKYCSubmit} className="w-full font-black py-5 rounded-[28px] text-[11px] uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all text-white bg-emerald-700 italic border-b-4 border-emerald-900">
+                  Submit Verification Dossier
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
 
       {selectedCategory && (
         <div className="fixed inset-0 z-[600] flex items-end sm:items-center justify-center p-4 animate-fade-in">
@@ -371,7 +466,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   
                   <div className="mt-10 pt-8 border-t border-slate-100 dark:border-white/5 space-y-4">
                     <button onClick={() => setIsEditing(true)} className="w-full bg-slate-50 dark:bg-white/5 text-emerald-600 border border-emerald-600/20 font-black py-4.5 rounded-[24px] text-[10px] uppercase tracking-widest active:scale-95 transition-all italic">Modify Operational Data</button>
-                    <button onClick={onBecomeProvider} className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-black py-4.5 rounded-[24px] text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all italic border-b-4 border-indigo-900">Elevate to Partner Node</button>
+                    <button onClick={() => setShowKYCModal(true)} className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-black py-4.5 rounded-[24px] text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all italic border-b-4 border-indigo-900">Elevate to Partner Node</button>
                     <button onClick={logout} className="w-full text-red-500 font-black py-4 text-[9px] uppercase tracking-[0.3em] hover:bg-red-500/5 rounded-2xl transition-colors mt-4">Deauthorize Session</button>
                   </div>
                 </div>

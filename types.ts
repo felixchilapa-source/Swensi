@@ -57,6 +57,10 @@ export interface User {
   isVerified: boolean;
   hospitalityCashflow?: number;
   avatarUrl?: string;
+  // KYC Fields
+  licenseNumber?: string;
+  homeAddress?: string;
+  kycSubmittedAt?: number;
   // Trust Indicators
   cancellationRate?: number;
   onTimeRate?: number;

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { User, Booking, Role, SystemLog } from '../types';
 import { SUPER_ADMIN, LANGUAGES } from '../constants';
@@ -33,6 +34,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   const [view, setView] = useState<'stats' | 'registry' | 'security' | 'hospitality'>('stats');
   const [newAdminPhone, setNewAdminPhone] = useState('');
+  const [reviewUser, setReviewUser] = useState<User | null>(null);
   
   const stats = useMemo(() => {
     const totalVolume = bookings.reduce((acc, b) => acc + b.price, 0);
@@ -70,6 +72,63 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <i className="fa-solid fa-power-off text-xs"></i>
         </button>
       </header>
+
+      {/* Dossier Review Modal */}
+      {reviewUser && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 animate-fade-in">
+           <div className="absolute inset-0 bg-black/90 backdrop-blur-2xl" onClick={() => setReviewUser(null)}></div>
+           <div className="relative w-full max-w-[400px] bg-slate-900 border border-white/10 rounded-[40px] p-8 shadow-2xl overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/10 rounded-full blur-3xl translate-x-10 -translate-y-10"></div>
+              
+              <div className="flex justify-between items-start mb-8">
+                 <div>
+                    <h4 className="text-xl font-black italic tracking-tighter uppercase">Review Dossier</h4>
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">KYC Audit Protocol</p>
+                 </div>
+                 <button onClick={() => setReviewUser(null)} className="text-slate-500"><i className="fa-solid fa-circle-xmark text-xl"></i></button>
+              </div>
+
+              <div className="space-y-6">
+                 <div className="w-40 h-40 mx-auto bg-slate-800 rounded-3xl overflow-hidden border-2 border-white/10 shadow-2xl">
+                    <img src={reviewUser.avatarUrl} className="w-full h-full object-cover" />
+                 </div>
+
+                 <div className="space-y-4">
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                       <p className="text-[7px] font-black uppercase text-slate-500 mb-1">Partner Name</p>
+                       <p className="text-sm font-black italic">{reviewUser.name}</p>
+                    </div>
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                       <p className="text-[7px] font-black uppercase text-slate-500 mb-1">License ID</p>
+                       <p className="text-sm font-black italic text-emerald-500">{reviewUser.licenseNumber || 'UNAVAILABLE'}</p>
+                    </div>
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                       <p className="text-[7px] font-black uppercase text-slate-500 mb-1">Home Base Address</p>
+                       <p className="text-[11px] font-medium leading-relaxed">{reviewUser.homeAddress || 'UNAVAILABLE'}</p>
+                    </div>
+                 </div>
+
+                 <div className="flex gap-3 pt-4">
+                    <button 
+                      onClick={() => setReviewUser(null)}
+                      className="flex-1 bg-white/5 text-slate-400 font-black py-4 rounded-2xl text-[9px] uppercase tracking-widest"
+                    >
+                      Close Audit
+                    </button>
+                    <button 
+                      onClick={() => {
+                        onToggleVerification(reviewUser.id);
+                        setReviewUser(null);
+                      }}
+                      className={`flex-1 font-black py-4 rounded-2xl text-[9px] uppercase tracking-widest shadow-xl transition-all ${reviewUser.isVerified ? 'bg-red-600/20 text-red-500 border border-red-600/30' : 'bg-emerald-600 text-white'}`}
+                    >
+                      {reviewUser.isVerified ? 'Revoke Clear' : 'Authorize Node'}
+                    </button>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-5 space-y-6 pb-24 no-scrollbar">
         <nav className="flex bg-white/5 p-1 rounded-2xl border border-white/5 sticky top-0 z-40 backdrop-blur-md">
@@ -131,12 +190,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                              </div>
                           </div>
                        </div>
-                       <button 
-                        onClick={() => onToggleVerification(u.id)}
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${u.isVerified ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-white/5 text-slate-500 border border-white/10'}`}
-                       >
-                          <i className="fa-solid fa-certificate"></i>
-                       </button>
+                       <div className="flex gap-2">
+                         {u.role === Role.PROVIDER && (
+                           <button 
+                            onClick={() => setReviewUser(u)}
+                            className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-600/10 text-blue-500 border border-blue-500/20"
+                           >
+                              <i className="fa-solid fa-file-invoice"></i>
+                           </button>
+                         )}
+                         <button 
+                          onClick={() => onToggleVerification(u.id)}
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${u.isVerified ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-white/5 text-slate-500 border border-white/10'}`}
+                         >
+                            <i className="fa-solid fa-certificate"></i>
+                         </button>
+                       </div>
                     </div>
                  ))}
               </div>
