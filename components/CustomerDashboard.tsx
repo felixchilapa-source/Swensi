@@ -10,8 +10,6 @@ import { GoogleGenAI } from "@google/genai";
 interface GroundingResult {
   title: string;
   uri: string;
-  lat?: number;
-  lng?: number;
 }
 
 interface CustomerDashboardProps {
@@ -45,15 +43,48 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   
   const [missionDesc, setMissionDesc] = useState('');
   const [landmark, setLandmark] = useState('');
-  const [shoppingItems, setShoppingItems] = useState<string[]>([]);
-  const [newItem, setNewItem] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [isForOther, setIsForOther] = useState(false);
-  const [recipientName, setRecipientName] = useState('');
-  const [recipientPhone, setRecipientPhone] = useState('');
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings]);
+
+  const handleSearchNearby = async (query: string) => {
+    setIsSearchingNearby(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Locate ${query} near the Nakonde-Tunduma border.`,
+        config: {
+          tools: [{ googleMaps: {} }],
+          toolConfig: {
+            retrievalConfig: {
+              latLng: {
+                latitude: location.lat,
+                longitude: location.lng
+              }
+            }
+          }
+        },
+      });
+
+      const results: GroundingResult[] = [];
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (chunks) {
+        chunks.forEach((chunk: any) => {
+          if (chunk.maps) {
+            results.push({
+              title: chunk.maps.title,
+              uri: chunk.maps.uri
+            });
+          }
+        });
+      }
+      setNearbyResults(results);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSearchingNearby(false);
+    }
+  };
 
   const handleLaunch = () => {
     if (!selectedCategory) return;
@@ -61,8 +92,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       category: selectedCategory.id,
       description: `${missionDesc}${landmark ? ` | Landmark: ${landmark}` : ''}`,
       price: selectedCategory.basePrice,
-      recipientName: isForOther ? recipientName : undefined,
-      recipientPhone: isForOther ? recipientPhone : undefined,
     });
     setSelectedCategory(null);
     setMissionDesc('');
@@ -150,6 +179,33 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] italic mb-1">Station Status: Active</p>
                 <h1 className="text-4xl font-black text-secondary dark:text-white tracking-tighter italic leading-[0.9] uppercase">{t('welcome').split(' ')[0]} <br/> <span className="text-emerald-600">{user.name.split(' ')[0]}!</span></h1>
               </div>
+            </div>
+
+            <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl">
+               <Map center={location} markers={[{ loc: location, color: '#059669', label: 'You' }]} />
+               <div className="p-5 flex flex-col gap-4">
+                  <div className="flex gap-2">
+                    <button onClick={() => handleSearchNearby('lodges')} disabled={isSearchingNearby} className="flex-1 py-3.5 rounded-2xl bg-blue-600/10 text-blue-500 text-[9px] font-black uppercase tracking-widest italic border border-blue-500/20 active:scale-95 transition-all">
+                      {isSearchingNearby ? <i className="fa-solid fa-circle-notch animate-spin mr-2"></i> : <i className="fa-solid fa-hotel mr-2"></i>} Lodges
+                    </button>
+                    <button onClick={() => handleSearchNearby('banks')} disabled={isSearchingNearby} className="flex-1 py-3.5 rounded-2xl bg-emerald-600/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest italic border border-emerald-500/20 active:scale-95 transition-all">
+                      <i className="fa-solid fa-building-columns mr-2"></i> Banks/FX
+                    </button>
+                  </div>
+                  
+                  {nearbyResults.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-white/5">
+                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em] mb-3 italic text-center">Grounding Active • Verified Locations</p>
+                      {nearbyResults.map((res, i) => (
+                        <a key={i} href={res.uri} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-all">
+                          <span className="text-[10px] font-black text-slate-200 uppercase truncate">{res.title}</span>
+                          <i className="fa-solid fa-arrow-right-long text-blue-500 text-xs"></i>
+                        </a>
+                      ))}
+                      <button onClick={() => setNearbyResults([])} className="w-full py-2 text-[8px] font-black text-slate-600 uppercase tracking-widest mt-2 hover:text-white transition-colors">Dismiss Data</button>
+                    </div>
+                  )}
+               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
