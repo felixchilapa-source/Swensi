@@ -3,28 +3,35 @@ import { createRoot } from 'react-dom/client';
 import * as d3 from 'd3';
 import { GoogleGenAI } from "@google/genai";
 
-// POLYFILL: Ensure process is defined for the browser to prevent crashes
+/**
+ * CORE POLYFILLS & CONFIG
+ * Ensures the app doesn't crash in browser environments.
+ */
 if (typeof (window as any).process === 'undefined') {
   (window as any).process = { env: {} };
 }
+const process = (window as any).process;
+const getApiKey = () => process.env.API_KEY || '';
 
-const getApiKey = () => (window as any).process?.env?.API_KEY || '';
-
-// --- 1. CORE TYPES ---
+// --- 1. TYPES & CONSTANTS ---
 enum Role { CUSTOMER = 'CUSTOMER', PROVIDER = 'PROVIDER', ADMIN = 'ADMIN', LODGE = 'LODGE' }
 enum BookingStatus { PENDING = 'PENDING', ACCEPTED = 'ACCEPTED', ON_TRIP = 'ON_TRIP', DELIVERED = 'DELIVERED', COMPLETED = 'COMPLETED', CANCELLED = 'CANCELLED' }
 
-interface User {
-  id: string; phone: string; role: Role; name: string; balance: number; trustScore: number; isVerified: boolean;
-}
-
-interface Booking {
+interface User { id: string; phone: string; role: Role; name: string; balance: number; trustScore: number; isVerified: boolean; }
+interface Booking { 
   id: string; customerId: string; providerId?: string; category: string; description: string; 
   status: BookingStatus; price: number; createdAt: number; location: { lat: number; lng: number };
   trackingHistory: { lat: number; lng: number }[];
 }
 
-// --- 2. UI COMPONENTS ---
+const CATEGORIES = [
+  { id: 'transport', name: 'Taxi & Bike', icon: 'fa-car-side', basePrice: 65, hint: "Fast movement in Nakonde" },
+  { id: 'customs', name: 'Customs Clearing', icon: 'fa-file-contract', basePrice: 200, hint: "Border paperwork help" },
+  { id: 'lodging', name: 'Lodges & Rooms', icon: 'fa-bed', basePrice: 350, hint: "Safe stays near the border" },
+  { id: 'errands', name: 'Shopping/Errands', icon: 'fa-cart-shopping', basePrice: 50, hint: "Get groceries or goods" },
+];
+
+// --- 2. COMPONENTS ---
 
 const NewsTicker = () => {
   const [news, setNews] = useState(["Connecting to Nakonde Trade Signal...", "Scanning Corridor..."]);
@@ -36,7 +43,7 @@ const NewsTicker = () => {
         const ai = new GoogleGenAI({ apiKey });
         const res = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: 'Generate 3 very short news items for Nakonde trade link (max 8 words each).'
+          contents: 'Generate 3 short trade news items for Nakonde (max 8 words each).'
         });
         if (res.text) setNews(res.text.split('\n').filter(l => l.length > 5).slice(0, 3));
       } catch (e) { console.debug("Ticker offline"); }
@@ -76,8 +83,6 @@ const MapView = ({ center, history = [] }: { center: { lat: number, lng: number 
   return <div className="w-full bg-slate-950 overflow-hidden shadow-inner"><svg ref={svgRef} viewBox="0 0 400 250" className="w-full h-auto"></svg></div>;
 };
 
-// --- 3. DASHBOARDS ---
-
 const Auth = ({ onLogin }: { onLogin: any }) => {
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState(Role.CUSTOMER);
@@ -89,26 +94,32 @@ const Auth = ({ onLogin }: { onLogin: any }) => {
         <h1 className="text-5xl font-black italic text-blue-600 uppercase tracking-tighter">Swensi</h1>
         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">Nakonde Trade Link</p>
       </div>
-      <div className="w-full space-y-4">
+      <div className="w-full space-y-4 max-w-[340px]">
         {step === 1 ? (
           <>
-            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone Number" className="w-full p-6 bg-white/5 border border-white/10 rounded-[28px] text-xl font-black outline-none focus:border-blue-600" />
-            <select value={role} onChange={e => setRole(e.target.value as Role)} className="w-full p-6 bg-white/5 border border-white/10 rounded-[28px] font-black text-sm text-slate-400 outline-none">
+            <div className="flex items-center bg-white/5 border border-white/10 rounded-[28px] p-5">
+              <span className="text-slate-500 font-black mr-3">+260</span>
+              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone Number" className="bg-transparent text-white text-xl font-black outline-none w-full" />
+            </div>
+            <select value={role} onChange={e => setRole(e.target.value as Role)} className="w-full p-6 bg-white/5 border border-white/10 rounded-[28px] font-black text-sm text-slate-400 outline-none appearance-none">
               <option value={Role.CUSTOMER}>Market User</option>
               <option value={Role.PROVIDER}>Corridor Partner</option>
             </select>
-            <button onClick={() => setStep(2)} className="w-full bg-blue-700 py-6 rounded-[28px] font-black uppercase italic shadow-xl shadow-blue-600/20">Verify Node</button>
+            <button onClick={() => setStep(2)} className="w-full bg-blue-700 py-6 rounded-[28px] font-black uppercase italic shadow-xl shadow-blue-600/20 active:scale-95 transition-all">Verify Node</button>
           </>
         ) : (
           <>
-            <input placeholder="Code 123456" className="w-full p-6 text-center text-4xl font-black bg-white/5 border border-white/10 rounded-[28px]" />
-            <button onClick={() => onLogin(phone, role)} className="w-full bg-blue-600 py-6 rounded-[28px] font-black uppercase italic">Establish Link</button>
+            <input placeholder="Code 123456" className="w-full p-6 text-center text-4xl font-black bg-white/5 border border-white/10 rounded-[28px] text-white" maxLength={6} />
+            <button onClick={() => onLogin(phone, role)} className="w-full bg-blue-600 py-6 rounded-[28px] font-black uppercase italic active:scale-95 transition-all">Establish Link</button>
+            <button onClick={() => setStep(1)} className="w-full text-slate-500 text-[10px] font-black uppercase italic mt-4">Change Phone</button>
           </>
         )}
       </div>
     </div>
   );
 };
+
+// --- 3. MAIN DASHBOARD ---
 
 const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any) => {
   const [tab, setTab] = useState('home');
@@ -118,7 +129,7 @@ const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any)
       <header className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
         <h2 className="text-xl font-black italic text-blue-600">SWENSI</h2>
         <div className="text-right">
-          <p className="text-[12px] font-black">ZMW {user.balance}</p>
+          <p className="text-[12px] font-black">ZMW {user.balance.toFixed(0)}</p>
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Wallet</p>
         </div>
       </header>
@@ -128,49 +139,50 @@ const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any)
         {tab === 'home' ? (
           user.role === Role.CUSTOMER ? (
             <div className="grid grid-cols-2 gap-4">
-              {[
-                { id: 'transport', name: 'Taxi', icon: 'fa-car-side' },
-                { id: 'customs', name: 'Customs', icon: 'fa-file-contract' },
-                { id: 'lodging', name: 'Lodges', icon: 'fa-bed' },
-                { id: 'errands', name: 'Errands', icon: 'fa-shopping-cart' }
-              ].map(c => (
+              {CATEGORIES.map(c => (
                 <button key={c.id} onClick={() => onAddBooking(c)} className="bg-slate-900 p-8 rounded-[32px] border border-white/5 flex flex-col items-center gap-4 shadow-xl active:scale-95 transition-all">
-                  <i className={`fa-solid ${c.icon} text-3xl text-blue-600`}></i>
+                  <i className={`fa-solid ${c.icon === 'fa-car-side' ? 'fa-car-side' : c.icon === 'fa-file-contract' ? 'fa-file-contract' : c.icon === 'fa-bed' ? 'fa-bed' : 'fa-shopping-cart'} text-3xl text-blue-600`}></i>
                   <p className="text-[10px] font-black uppercase tracking-widest">{c.name}</p>
                 </button>
               ))}
             </div>
           ) : (
             <div className="space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Available Missions</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Available Missions</h3>
               {bookings.filter((b:any) => b.status === BookingStatus.PENDING).map((b:any) => (
-                <div key={b.id} className="bg-slate-900 p-6 rounded-[32px] border border-white/5 flex justify-between items-center">
+                <div key={b.id} className="bg-slate-900 p-6 rounded-[32px] border border-white/5 flex justify-between items-center animate-fade-in">
                   <div>
-                    <p className="text-xs font-black uppercase text-blue-500">{b.category}</p>
+                    <p className="text-[9px] font-black uppercase text-blue-500 italic tracking-widest">{b.category}</p>
                     <p className="text-lg font-black italic">ZMW {b.price}</p>
                   </div>
                   <button onClick={() => onUpdateBooking(b.id, BookingStatus.ACCEPTED)} className="bg-blue-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase italic">Accept</button>
                 </div>
               ))}
+              {bookings.filter((b:any) => b.status === BookingStatus.PENDING).length === 0 && (
+                <p className="text-center text-slate-700 py-10 uppercase text-[10px] font-black tracking-widest italic">Scanning corridor for trade signals...</p>
+              )}
             </div>
           )
         ) : (
           <div className="space-y-6">
             {bookings.filter((b:any) => b.status !== BookingStatus.COMPLETED).map((b:any) => (
-              <div key={b.id} className="bg-slate-900 rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
+              <div key={b.id} className="bg-slate-900 rounded-[40px] border border-white/5 overflow-hidden shadow-2xl animate-fade-in">
                 {b.status === BookingStatus.ON_TRIP && <MapView center={b.location} history={b.trackingHistory} />}
                 <div className="p-8">
-                  <div className="flex justify-between items-center mb-2">
+                  <div className="flex justify-between items-center mb-4">
                     <span className="text-[10px] font-black uppercase text-blue-500">{b.category} • {b.id}</span>
                     <span className="text-[10px] font-black uppercase text-emerald-500 animate-pulse">{b.status}</span>
                   </div>
                   <p className="text-sm font-medium text-slate-400 italic">"{b.description}"</p>
                   {user.role === Role.PROVIDER && b.status === BookingStatus.ACCEPTED && (
-                    <button onClick={() => onUpdateBooking(b.id, BookingStatus.COMPLETED)} className="w-full bg-blue-600 mt-6 py-4 rounded-2xl font-black uppercase italic text-xs">Complete Mission</button>
+                    <button onClick={() => onUpdateBooking(b.id, BookingStatus.COMPLETED)} className="w-full bg-blue-600 mt-6 py-4 rounded-2xl font-black uppercase italic text-xs active:scale-95 transition-all shadow-lg shadow-blue-600/20">Complete Mission</button>
                   )}
                 </div>
               </div>
             ))}
+            {bookings.filter((b:any) => b.status !== BookingStatus.COMPLETED).length === 0 && (
+              <p className="text-center text-slate-700 py-20 uppercase text-[10px] font-black tracking-widest italic">No active missions linked.</p>
+            )}
           </div>
         )}
       </div>
@@ -184,20 +196,38 @@ const MainApp = ({ user, logout, bookings, onAddBooking, onUpdateBooking }: any)
   );
 };
 
-// --- 4. ROOT APP ---
+// --- 4. CORE APP ---
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>(() => JSON.parse(localStorage.getItem('swensi-v5-db') || '[]'));
+  const [bookings, setBookings] = useState<Booking[]>(() => JSON.parse(localStorage.getItem('swensi-v6-db') || '[]'));
 
-  useEffect(() => localStorage.setItem('swensi-v5-db', JSON.stringify(bookings)), [bookings]);
+  useEffect(() => localStorage.setItem('swensi-v6-db', JSON.stringify(bookings)), [bookings]);
 
   const onLogin = (phone: string, role: Role) => {
-    setUser({ id: 'U' + Math.random().toString(36).substr(2, 5), phone, role, name: 'Node-' + phone.slice(-4), balance: 1500, trustScore: 98, isVerified: true });
+    setUser({ 
+      id: 'U' + Math.random().toString(36).substr(2, 5).toUpperCase(), 
+      phone, 
+      role, 
+      name: 'Node-' + phone.slice(-4), 
+      balance: 1500, 
+      trustScore: 98, 
+      isVerified: true 
+    });
   };
 
   const onAddBooking = (cat: any) => {
-    const b: Booking = { id: 'SW-' + Math.random().toString(36).substr(2, 4).toUpperCase(), customerId: user!.id, category: cat.name, description: `Request for ${cat.name}`, status: BookingStatus.PENDING, price: 100, createdAt: Date.now(), location: { lat: -9.3283, lng: 32.7569 }, trackingHistory: [{ lat: -9.3283, lng: 32.7569 }] };
+    const b: Booking = { 
+      id: 'SW-' + Math.random().toString(36).substr(2, 4).toUpperCase(), 
+      customerId: user!.id, 
+      category: cat.name, 
+      description: `Trade Request: ${cat.name}`, 
+      status: BookingStatus.PENDING, 
+      price: cat.basePrice || 100, 
+      createdAt: Date.now(), 
+      location: { lat: -9.3283, lng: 32.7569 }, 
+      trackingHistory: [{ lat: -9.3283, lng: 32.7569 }] 
+    };
     setBookings([b, ...bookings]);
   };
 
@@ -212,7 +242,7 @@ const App = () => {
   );
 };
 
-const rootEl = document.getElementById('root');
-if (rootEl) {
-  createRoot(rootEl).render(<App />);
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  createRoot(rootElement).render(<App />);
 }
