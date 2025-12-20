@@ -1,6 +1,6 @@
 {
   "name": "swensi-nakonde-terminal",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Swensi Nakonde - Trade & Transport Logistics Link",
   "main": "server.js",
   "type": "module",
@@ -20,7 +20,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@types/d3": "^7.10.0",
+    "@types/d3": "^7.4.3",
     "@types/node": "^20.11.24",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
