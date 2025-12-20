@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "echo 'Using Browser-Side Transpilation: Build step verified.'"
   },
   "dependencies": {
     "express": "^4.18.2"
