@@ -25,9 +25,12 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [notifications, setNotifications] = useState<SwensiNotification[]>([]);
-  const [systemLogs] = useState<SystemLog[]>([]);
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [currentLocation] = useState<Location>({ lat: -9.3283, lng: 32.7569 });
-  const [adminNumbers] = useState<string[]>(VERIFIED_ADMINS);
+  const [adminNumbers, setAdminNumbers] = useState<string[]>(() => {
+    const saved = localStorage.getItem('swensi-admins-v2');
+    return saved ? JSON.parse(saved) : VERIFIED_ADMINS;
+  });
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('swensi-theme') === 'dark');
   const [language, setLanguage] = useState(() => localStorage.getItem('swensi-lang') || 'en');
   const [pendingPayment, setPendingPayment] = useState<{ amount: number; desc: string; onComplete: () => void } | null>(null);
@@ -39,6 +42,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('swensi-bookings-v2', JSON.stringify(bookings));
   }, [bookings]);
+
+  useEffect(() => {
+    localStorage.setItem('swensi-admins-v2', JSON.stringify(adminNumbers));
+  }, [adminNumbers]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -98,8 +105,8 @@ const App: React.FC = () => {
       balance: 1500.00,
       rating: 4.2 + Math.random() * 0.8,
       memberSince: Date.now(),
-      trustScore: role === Role.PROVIDER ? 95 : 85,
-      isVerified: isAdmin || role === Role.PROVIDER,
+      trustScore: role === Role.PROVIDER ? 50 : 85,
+      isVerified: isAdmin, // Only admins are verified by default. Providers must be upgraded.
       language: finalLang,
       completedMissions: 0,
       isPremium: false
@@ -109,7 +116,6 @@ const App: React.FC = () => {
       setAllUsers(prev => [...prev, newUser]);
     } else if (forcedRole) {
       newUser.role = forcedRole;
-      // Sync names for admins
       if (isAdmin && existingUser.name === 'Admin') {
           newUser.name = 'System Admin';
       }
@@ -127,13 +133,36 @@ const App: React.FC = () => {
     addNotification('TERMINAL SYNC', 'Identity data successfully updated.', 'SUCCESS');
   };
 
+  const handleAddAdmin = (phone: string) => {
+    if (adminNumbers.includes(phone)) return alert("Node already holds admin clearance.");
+    setAdminNumbers(prev => [...prev, phone]);
+    addNotification('SECURITY UPDATE', `Admin node ${phone} authorized.`, 'SUCCESS');
+  };
+
+  const handleRemoveAdmin = (phone: string) => {
+    if (phone === SUPER_ADMIN) return alert("System Root (Super Admin) cannot be deauthorized.");
+    setAdminNumbers(prev => prev.filter(p => p !== phone));
+    addNotification('SECURITY UPDATE', `Admin node ${phone} deauthorized.`, 'ALERT');
+  };
+
+  const handleToggleVerification = (userId: string) => {
+    setAllUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        const newStatus = !u.isVerified;
+        addNotification('VERIFICATION', `${u.name} verification status: ${newStatus ? 'AUTHORIZED' : 'REVOKED'}`, 'INFO');
+        return { ...u, isVerified: newStatus };
+      }
+      return u;
+    }));
+  };
+
   const handleBecomeProvider = () => {
     if (!user) return;
     if (window.confirm("Do you wish to upgrade to a Partner Node? Official verification required.")) {
-      const updatedUser = { ...user, role: Role.PROVIDER, isVerified: true, trustScore: Math.max(user.trustScore, 90) };
+      const updatedUser = { ...user, role: Role.PROVIDER, isVerified: false, trustScore: 50 };
       setUser(updatedUser);
       setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-      addNotification('NODE ELEVATED', 'You are now a verified Swensi Partner.', 'SUCCESS');
+      addNotification('NODE UPGRADE', 'Your request to become a Partner is pending admin verification.', 'INFO');
     }
   };
 
@@ -212,7 +241,28 @@ const App: React.FC = () => {
         <Auth onLogin={handleLogin} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={t} adminNumbers={adminNumbers} />
       ) : (
         <>
-          {user.role === Role.ADMIN && <AdminDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} systemLogs={systemLogs} onToggleBlock={() => {}} onDeleteUser={() => {}} onToggleVerification={() => {}} onUpdateUserRole={() => {}} adminNumbers={adminNumbers} onAddAdmin={() => {}} onRemoveAdmin={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={() => {}} t={t} />}
+          {user.role === Role.ADMIN && (
+            <AdminDashboard 
+              user={user} 
+              logout={() => setUser(null)} 
+              bookings={bookings} 
+              allUsers={allUsers} 
+              systemLogs={systemLogs} 
+              onToggleBlock={() => {}} 
+              onDeleteUser={() => {}} 
+              onToggleVerification={handleToggleVerification} 
+              onUpdateUserRole={() => {}} 
+              adminNumbers={adminNumbers} 
+              onAddAdmin={handleAddAdmin} 
+              onRemoveAdmin={handleRemoveAdmin} 
+              onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+              isDarkMode={isDarkMode} 
+              onLanguageChange={setLanguage} 
+              sysDefaultLang={language} 
+              onUpdateSysDefaultLang={() => {}} 
+              t={t} 
+            />
+          )}
           {user.role === Role.CUSTOMER && <CustomerDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} onAddBooking={addBooking} location={currentLocation} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onBecomeProvider={handleBecomeProvider} onUpdateUser={handleUpdateUser} t={t} />}
           {user.role === Role.PROVIDER && <ProviderDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} onUpdateStatus={(id, status, pid) => updateBooking(id, { status, providerId: pid })} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onUpdateSubscription={() => {}} location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onUpdateUser={handleUpdateUser} t={t} />}
           {user.role === Role.LODGE && <LodgeDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.lodgeId === user.id || b.category === 'lodging')} onUpdateBooking={updateBooking} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onUpdateUser={handleUpdateUser} t={t} />}
