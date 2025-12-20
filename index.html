@@ -7,133 +7,17 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/713/713311.png">
-    
-    <title>Swensi Nakonde - Trade & Transport</title>
-    
+    <title>Swensi Nakonde - Trade Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#1E40AF',
-                        secondary: '#0F172A',
-                        accent: '#B87333',
-                    }
-                }
-            }
-        }
-    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-        
-        :root {
-            --primary: #1E40AF;
-            --secondary: #0F172A;
-            --accent: #B87333;
-            --bg-app: #ffffff;
-            --text-app: #0f172a;
-        }
-
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #0f172a;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            color: #0f172a;
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-
-        #root {
-            width: 100%;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .mobile-container {
-            width: 100%;
-            max-width: 480px;
-            height: 100vh;
-            background: var(--bg-app);
-            position: relative;
-            box-shadow: 0 0 100px rgba(0,0,0,0.5);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .mobile-container.dark {
-            --bg-app: #0f172a;
-            --text-app: #f8fafc;
-        }
-
-        @media (min-width: 480px) {
-            .mobile-container {
-                height: 95vh;
-                max-height: 900px;
-                border-radius: 40px;
-                margin: 20px;
-            }
-        }
-
-        .glass-nav {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-        }
-
-        .dark .glass-nav {
-            background: rgba(15, 23, 42, 0.85);
-            border-color: rgba(255, 255, 255, 0.1);
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
-
-        @keyframes zoomIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        .animate-fade-in {
-            animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
-        .animate-slide-up {
-            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
-        .animate-zoom-in {
-            animation: zoomIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
-        ::-webkit-scrollbar {
-            display: none;
-        }
+        body { font-family: 'Inter', sans-serif; background: #0f172a; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #root { width: 100%; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .mobile-container { width: 100%; max-width: 480px; height: 100vh; background: #ffffff; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+        .mobile-container.dark { background: #0f172a; color: #f8fafc; }
+        @media (min-width: 480px) { .mobile-container { height: 95vh; max-height: 900px; border-radius: 40px; } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 <script type="importmap">
 {
@@ -143,8 +27,8 @@
     "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
     "d3": "https://esm.sh/d3@^7.9.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
