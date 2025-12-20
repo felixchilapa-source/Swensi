@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { User, Booking, Location, BookingStatus, ShoppingItem } from '../types';
 import { CATEGORIES, Category } from '../constants';
@@ -19,16 +20,15 @@ interface CustomerDashboardProps {
   isDarkMode: boolean;
   onLanguageChange: (lang: string) => void;
   onBecomeProvider: () => void;
+  onUpdateUser: (updates: Partial<User>) => void;
   t: (key: string) => string;
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, onAddBooking, onConfirmCompletion, t, onBecomeProvider
+  user, logout, bookings, onAddBooking, onConfirmCompletion, t, onBecomeProvider, onUpdateUser
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [isScheduling] = useState(false);
-  const [scheduleTime] = useState('');
   const [missionDesc, setMissionDesc] = useState('');
   const [landmark, setLandmark] = useState('');
   const [shoppingItems, setShoppingItems] = useState<string[]>([]);
@@ -38,10 +38,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
 
-  const isNight = useMemo(() => {
-    const hours = new Date().getHours();
-    return hours >= 19 || hours < 5;
-  }, []);
+  // Editing state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(user.name);
+  const [editPhone, setEditPhone] = useState(user.phone);
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings]);
 
@@ -59,10 +59,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       category: selectedCategory.id,
       description: `${missionDesc}${landmark ? ` | Landmark: ${landmark}` : ''}`,
       price: selectedCategory.basePrice,
-      scheduledAt: isScheduling && scheduleTime ? new Date(scheduleTime).getTime() : undefined,
       isShoppingOrder: isShopping,
       shoppingItems: isShopping ? finalItems : undefined,
-      isTrustedTransportOnly: isNight || selectedCategory.requiresLicense,
       recipientName: isForOther ? recipientName : undefined,
       recipientPhone: isForOther ? recipientPhone : undefined,
     });
@@ -75,6 +73,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     setRecipientName('');
     setRecipientPhone('');
     setActiveTab('active');
+  };
+
+  const handleSaveProfile = () => {
+    onUpdateUser({ name: editName, phone: editPhone });
+    setIsEditing(false);
   };
 
   const getTrustLabel = (score: number) => {
@@ -255,16 +258,45 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         {activeTab === 'account' && (
           <div className="animate-fade-in space-y-6">
             <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl text-center">
-              <div className="w-24 h-24 mx-auto bg-emerald-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic shadow-2xl mb-6">
+              <div className="w-24 h-24 mx-auto bg-emerald-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic shadow-2xl mb-6 overflow-hidden">
                 {user.name.charAt(0)}
               </div>
-              <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">{user.name}</h2>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1 italic">{user.phone}</p>
               
-              <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/5">
-                <button onClick={onBecomeProvider} className="w-full bg-indigo-600 text-white font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest shadow-xl active:scale-95 transition-all mb-4 italic">Become a Swensi Partner</button>
-                <button onClick={logout} className="w-full bg-red-500/10 text-red-500 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest border border-red-500/10">Logout</button>
-              </div>
+              {!isEditing ? (
+                <>
+                  <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">{user.name}</h2>
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1 italic">{user.phone}</p>
+                  
+                  <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/5 space-y-3">
+                    <button onClick={() => setIsEditing(true)} className="w-full bg-white dark:bg-white/5 text-emerald-600 border border-emerald-600/20 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest active:scale-95 transition-all italic">Edit Profile</button>
+                    <button onClick={onBecomeProvider} className="w-full bg-indigo-600 text-white font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest shadow-xl active:scale-95 transition-all italic">Become a Swensi Partner</button>
+                    <button onClick={logout} className="w-full bg-red-500/10 text-red-500 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest border border-red-500/10">Logout</button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="text-left space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-500 ml-2">Display Name</label>
+                    <input 
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3 text-sm font-black text-slate-800 dark:text-white outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <div className="text-left space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-500 ml-2">Phone Number</label>
+                    <input 
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3 text-sm font-black text-slate-800 dark:text-white outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-4">
+                    <button onClick={() => setIsEditing(false)} className="flex-1 bg-slate-100 dark:bg-white/5 text-slate-500 font-black py-4 rounded-2xl text-[9px] uppercase tracking-widest">Cancel</button>
+                    <button onClick={handleSaveProfile} className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl text-[9px] uppercase tracking-widest shadow-lg">Save Changes</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 {
   "name": "swensi-nakonde-terminal",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Swensi Nakonde - Trade & Transport Logistics Link",
   "main": "server.js",
   "type": "module",

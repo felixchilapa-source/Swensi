@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { User, Booking, BookingStatus, Role, Location } from '../types';
 import { TRUSTED_COMMISSION_BONUS } from '../constants';
@@ -13,6 +14,7 @@ interface ProviderDashboardProps {
   onUpdateBooking: (id: string, updates: Partial<Booking>) => void;
   onConfirmCompletion: (id: string) => void;
   onUpdateSubscription: (plan: 'BASIC' | 'PREMIUM') => void;
+  onUpdateUser: (updates: Partial<User>) => void;
   location: Location;
   onToggleTheme: () => void;
   isDarkMode: boolean;
@@ -20,10 +22,14 @@ interface ProviderDashboardProps {
   t: (key: string) => string;
 }
 
-const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, bookings, allUsers, onUpdateStatus, onUpdateBooking }) => {
+const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, bookings, allUsers, onUpdateStatus, onUpdateBooking, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState<'leads' | 'market' | 'active' | 'account'>('leads');
-  const [searchQuery, setSearchQuery] = useState('');
   const isTrusted = user.trustScore >= 95;
+
+  // Editing state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(user.name);
+  const [editPhone, setEditPhone] = useState(user.phone);
 
   const isEligibleForShopping = useMemo(() => {
     const oneYearInMs = 365 * 24 * 60 * 60 * 1000;
@@ -42,38 +48,10 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
   const activeJobs = useMemo(() => bookings.filter(b => b.providerId === user.id && b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings, user.id]);
   const hospitalityEarnings = (user.hospitalityCashflow || 0) * TRUSTED_COMMISSION_BONUS;
 
-  const marketPartners = useMemo(() => {
-    return allUsers
-      .filter(u => u.role === Role.PROVIDER && u.id !== user.id)
-      .filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.phone.includes(searchQuery))
-      .sort((a, b) => {
-        if (a.isPremium && !b.isPremium) return -1;
-        if (!a.isPremium && b.isPremium) return 1;
-        return (b.rating || 0) - (a.rating || 0);
-      });
-  }, [allUsers, user.id, searchQuery]);
-
-  const handleProviderCancel = (id: string) => {
-    const reason = window.prompt('Specify Termination Reason:');
-    if (reason) {
-      onUpdateBooking(id, { status: BookingStatus.CANCELLED, cancellationReason: `Provider terminated: ${reason}` });
-    }
+  const handleSaveProfile = () => {
+    onUpdateUser({ name: editName, phone: editPhone });
+    setIsEditing(false);
   };
-
-  const toggleShoppingItem = (bookingId: string, itemId: string) => {
-    const job = activeJobs.find(j => j.id === bookingId);
-    if (!job || !job.shoppingItems) return;
-    const updatedItems = job.shoppingItems.map(item => item.id === itemId ? { ...item, isAvailable: !item.isAvailable } : item);
-    onUpdateBooking(bookingId, { shoppingItems: updatedItems });
-  };
-
-  const getTrustLabel = (score: number) => {
-    if (score >= 98) return { label: 'Elite', color: 'text-amber-500', bg: 'bg-amber-500/10', icon: 'fa-crown' };
-    if (score >= 90) return { label: 'Verified', color: 'text-blue-500', bg: 'bg-blue-500/10', icon: 'fa-shield-check' };
-    return { label: 'Standard', color: 'text-slate-400', bg: 'bg-slate-400/10', icon: 'fa-user-check' };
-  };
-
-  const myTrust = getTrustLabel(user.trustScore);
 
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
@@ -156,12 +134,44 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
         {activeTab === 'account' && (
           <div className="animate-fade-in space-y-6">
             <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl text-center">
-              <div className="w-24 h-24 mx-auto bg-indigo-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic border-4 border-white dark:border-slate-800 shadow-2xl">
+              <div className="w-24 h-24 mx-auto bg-indigo-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic border-4 border-white dark:border-slate-800 shadow-2xl mb-6">
                 {user.name.charAt(0)}
               </div>
-              <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">{user.name}</h2>
+              
+              {!isEditing ? (
+                <>
+                  <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">{user.name}</h2>
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1 italic">{user.phone}</p>
+                  <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/5 space-y-3">
+                    <button onClick={() => setIsEditing(true)} className="w-full bg-white dark:bg-white/5 text-blue-600 border border-blue-600/20 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest active:scale-95 transition-all italic">Edit Profile</button>
+                    <button onClick={logout} className="w-full bg-red-500/10 text-red-500 font-black py-5 rounded-[28px] text-[10px] uppercase border border-red-500/20 italic">Disconnect</button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="text-left space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-500 ml-2">Partner Alias</label>
+                    <input 
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3 text-sm font-black text-slate-800 dark:text-white outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div className="text-left space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-500 ml-2">Contact Line</label>
+                    <input 
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3 text-sm font-black text-slate-800 dark:text-white outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-4">
+                    <button onClick={() => setIsEditing(false)} className="flex-1 bg-slate-100 dark:bg-white/5 text-slate-500 font-black py-4 rounded-2xl text-[9px] uppercase tracking-widest">Cancel</button>
+                    <button onClick={handleSaveProfile} className="flex-1 bg-blue-700 text-white font-black py-4 rounded-2xl text-[9px] uppercase tracking-widest shadow-lg">Confirm Changes</button>
+                  </div>
+                </div>
+              )}
             </div>
-            <button onClick={logout} className="w-full bg-red-500/10 text-red-500 font-black py-5 rounded-[28px] text-[10px] uppercase border border-red-500/20 italic">Disconnect</button>
           </div>
         )}
       </div>

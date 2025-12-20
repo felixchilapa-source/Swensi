@@ -12,12 +12,28 @@ declare global {
   }
 }
 
-// Ensure process is polyfilled for the browser if env-config.js failed or is slow
+/**
+ * Robust polyfill for process.env.
+ * This ensures that components importing @google/genai can safely 
+ * access process.env.API_KEY.
+ */
 if (typeof window.process === 'undefined') {
-  window.process = { env: {} };
+  (window as any).process = { env: {} };
+} else if (!window.process.env) {
+  window.process.env = {};
+}
+
+// Fallback for API_KEY if not injected via script
+if (!window.process.env.API_KEY) {
+  window.process.env.API_KEY = "";
 }
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
-  createRoot(rootElement).render(<App />);
+  const root = createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
 }

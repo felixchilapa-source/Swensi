@@ -23,6 +23,11 @@ interface AdminDashboardProps {
   t: (key: string) => string;
 }
 
+interface NavItem {
+  id: 'stats' | 'finance' | 'users' | 'hospitality';
+  icon: string;
+}
+
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   user, logout, allUsers, bookings, systemLogs, onToggleBlock, onDeleteUser, onToggleVerification, onUpdateUserRole, 
   adminNumbers, onAddAdmin, onRemoveAdmin, onToggleTheme, isDarkMode, onLanguageChange, sysDefaultLang, onUpdateSysDefaultLang, t
@@ -35,6 +40,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const totalCommissions = bookings.filter(b => b.isPaid).reduce((acc, b) => acc + b.commission, 0) + lodgeSubscriptions;
     return { totalVolume, totalCommissions, lodgeSubscriptions };
   }, [bookings, allUsers]);
+
+  const navItems: NavItem[] = [
+    { id: 'stats', icon: 'fa-chart-pie' },
+    { id: 'finance', icon: 'fa-wallet' },
+    { id: 'users', icon: 'fa-users' },
+    { id: 'hospitality', icon: 'fa-hotel' }
+  ];
 
   return (
     <div className="flex flex-col h-full bg-slate-950 text-white no-scrollbar relative overflow-hidden">
@@ -55,12 +67,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
         <nav className="flex bg-white/5 p-1 rounded-2xl border border-white/5 sticky top-0 z-40 backdrop-blur-md">
-          {[
-            { id: 'stats', icon: 'fa-chart-pie' },
-            { id: 'finance', icon: 'fa-wallet' },
-            { id: 'users', icon: 'fa-users' },
-            { id: 'hospitality', icon: 'fa-hotel' }
-          ].map((v: any) => (
+          {navItems.map((v) => (
             <button key={v.id} onClick={() => setView(v.id)}
               className={`flex-1 py-3 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-1 ${view === v.id ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500'}`}>
               <i className={`fa-solid ${v.icon} text-[10px]`}></i>
