@@ -1,6 +1,13 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { User, Booking, BookingStatus } from '../types';
+import { User, Booking, BookingStatus, Location } from '../types';
+import Map from './Map';
+import { GoogleGenAI } from "@google/genai";
+
+interface GroundingResult {
+  title: string;
+  uri: string;
+}
 
 interface LodgeDashboardProps {
   user: User;
@@ -12,11 +19,14 @@ interface LodgeDashboardProps {
   isDarkMode: boolean;
   onLanguageChange: (lang: string) => void;
   t: (key: string) => string;
+  location?: Location;
 }
 
-const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings, onUpdateBooking, onUpdateUser }) => {
+const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings, onUpdateBooking, onUpdateUser, location = { lat: -9.3283, lng: 32.7569 } }) => {
   const [activeTab, setActiveTab] = useState<'requests' | 'guests' | 'account'>('requests');
   const [roomInput, setRoomInput] = useState<{ [key: string]: string }>({});
+  const [nearbyResults, setNearbyResults] = useState<GroundingResult[]>([]);
+  const [isSearchingNearby, setIsSearchingNearby] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Editing state
@@ -26,6 +36,46 @@ const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings,
 
   const requests = useMemo(() => bookings.filter(b => b.status === BookingStatus.PENDING), [bookings]);
   const guests = useMemo(() => bookings.filter(b => b.status === BookingStatus.ROOM_ASSIGNED), [bookings]);
+
+  const handleSearchNearby = async (query: string) => {
+    setIsSearchingNearby(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Find ${query} for guests in Nakonde.`,
+        config: {
+          tools: [{ googleMaps: {} }],
+          toolConfig: {
+            retrievalConfig: {
+              latLng: {
+                latitude: location.lat,
+                longitude: location.lng
+              }
+            }
+          }
+        },
+      });
+
+      const results: GroundingResult[] = [];
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (chunks) {
+        chunks.forEach((chunk: any) => {
+          if (chunk.maps) {
+            results.push({
+              title: chunk.maps.title,
+              uri: chunk.maps.uri
+            });
+          }
+        });
+      }
+      setNearbyResults(results);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSearchingNearby(false);
+    }
+  };
 
   const handleCheckIn = (id: string) => {
     const room = roomInput[id];
@@ -68,6 +118,44 @@ const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings,
       <div className="flex-1 overflow-y-auto pb-32 px-4 pt-6 space-y-6 no-scrollbar">
         {activeTab === 'requests' && (
           <div className="space-y-4 animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-[35px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-lg">
+                <Map center={location} markers={[{ loc: location, color: '#7C3AED', label: 'Station' }]} />
+                <div className="p-4 flex gap-2">
+                    <button 
+                      onClick={() => handleSearchNearby('restaurants')}
+                      disabled={isSearchingNearby}
+                      className="flex-1 py-3 rounded-2xl bg-purple-600/10 text-purple-600 text-[9px] font-black uppercase tracking-widest italic border border-purple-600/20 active:scale-95 transition-all"
+                    >
+                      {isSearchingNearby ? <i className="fa-solid fa-circle-notch animate-spin"></i> : "Local Dining"}
+                    </button>
+                    <button 
+                      onClick={() => handleSearchNearby('pharmacies')}
+                      disabled={isSearchingNearby}
+                      className="flex-1 py-3 rounded-2xl bg-red-600/10 text-red-600 text-[9px] font-black uppercase tracking-widest italic border border-red-600/20 active:scale-95 transition-all"
+                    >
+                      Pharmacies
+                    </button>
+                </div>
+                {nearbyResults.length > 0 && (
+                  <div className="p-4 border-t border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-white/5 space-y-2 animate-slide-up">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic mb-2">Station Concierge Tips</p>
+                      {nearbyResults.map((res, i) => (
+                        <a 
+                          key={i} 
+                          href={res.uri} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-white/10 shadow-sm"
+                        >
+                          <span className="text-[10px] font-bold dark:text-white truncate">{res.title}</span>
+                          <i className="fa-solid fa-star text-purple-600 text-[10px]"></i>
+                        </a>
+                      ))}
+                      <button onClick={() => setNearbyResults([])} className="w-full py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2">Dismiss Data</button>
+                  </div>
+                )}
+            </div>
+
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic ml-2">Reservation Queue</h3>
             {requests.length === 0 && (
               <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">

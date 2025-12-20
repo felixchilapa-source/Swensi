@@ -2,11 +2,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
 
+interface GroundingLink {
+  title: string;
+  uri: string;
+}
+
 const AIAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<{role: 'user' | 'bot', text: string}[]>([
-    { role: 'bot', text: "Mwapoleni! I'm Swensi AI. Ask me about Nakonde border fees, clearing, or how to use the app!" }
+  const [messages, setMessages] = useState<{role: 'user' | 'bot', text: string, links?: GroundingLink[]}[]>([
+    { role: 'bot', text: "Mwapoleni! I'm Swensi AI. Ask me about Nakonde border fees, clearing, or find nearby lodges and services!" }
   ]);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -26,22 +31,61 @@ const AIAssistant: React.FC = () => {
     setLoading(true);
 
     try {
+      // Get current location if possible for grounding
+      let lat = -9.3283; 
+      let lng = 32.7569;
+      
+      try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) => {
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      } catch (e) {
+        console.warn("Geolocation failed, using default Nakonde coordinates");
+      }
+
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-2.5-flash',
         contents: userText,
         config: {
           systemInstruction: `You are Swensi AI, a helpful Zambian trade assistant for the Nakonde border town. 
-          Respond in a friendly "Zambian" style, occasionally using local words like "Mwapoleni", "Zikomo", or "Busa". 
-          Help with: border procedures, clearing goods, finding transport, and safety tips. 
-          Keep answers short (under 50 words).`,
+          Use Google Maps grounding to find real locations, lodges, and shops when asked.
+          Respond in a friendly "Zambian" style (Mwapoleni, Zikomo). 
+          Keep answers short (under 60 words).`,
+          tools: [{ googleMaps: {} }],
+          toolConfig: {
+            retrievalConfig: {
+              latLng: {
+                latitude: lat,
+                longitude: lng
+              }
+            }
+          }
         },
       });
 
-      const botText = response.text || "I'm having a bit of signal trouble, zikomo for your patience!";
-      setMessages(prev => [...prev, { role: 'bot', text: botText }]);
+      const botText = response.text || "I'm checking the corridor maps, hold on...";
+      
+      // Extract grounding links
+      const links: GroundingLink[] = [];
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (chunks) {
+        chunks.forEach((chunk: any) => {
+          if (chunk.maps) {
+            links.push({
+              title: chunk.maps.title || "View on Maps",
+              uri: chunk.maps.uri
+            });
+          }
+        });
+      }
+
+      setMessages(prev => [...prev, { role: 'bot', text: botText, links }]);
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'bot', text: "Sorry, I'm offline. Check your data!" }]);
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'bot', text: "Sorry, I'm having trouble accessing the map protocols. Please check your data signal." }]);
     } finally {
       setLoading(false);
     }
@@ -60,8 +104,8 @@ const AIAssistant: React.FC = () => {
         <div className="fixed inset-x-6 bottom-40 bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl z-[500] border border-emerald-500/20 flex flex-col max-h-[60vh] animate-slide-up overflow-hidden">
           <div className="p-4 bg-emerald-600 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <i className="fa-solid fa-brain-circuit"></i>
-              <span className="text-[10px] font-black uppercase tracking-widest italic">Swensi Assistant</span>
+              <i className="fa-solid fa-map-location-dot"></i>
+              <span className="text-[10px] font-black uppercase tracking-widest italic">Swensi Map Assistant</span>
             </div>
             <div className="flex gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
@@ -71,14 +115,30 @@ const AIAssistant: React.FC = () => {
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
             {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] p-3 rounded-2xl text-xs font-medium leading-relaxed ${
+              <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl text-xs font-medium leading-relaxed ${
                   m.role === 'user' 
                   ? 'bg-emerald-600 text-white rounded-tr-none' 
                   : 'bg-slate-100 dark:bg-white/5 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-white/10'
                 }`}>
                   {m.text}
                 </div>
+                {m.links && m.links.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {m.links.map((link, idx) => (
+                      <a 
+                        key={idx} 
+                        href={link.uri} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[9px] font-black uppercase tracking-widest bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-600/20 px-3 py-1.5 rounded-full hover:bg-blue-600/20 transition-all flex items-center gap-1.5"
+                      >
+                        <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                        {link.title}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             {loading && (
@@ -99,7 +159,7 @@ const AIAssistant: React.FC = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Type your question..."
+              placeholder="e.g. Find lodges near the border..."
               className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs outline-none focus:ring-1 ring-emerald-500"
             />
             <button 

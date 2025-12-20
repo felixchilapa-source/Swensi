@@ -1,9 +1,18 @@
-import React, { useState, useMemo, useRef } from 'react';
+
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Booking, Location, BookingStatus, ShoppingItem, Role } from '../types';
 import { CATEGORIES, Category } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 import AIAssistant from './AIAssistant';
+import { GoogleGenAI } from "@google/genai";
+
+interface GroundingResult {
+  title: string;
+  uri: string;
+  lat?: number;
+  lng?: number;
+}
 
 interface CustomerDashboardProps {
   user: User;
@@ -25,11 +34,13 @@ interface CustomerDashboardProps {
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, onAddBooking, onConfirmCompletion, t, onBecomeProvider, onUpdateUser, onToggleViewMode
+  user, logout, bookings, onAddBooking, onConfirmCompletion, t, onBecomeProvider, onUpdateUser, onToggleViewMode, location
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [showKYCModal, setShowKYCModal] = useState(false);
+  const [nearbyResults, setNearbyResults] = useState<GroundingResult[]>([]);
+  const [isSearchingNearby, setIsSearchingNearby] = useState(false);
   
   // KYC Form State
   const [kycLicense, setKycLicense] = useState('');
@@ -53,6 +64,46 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [editPhone, setEditPhone] = useState(user.phone);
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings]);
+
+  const handleSearchNearby = async (query: string) => {
+    setIsSearchingNearby(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `What are some highly rated ${query} in Nakonde?`,
+        config: {
+          tools: [{ googleMaps: {} }],
+          toolConfig: {
+            retrievalConfig: {
+              latLng: {
+                latitude: location.lat,
+                longitude: location.lng
+              }
+            }
+          }
+        },
+      });
+
+      const results: GroundingResult[] = [];
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (chunks) {
+        chunks.forEach((chunk: any) => {
+          if (chunk.maps) {
+            results.push({
+              title: chunk.maps.title,
+              uri: chunk.maps.uri
+            });
+          }
+        });
+      }
+      setNearbyResults(results);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSearchingNearby(false);
+    }
+  };
 
   const handleLaunch = () => {
     if (!selectedCategory) return;
@@ -134,7 +185,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       <AIAssistant />
 
-      {/* KYC Modal */}
+      {/* KYC Modal omitted for brevity, logic preserved */}
       {showKYCModal && (
         <div className="fixed inset-0 z-[700] flex items-end sm:items-center justify-center p-4 animate-fade-in">
            <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl" onClick={() => setShowKYCModal(false)}></div>
@@ -336,6 +387,45 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 </h1>
               </div>
               <div className="absolute -right-2 top-0 w-16 h-16 bg-emerald-600/5 rounded-full blur-2xl"></div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-[35px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-lg">
+               <Map center={location} markers={[{ loc: location, color: '#059669', label: 'You' }]} />
+               <div className="p-4 flex gap-2">
+                  <button 
+                    onClick={() => handleSearchNearby('lodges')}
+                    disabled={isSearchingNearby}
+                    className="flex-1 py-3 rounded-2xl bg-purple-600/10 text-purple-600 text-[9px] font-black uppercase tracking-widest italic border border-purple-600/20 active:scale-95 transition-all"
+                  >
+                    {isSearchingNearby ? <i className="fa-solid fa-circle-notch animate-spin"></i> : "Find Lodges"}
+                  </button>
+                  <button 
+                    onClick={() => handleSearchNearby('markets')}
+                    disabled={isSearchingNearby}
+                    className="flex-1 py-3 rounded-2xl bg-blue-600/10 text-blue-600 text-[9px] font-black uppercase tracking-widest italic border border-blue-600/20 active:scale-95 transition-all"
+                  >
+                    Find Markets
+                  </button>
+               </div>
+               
+               {nearbyResults.length > 0 && (
+                 <div className="p-4 border-t border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-white/5 space-y-2 animate-slide-up">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic mb-2">Corridor Explorer Results</p>
+                    {nearbyResults.map((res, i) => (
+                      <a 
+                        key={i} 
+                        href={res.uri} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-white/10 shadow-sm"
+                      >
+                        <span className="text-[10px] font-bold dark:text-white truncate">{res.title}</span>
+                        <i className="fa-solid fa-location-arrow text-emerald-600 text-[10px]"></i>
+                      </a>
+                    ))}
+                    <button onClick={() => setNearbyResults([])} className="w-full py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2">Clear Results</button>
+                 </div>
+               )}
             </div>
             
             <div className="grid grid-cols-2 gap-4">

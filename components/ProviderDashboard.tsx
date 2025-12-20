@@ -1,8 +1,15 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, BookingStatus, Role, Location } from '../types';
 import { TRUSTED_COMMISSION_BONUS } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
+import { GoogleGenAI } from "@google/genai";
+
+interface GroundingResult {
+  title: string;
+  uri: string;
+}
 
 interface ProviderDashboardProps {
   user: User;
@@ -22,9 +29,11 @@ interface ProviderDashboardProps {
   onToggleViewMode?: () => void;
 }
 
-const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, bookings, allUsers, onUpdateStatus, onUpdateBooking, onUpdateUser, onToggleViewMode }) => {
+const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, bookings, allUsers, onUpdateStatus, onUpdateBooking, onUpdateUser, onToggleViewMode, location }) => {
   const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'account'>('leads');
   const [isOnline, setIsOnline] = useState(true);
+  const [nearbyResults, setNearbyResults] = useState<GroundingResult[]>([]);
+  const [isSearchingNearby, setIsSearchingNearby] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isTrusted = user.trustScore >= 95;
 
@@ -54,6 +63,46 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
   }, [bookings, isTrusted, isEligibleForShopping, isOnline, isAuthorized]);
 
   const activeJobs = useMemo(() => bookings.filter(b => b.providerId === user.id && b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings, user.id]);
+
+  const handleSearchNearby = async (query: string) => {
+    setIsSearchingNearby(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Find ${query} for trade partners in Nakonde.`,
+        config: {
+          tools: [{ googleMaps: {} }],
+          toolConfig: {
+            retrievalConfig: {
+              latLng: {
+                latitude: location.lat,
+                longitude: location.lng
+              }
+            }
+          }
+        },
+      });
+
+      const results: GroundingResult[] = [];
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (chunks) {
+        chunks.forEach((chunk: any) => {
+          if (chunk.maps) {
+            results.push({
+              title: chunk.maps.title,
+              uri: chunk.maps.uri
+            });
+          }
+        });
+      }
+      setNearbyResults(results);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSearchingNearby(false);
+    }
+  };
 
   const handleSaveProfile = () => {
     onUpdateUser({ name: editName, phone: editPhone });
@@ -124,29 +173,50 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 max-w-xs leading-relaxed mb-10">
               Swensi Command is currently reviewing your Partner Dossier. Mission leads and corridor signals are locked until your status is verified.
            </p>
-           <div className="w-full max-w-xs p-5 bg-white dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 text-left">
-              <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest italic">Submission Summary</p>
-              <div className="space-y-3">
-                 <div className="flex items-center gap-3">
-                    <i className="fa-solid fa-check-circle text-emerald-500"></i>
-                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Identity Capture Logged</span>
-                 </div>
-                 <div className="flex items-center gap-3">
-                    <i className="fa-solid fa-check-circle text-emerald-500"></i>
-                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">License ID Recorded</span>
-                 </div>
-                 <div className="flex items-center gap-3">
-                    <i className="fa-solid fa-clock text-blue-500"></i>
-                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Pending Command Clearance</span>
-                 </div>
-              </div>
-           </div>
            <button onClick={logout} className="mt-12 text-[10px] font-black uppercase tracking-[0.3em] text-red-500 hover:bg-red-500/5 px-8 py-4 rounded-2xl transition-all">Deauthorize Terminal</button>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto pb-32 px-5 pt-6 space-y-8 no-scrollbar">
           {activeTab === 'leads' && (
             <div className="space-y-6 animate-fade-in">
+              <div className="bg-white dark:bg-slate-900 rounded-[35px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-lg">
+                <Map center={location} markers={[{ loc: location, color: '#1E40AF', label: 'Home Node' }]} />
+                <div className="p-4 flex gap-2">
+                    <button 
+                      onClick={() => handleSearchNearby('gas stations')}
+                      disabled={isSearchingNearby}
+                      className="flex-1 py-3 rounded-2xl bg-amber-600/10 text-amber-600 text-[9px] font-black uppercase tracking-widest italic border border-amber-600/20 active:scale-95 transition-all"
+                    >
+                      {isSearchingNearby ? <i className="fa-solid fa-circle-notch animate-spin"></i> : "Fuel Stations"}
+                    </button>
+                    <button 
+                      onClick={() => handleSearchNearby('mechanics')}
+                      disabled={isSearchingNearby}
+                      className="flex-1 py-3 rounded-2xl bg-emerald-600/10 text-emerald-600 text-[9px] font-black uppercase tracking-widest italic border border-emerald-600/20 active:scale-95 transition-all"
+                    >
+                      Repair Hubs
+                    </button>
+                </div>
+                {nearbyResults.length > 0 && (
+                  <div className="p-4 border-t border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-white/5 space-y-2 animate-slide-up">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic mb-2">Corridor Logistics Explorer</p>
+                      {nearbyResults.map((res, i) => (
+                        <a 
+                          key={i} 
+                          href={res.uri} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-white/10 shadow-sm"
+                        >
+                          <span className="text-[10px] font-bold dark:text-white truncate">{res.title}</span>
+                          <i className="fa-solid fa-location-arrow text-blue-600 text-[10px]"></i>
+                        </a>
+                      ))}
+                      <button onClick={() => setNearbyResults([])} className="w-full py-2 text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2">Clear Map Data</button>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                  <div className="bg-white dark:bg-slate-900 p-5 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-sm">
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Total Earnings</p>
