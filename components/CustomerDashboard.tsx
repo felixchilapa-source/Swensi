@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Booking, Location, BookingStatus, ShoppingItem, Role, CouncilOrder } from '../types';
-import { CATEGORIES, Category } from '../constants';
+import { CATEGORIES, Category, PAYMENT_NUMBERS } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 import AIAssistant from './AIAssistant';
@@ -11,6 +11,20 @@ interface GroundingResult {
   title: string;
   uri: string;
 }
+
+interface SavedNode {
+  id: string;
+  name: string;
+  icon: string;
+  loc: Location;
+}
+
+const SAVED_NODES: SavedNode[] = [
+  { id: 'border', name: 'Tunduma Border', icon: 'fa-solid fa-gate', loc: { lat: -9.3330, lng: 32.7600 } },
+  { id: 'market', name: 'Nakonde Market', icon: 'fa-solid fa-shop', loc: { lat: -9.3250, lng: 32.7550 } },
+  { id: 'station', name: 'Main Station', icon: 'fa-solid fa-bus-simple', loc: { lat: -9.3300, lng: 32.7580 } },
+  { id: 'total', name: 'Total Station', icon: 'fa-solid fa-gas-pump', loc: { lat: -9.3200, lng: 32.7500 } },
+];
 
 interface CustomerDashboardProps {
   user: User;
@@ -30,14 +44,18 @@ interface CustomerDashboardProps {
   onUpdateUser: (updates: Partial<User>) => void;
   t: (key: string) => string;
   onToggleViewMode?: () => void;
+  onSOS?: () => void;
+  onDeposit?: (amount: number) => void;
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, councilOrders, onAddBooking, onConfirmCompletion, t, onBecomeProvider, onUpdateUser, onToggleViewMode, location
+  user, logout, bookings, councilOrders, onAddBooking, onConfirmCompletion, t, onBecomeProvider, onUpdateUser, onToggleViewMode, location,
+  onSOS, onDeposit
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [showKYCModal, setShowKYCModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [mapCenter, setMapCenter] = useState<Location>(location);
   const [nearbyResults, setNearbyResults] = useState<GroundingResult[]>([]);
   const [isSearchingNearby, setIsSearchingNearby] = useState(false);
   
@@ -58,8 +76,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           toolConfig: {
             retrievalConfig: {
               latLng: {
-                latitude: location.lat,
-                longitude: location.lng
+                latitude: mapCenter.lat,
+                longitude: mapCenter.lng
               }
             }
           }
@@ -92,11 +110,16 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       category: selectedCategory.id,
       description: `${missionDesc}${landmark ? ` | Landmark: ${landmark}` : ''}`,
       price: selectedCategory.basePrice,
+      location: mapCenter
     });
     setSelectedCategory(null);
     setMissionDesc('');
     setLandmark('');
     setActiveTab('active');
+  };
+
+  const jumpToNode = (node: SavedNode) => {
+    setMapCenter(node.loc);
   };
 
   const myTrust = useMemo(() => {
@@ -109,6 +132,45 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       <AIAssistant />
+
+      {/* SOS FAB for quick access */}
+      <button 
+        onClick={onSOS}
+        className="fixed top-24 left-6 z-[400] w-12 h-12 bg-red-600 text-white rounded-2xl shadow-2xl flex items-center justify-center border-2 border-white animate-pulse"
+      >
+        <i className="fa-solid fa-circle-exclamation text-lg"></i>
+      </button>
+
+      {/* Quick Deposit Modal */}
+      {showDepositModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 animate-fade-in">
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setShowDepositModal(false)}></div>
+          <div className="relative w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl border border-white/10 animate-zoom-in">
+            <h3 className="text-xl font-black italic uppercase tracking-tighter text-slate-900 dark:text-white mb-2">Quick Deposit</h3>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 leading-relaxed">Select amount to top up your Escrow wallet via Mobile Money.</p>
+            
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              {[50, 100, 200, 500].map(amt => (
+                <button 
+                  key={amt} 
+                  onClick={() => { onDeposit?.(amt); setShowDepositModal(false); }}
+                  className="py-4 rounded-2xl bg-emerald-600/10 text-emerald-600 font-black border border-emerald-600/20 hover:bg-emerald-600 hover:text-white transition-all text-xs"
+                >
+                  ZMW {amt}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5 space-y-1">
+              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Manual Recharge Numbers</p>
+              <p className="text-[9px] font-bold dark:text-slate-300 flex justify-between"><span>MTN:</span> <span>{PAYMENT_NUMBERS.MTN}</span></p>
+              <p className="text-[9px] font-bold dark:text-slate-300 flex justify-between"><span>Airtel:</span> <span>{PAYMENT_NUMBERS.Airtel}</span></p>
+            </div>
+            
+            <button onClick={() => setShowDepositModal(false)} className="w-full mt-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {selectedCategory && (
         <div className="fixed inset-0 z-[600] flex items-end sm:items-center justify-center p-4 animate-fade-in">
@@ -160,7 +222,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                <span className={`${myTrust.bg} ${myTrust.color} text-[6.5px] font-black px-2 py-0.5 rounded-full uppercase flex items-center gap-1 border border-current opacity-80`}><i className={`fa-solid ${myTrust.icon}`}></i> {myTrust.label}</span>
                <p className="text-[11px] font-black dark:text-white uppercase italic tracking-tighter leading-none">ZMW {user.balance.toFixed(0)}</p>
              </div>
-             <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1 opacity-60 italic leading-none">Escrow Balance</p>
+             <button onClick={() => setShowDepositModal(true)} className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mt-1 opacity-60 italic leading-none hover:opacity-100 transition-opacity flex items-center gap-1 justify-end">
+                <i className="fa-solid fa-plus-circle"></i> Quick Deposit
+             </button>
            </div>
            {user.role !== Role.CUSTOMER && (
               <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20"><i className="fa-solid fa-rotate"></i></button>
@@ -185,8 +249,26 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             </div>
 
             <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl">
-               <Map center={location} markers={[{ loc: location, color: '#059669', label: 'You' }]} />
+               <Map center={mapCenter} markers={[{ loc: location, color: '#059669', label: 'You' }, { loc: mapCenter, color: '#1E40AF', label: 'Pointer' }]} />
                <div className="p-5 flex flex-col gap-4">
+                  
+                  {/* Saved Nodes Row */}
+                  <div className="flex flex-col gap-3">
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic px-1">Saved Nodes</p>
+                    <div className="flex overflow-x-auto gap-2 no-scrollbar pb-2">
+                      {SAVED_NODES.map(node => (
+                        <button 
+                          key={node.id} 
+                          onClick={() => jumpToNode(node)}
+                          className={`flex-shrink-0 px-4 py-3 rounded-2xl border flex items-center gap-3 transition-all ${mapCenter.lat === node.loc.lat ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400'}`}
+                        >
+                          <i className={node.icon}></i>
+                          <span className="text-[10px] font-black uppercase tracking-tight whitespace-nowrap">{node.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="flex gap-2">
                     <button onClick={() => handleSearchNearby('lodges')} disabled={isSearchingNearby} className="flex-1 py-4 rounded-2xl bg-blue-600/10 text-blue-500 text-[9px] font-black uppercase tracking-widest italic border border-blue-500/20 active:scale-95 transition-all">
                       {isSearchingNearby ? <i className="fa-solid fa-circle-notch animate-spin mr-2"></i> : <i className="fa-solid fa-hotel mr-2"></i>} Lodges

@@ -74,6 +74,27 @@ const App: React.FC = () => {
     addNotification('SMS GATEWAY', `Message sent to ${phone}`, 'SMS');
   }, [addNotification]);
 
+  const handleSOS = useCallback(() => {
+    if (!user) return;
+    const msg = `🚨 EMERGENCY SOS: User ${user.name} (${user.phone}) has triggered a distress signal at Lat: ${currentLocation.lat}, Lng: ${currentLocation.lng}. Respond immediately.`;
+    sendMockSMS(SUPER_ADMIN, msg);
+    addNotification('SOS TRIGGERED', 'Emergency services & admin notified.', 'ALERT');
+  }, [user, currentLocation, sendMockSMS, addNotification]);
+
+  const handleDeposit = useCallback((amount: number) => {
+    if (!user) return;
+    setAllUsers(prev => prev.map(u => {
+      if (u.id === user.id) {
+        const newBalance = u.balance + amount;
+        return { ...u, balance: newBalance };
+      }
+      return u;
+    }));
+    setUser(prev => prev ? { ...prev, balance: prev.balance + amount } : null);
+    addNotification('DEPOSIT SUCCESS', `ZMW ${amount.toFixed(2)} added to Escrow.`, 'SUCCESS');
+    sendMockSMS(user.phone, `Swensi Wallet: ZMW ${amount.toFixed(2)} deposit confirmed. Your new balance is ZMW ${(user.balance + amount).toFixed(2)}.`);
+  }, [user, addNotification, sendMockSMS]);
+
   const handleSubscribe = (userId: string, fee: number) => {
     if (user && user.balance < fee) return alert("Insufficient Balance for Subscription");
 
@@ -213,16 +234,24 @@ const App: React.FC = () => {
     if (viewMode === 'CUSTOMER') {
       return (
         <CustomerDashboard 
-          user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} 
-          councilOrders={councilOrders} onAddBooking={addBooking} location={currentLocation} 
+          user={user} 
+          logout={() => setUser(null)} 
+          bookings={bookings.filter(b => b.customerId === user.id)} 
+          councilOrders={councilOrders} 
+          onAddBooking={addBooking} 
+          location={currentLocation} 
           onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} 
-          onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} 
-          onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} 
+          onUpdateBooking={updateBooking} 
+          onRate={() => {}} 
+          onUploadFacePhoto={() => {}} 
+          onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+          isDarkMode={isDarkMode} 
+          onLanguageChange={setLanguage} 
           onBecomeProvider={(kyc) => {
             const updatedUser: User = { 
               ...user, role: Role.PROVIDER, isVerified: false, trustScore: 50,
               licenseNumber: kyc.license, homeAddress: kyc.address, avatarUrl: kyc.photo, kycSubmittedAt: Date.now(),
-              subscriptionExpiry: 0 // New providers start with no subscription
+              subscriptionExpiry: 0 
             };
             setUser(updatedUser);
             setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
@@ -233,7 +262,10 @@ const App: React.FC = () => {
             setUser(u => u ? { ...u, ...updates } : null);
             setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...updates } : u));
           }} 
-          t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('MANAGEMENT')}
+          t={(k) => TRANSLATIONS[language]?.[k] || k} 
+          onToggleViewMode={() => setViewMode('MANAGEMENT')}
+          onSOS={handleSOS}
+          onDeposit={handleDeposit}
         />
       );
     }
@@ -282,9 +314,9 @@ const App: React.FC = () => {
     <div className={`app-container ${isDarkMode ? 'dark' : ''} safe-pb`}>
       <div className="fixed top-6 left-6 right-6 z-[2000] pointer-events-none flex flex-col gap-3">
          {notifications.map(n => (
-           <div key={n.id} className={`p-4 rounded-[24px] shadow-2xl backdrop-blur-xl border border-white/10 ${n.type === 'SMS' ? 'bg-blue-600/90' : 'bg-slate-900/95'} text-white animate-slide-up pointer-events-auto`}>
+           <div key={n.id} className={`p-4 rounded-[24px] shadow-2xl backdrop-blur-xl border border-white/10 ${n.type === 'SMS' ? 'bg-blue-600/90' : (n.type === 'ALERT' ? 'bg-red-600/95' : 'bg-slate-900/95')} text-white animate-slide-up pointer-events-auto`}>
              <div className="flex items-center gap-3">
-               <div className={`w-2 h-2 rounded-full ${n.type === 'SUCCESS' ? 'bg-emerald-500' : n.type === 'SMS' ? 'bg-white' : 'bg-blue-500'} animate-pulse`}></div>
+               <div className={`w-2 h-2 rounded-full ${n.type === 'SUCCESS' ? 'bg-emerald-500' : (n.type === 'ALERT' ? 'bg-white' : (n.type === 'SMS' ? 'bg-white' : 'bg-blue-500'))} animate-pulse`}></div>
                <div>
                  <p className="text-[9px] font-black uppercase italic tracking-widest opacity-80">{n.title}</p>
                  <p className="text-[11px] font-bold mt-1.5 leading-tight">{n.message}</p>
