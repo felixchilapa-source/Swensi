@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, Location, BookingStatus, ShoppingItem } from '../types';
 import { CATEGORIES, Category } from '../constants';
 import Map from './Map';
@@ -33,6 +33,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [landmark, setLandmark] = useState('');
   const [shoppingItems, setShoppingItems] = useState<string[]>([]);
   const [newItem, setNewItem] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isForOther, setIsForOther] = useState(false);
   const [recipientName, setRecipientName] = useState('');
@@ -80,6 +81,21 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     setIsEditing(false);
   };
 
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        onUpdateUser({ avatarUrl: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const getTrustLabel = (score: number) => {
     if (score >= 98) return { label: 'Elite', color: 'text-amber-500', bg: 'bg-amber-500/10', icon: 'fa-crown' };
     if (score >= 90) return { label: 'Verified', color: 'text-emerald-500', bg: 'bg-emerald-500/10', icon: 'fa-shield-check' };
@@ -101,12 +117,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                    <span className="text-emerald-600"><i className={selectedCategory.icon}></i></span>
                    {selectedCategory.name}
                 </h3>
-                <button onClick={() => setSelectedCategory(null)} className="text-slate-400"><i className="fa-solid fa-circle-xmark text-xl"></i></button>
+                <button onClick={() => setSelectedCategory(null)} className="text-slate-400 hover:text-red-500 transition-colors"><i className="fa-solid fa-circle-xmark text-xl"></i></button>
               </div>
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                   <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 pl-2">What do you need done?</label>
+                   <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 pl-2">Task Protocol</label>
                    <textarea 
                     value={missionDesc}
                     onChange={(e) => setMissionDesc(e.target.value)}
@@ -164,40 +180,42 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                          placeholder="Item name..."
                          className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3 text-xs outline-none"
                        />
-                       <button onClick={() => { if(newItem){setShoppingItems([...shoppingItems, newItem]); setNewItem('');}}} className="w-12 h-12 bg-emerald-600 text-white rounded-2xl active:scale-95 transition-all"><i className="fa-solid fa-plus"></i></button>
+                       <button onClick={() => { if(newItem){setShoppingItems([...shoppingItems, newItem]); setNewItem('');}}} className="w-12 h-12 bg-emerald-600 text-white rounded-2xl active:scale-95 transition-all flex items-center justify-center shadow-lg"><i className="fa-solid fa-plus"></i></button>
                     </div>
                   </div>
                 )}
 
                 <button onClick={handleLaunch} className="w-full font-black py-5 rounded-[28px] text-[10px] uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all text-white bg-emerald-600 hover:bg-emerald-700 italic">
-                  Book ZMW {selectedCategory.basePrice}
+                  Book Mission • ZMW {selectedCategory.basePrice}
                 </button>
               </div>
            </div>
         </div>
       )}
 
-      <header className="px-5 py-5 flex justify-between items-center glass-nav border-b border-slate-200 dark:border-white/5 sticky top-0 z-50">
+      <header className="px-5 py-4 flex justify-between items-center glass-nav border-b border-slate-200 dark:border-white/5 sticky top-0 z-50 backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <div className="bg-emerald-700 w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center transform -rotate-3">
+          <div className="bg-emerald-700 w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center transform -rotate-6 border border-white/20">
             <i className="fas fa-link text-white text-base"></i>
           </div>
-          <div>
-            <h2 className="text-lg font-black leading-none text-slate-900 dark:text-white uppercase italic tracking-tighter">Swensi</h2>
+          <div className="flex flex-col">
+            <h2 className="text-xl font-black leading-none text-slate-900 dark:text-white uppercase italic tracking-tighter">Swensi</h2>
             <span className="text-[8px] font-black text-emerald-600 tracking-[0.2em] uppercase mt-1 inline-block">Nakonde Mobile Link</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
            <div className="text-right">
              <div className="flex items-center gap-1.5 justify-end">
-               <span className={`${myTrust.bg} ${myTrust.color} text-[6px] font-black px-1.5 py-0.5 rounded uppercase flex items-center gap-1`}>
+               <span className={`${myTrust.bg} ${myTrust.color} text-[6.5px] font-black px-2 py-0.5 rounded-full uppercase flex items-center gap-1 border border-current opacity-80`}>
                  <i className={`fa-solid ${myTrust.icon}`}></i> {myTrust.label}
                </span>
-               <p className="text-[10px] font-black dark:text-white uppercase italic tracking-tighter">ZMW {user.balance.toFixed(0)}</p>
+               <p className="text-[11px] font-black dark:text-white uppercase italic tracking-tighter">ZMW {user.balance.toFixed(0)}</p>
              </div>
-             <p className="text-[6px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Mobile Wallet</p>
+             <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-0.5 opacity-60 italic">Escrow Balance</p>
            </div>
-           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400"><i className="fa-solid fa-power-off text-xs"></i></button>
+           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 border border-slate-200/50 dark:border-white/10 transition-colors">
+            <i className="fa-solid fa-power-off text-xs"></i>
+           </button>
         </div>
       </header>
 
@@ -206,48 +224,85 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       <div className="flex-1 overflow-y-auto pb-32 px-5 pt-6 space-y-8 no-scrollbar">
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
-            <div className="space-y-1">
-              <h1 className="text-3xl font-black text-secondary dark:text-white tracking-tighter italic leading-none">{t('welcome')}</h1>
-              <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em] mt-2 italic">{t('slogan')}</p>
+            <div className="relative">
+              <div className="flex flex-col gap-1">
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] italic mb-1">Station Status: Active</p>
+                <h1 className="text-4xl font-black text-secondary dark:text-white tracking-tighter italic leading-[0.9] uppercase">
+                  {t('welcome').split(' ')[0]} <br/> 
+                  <span className="text-emerald-600">{user.name.split(' ')[0]}!</span>
+                </h1>
+              </div>
+              <div className="absolute -right-2 top-0 w-16 h-16 bg-emerald-600/5 rounded-full blur-2xl"></div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
               {CATEGORIES.map(cat => (
-                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[160px] service-card shadow-sm hover:border-emerald-600 group">
-                  <div className="bg-emerald-50 dark:bg-emerald-500/10 w-12 h-12 rounded-2xl flex items-center justify-center text-emerald-700 text-xl group-hover:scale-110 transition-all"><i className={cat.icon}></i></div>
-                  <div className="w-full">
-                    <p className="text-[10px] font-black uppercase text-secondary dark:text-white tracking-tight italic">{cat.name}</p>
-                    <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-1">{cat.hint}</p>
+                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] service-card shadow-sm hover:border-emerald-600 group transition-all duration-300 relative overflow-hidden">
+                  <div className="absolute top-[-20%] right-[-20%] w-[50%] h-[50%] bg-emerald-500/5 rounded-full blur-xl group-hover:scale-150 transition-transform"></div>
+                  <div className="bg-emerald-50 dark:bg-emerald-500/10 w-14 h-14 rounded-2xl flex items-center justify-center text-emerald-700 dark:text-emerald-500 text-2xl group-hover:scale-110 group-hover:rotate-6 transition-all border border-emerald-100 dark:border-emerald-500/10"><i className={cat.icon}></i></div>
+                  <div className="w-full relative z-10">
+                    <p className="text-[11px] font-black uppercase text-secondary dark:text-white tracking-tight italic">{cat.name}</p>
+                    <p className="text-[7.5px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 opacity-80">{cat.hint}</p>
                   </div>
                 </button>
               ))}
+            </div>
+
+            <div className="bg-gradient-to-br from-secondary to-slate-800 dark:from-slate-900 dark:to-black p-6 rounded-[40px] text-white shadow-xl relative overflow-hidden group border border-white/5">
+                <div className="absolute right-[-10%] bottom-[-10%] w-32 h-32 bg-emerald-600/10 rounded-full blur-2xl"></div>
+                <div className="flex justify-between items-start mb-4 relative z-10">
+                   <div>
+                      <p className="text-[8px] font-black uppercase tracking-[0.3em] text-emerald-500 mb-1">Community Insight</p>
+                      <h4 className="text-xl font-black italic tracking-tighter">Your Trust Rating is {user.trustScore}%</h4>
+                   </div>
+                   <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:rotate-12 transition-transform">
+                      <i className="fa-solid fa-shield-halved text-emerald-500"></i>
+                   </div>
+                </div>
+                <p className="text-[10px] font-bold text-slate-400 leading-relaxed max-w-[80%] relative z-10">
+                   Higher trust scores reduce commission fees and prioritize your missions in the Nakonde corridor.
+                </p>
             </div>
           </div>
         )}
         
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">Ongoing Journeys</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">Live Operations Center</h3>
             {activeBookings.length === 0 && (
-              <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
-                <i className="fa-solid fa-route text-4xl"></i>
-                <p className="text-[10px] font-black uppercase tracking-widest">No Active Bookings</p>
+              <div className="py-24 text-center opacity-30 flex flex-col items-center gap-6">
+                <div className="w-20 h-20 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center border-4 border-dashed border-slate-200 dark:border-slate-800">
+                  <i className="fa-solid fa-radar text-3xl"></i>
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.4em] italic">No Active Transmissions</p>
               </div>
             )}
             {activeBookings.map(b => (
-              <div key={b.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 shadow-xl overflow-hidden mb-6">
+              <div key={b.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl overflow-hidden mb-8 transition-transform hover:scale-[1.01]">
                 {(b.status === BookingStatus.ON_TRIP || b.status === BookingStatus.GOODS_IN_TRANSIT) && (
-                   <Map center={b.location} markers={[{ loc: b.location, color: '#059669', label: 'Driver' }]} trackingHistory={b.trackingHistory} />
+                   <Map center={b.location} markers={[{ loc: b.location, color: '#059669', label: 'Node-1' }]} trackingHistory={b.trackingHistory} />
                 )}
-                <div className="p-7">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-500/10 px-3 py-1 rounded-xl">{b.category}</span>
-                    <span className="text-[10px] font-black uppercase italic tracking-widest text-emerald-500">{b.status}</span>
+                <div className="p-8">
+                  <div className="flex justify-between items-center mb-5">
+                    <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-500/10 px-4 py-1.5 rounded-full border border-emerald-500/10">{b.category} Task</span>
+                    <span className="text-[11px] font-black uppercase italic tracking-widest text-emerald-500 animate-pulse">{b.status}</span>
                   </div>
-                  <p className="text-xs font-black text-slate-600 dark:text-slate-300 italic mb-4">{b.description}</p>
+                  <p className="text-sm font-black text-slate-700 dark:text-slate-300 italic mb-6 leading-relaxed">"{b.description}"</p>
                   
+                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-3xl mb-6 border border-slate-100 dark:border-white/5">
+                     <div className="flex flex-col">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cost Protocol</span>
+                        <span className="text-sm font-black dark:text-white">ZMW {b.price.toFixed(2)}</span>
+                     </div>
+                     <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
+                        <i className="fa-solid fa-fingerprint text-emerald-600"></i>
+                     </div>
+                  </div>
+
                   {b.status === BookingStatus.DELIVERED && (
-                    <button onClick={() => onConfirmCompletion(b.id)} className="w-full bg-emerald-600 text-white font-black py-4 rounded-[20px] text-[10px] uppercase shadow-lg active:scale-95 transition-all">Receive & Finish</button>
+                    <button onClick={() => onConfirmCompletion(b.id)} className="w-full bg-emerald-600 text-white font-black py-5 rounded-[24px] text-[10px] uppercase shadow-xl active:scale-95 transition-all italic tracking-[0.2em]">
+                      Verify & Release Funds
+                    </button>
                   )}
                 </div>
               </div>
@@ -257,43 +312,66 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
         {activeTab === 'account' && (
           <div className="animate-fade-in space-y-6">
-            <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl text-center">
-              <div className="w-24 h-24 mx-auto bg-emerald-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic shadow-2xl mb-6 overflow-hidden">
-                {user.name.charAt(0)}
+            <div className="bg-white dark:bg-slate-900 rounded-[45px] p-10 border border-slate-100 dark:border-white/5 shadow-2xl text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-emerald-600/10 to-transparent"></div>
+              
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleFileChange} 
+              />
+              
+              <div 
+                onClick={handleAvatarClick}
+                className="w-28 h-28 mx-auto bg-emerald-700 rounded-full flex items-center justify-center text-white text-4xl font-black italic shadow-2xl mb-8 overflow-hidden relative border-4 border-white dark:border-slate-800 z-10 group cursor-pointer"
+              >
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  user.name.charAt(0)
+                )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <i className="fa-solid fa-camera text-xl"></i>
+                </div>
               </div>
               
               {!isEditing ? (
-                <>
-                  <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">{user.name}</h2>
-                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1 italic">{user.phone}</p>
-                  
-                  <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/5 space-y-3">
-                    <button onClick={() => setIsEditing(true)} className="w-full bg-white dark:bg-white/5 text-emerald-600 border border-emerald-600/20 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest active:scale-95 transition-all italic">Edit Profile</button>
-                    <button onClick={onBecomeProvider} className="w-full bg-indigo-600 text-white font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest shadow-xl active:scale-95 transition-all italic">Become a Swensi Partner</button>
-                    <button onClick={logout} className="w-full bg-red-500/10 text-red-500 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest border border-red-500/10">Logout</button>
+                <div className="relative z-10">
+                  <h2 className="text-3xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">{user.name}</h2>
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest italic">{user.phone}</p>
                   </div>
-                </>
+                  
+                  <div className="mt-10 pt-8 border-t border-slate-100 dark:border-white/5 space-y-4">
+                    <button onClick={() => setIsEditing(true)} className="w-full bg-slate-50 dark:bg-white/5 text-emerald-600 border border-emerald-600/20 font-black py-4.5 rounded-[24px] text-[10px] uppercase tracking-widest active:scale-95 transition-all italic">Modify Operational Data</button>
+                    <button onClick={onBecomeProvider} className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-black py-4.5 rounded-[24px] text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all italic border-b-4 border-indigo-900">Elevate to Partner Node</button>
+                    <button onClick={logout} className="w-full text-red-500 font-black py-4 text-[9px] uppercase tracking-[0.3em] hover:bg-red-500/5 rounded-2xl transition-colors mt-4">Deauthorize Session</button>
+                  </div>
+                </div>
               ) : (
-                <div className="space-y-4 animate-fade-in">
+                <div className="space-y-6 animate-fade-in relative z-10">
                   <div className="text-left space-y-2">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-500 ml-2">Display Name</label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-3">Identity Alias</label>
                     <input 
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3 text-sm font-black text-slate-800 dark:text-white outline-none focus:border-emerald-600"
+                      className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-black text-slate-800 dark:text-white outline-none focus:border-emerald-600 shadow-inner"
                     />
                   </div>
                   <div className="text-left space-y-2">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-500 ml-2">Phone Number</label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-3">Primary Line</label>
                     <input 
                       value={editPhone}
                       onChange={(e) => setEditPhone(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3 text-sm font-black text-slate-800 dark:text-white outline-none focus:border-emerald-600"
+                      className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-black text-slate-800 dark:text-white outline-none focus:border-emerald-600 shadow-inner"
                     />
                   </div>
-                  <div className="flex gap-2 pt-4">
-                    <button onClick={() => setIsEditing(false)} className="flex-1 bg-slate-100 dark:bg-white/5 text-slate-500 font-black py-4 rounded-2xl text-[9px] uppercase tracking-widest">Cancel</button>
-                    <button onClick={handleSaveProfile} className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl text-[9px] uppercase tracking-widest shadow-lg">Save Changes</button>
+                  <div className="flex gap-3 pt-6">
+                    <button onClick={() => setIsEditing(false)} className="flex-1 bg-slate-100 dark:bg-white/5 text-slate-500 font-black py-4.5 rounded-2xl text-[10px] uppercase tracking-widest">Abort</button>
+                    <button onClick={handleSaveProfile} className="flex-1 bg-emerald-600 text-white font-black py-4.5 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl">Commit</button>
                   </div>
                 </div>
               )}
@@ -302,21 +380,21 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         )}
       </div>
 
-      <nav className="absolute bottom-6 left-6 right-6 h-18 glass-nav rounded-[32px] border border-white/10 flex justify-around items-center px-4 shadow-2xl z-50">
-        <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center flex-1 ${activeTab === 'home' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}>
-          <i className="fa-solid fa-house-chimney text-lg"></i>
-          <span className="text-[8px] font-black uppercase mt-1 tracking-widest italic">{t('home')}</span>
+      <nav className="absolute bottom-8 left-8 right-8 h-20 glass-nav rounded-[35px] border border-white/20 flex justify-around items-center px-6 shadow-2xl z-50 backdrop-blur-2xl">
+        <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center flex-1 transition-all ${activeTab === 'home' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}>
+          <i className={`fa-solid ${activeTab === 'home' ? 'fa-house-chimney' : 'fa-house'} text-xl`}></i>
+          <span className="text-[9px] font-black uppercase mt-1.5 tracking-widest italic">{t('home')}</span>
         </button>
-        <button onClick={() => setActiveTab('active')} className={`flex flex-col items-center flex-1 ${activeTab === 'active' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}>
+        <button onClick={() => setActiveTab('active')} className={`flex flex-col items-center flex-1 transition-all ${activeTab === 'active' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}>
           <div className="relative">
-             <i className="fa-solid fa-truck-fast text-lg"></i>
-             {activeBookings.length > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>}
+             <i className="fa-solid fa-bolt-lightning text-xl"></i>
+             {activeBookings.length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>}
           </div>
-          <span className="text-[8px] font-black uppercase mt-1 tracking-widest italic">{t('active')}</span>
+          <span className="text-[9px] font-black uppercase mt-1.5 tracking-widest italic">Live Ops</span>
         </button>
-        <button onClick={() => setActiveTab('account')} className={`flex flex-col items-center flex-1 ${activeTab === 'account' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}>
-          <i className="fa-solid fa-user-circle text-lg"></i>
-          <span className="text-[8px] font-black uppercase mt-1 tracking-widest italic">{t('account')}</span>
+        <button onClick={() => setActiveTab('account')} className={`flex flex-col items-center flex-1 transition-all ${activeTab === 'account' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}>
+          <i className="fa-solid fa-circle-user text-xl"></i>
+          <span className="text-[9px] font-black uppercase mt-1.5 tracking-widest italic">{t('account')}</span>
         </button>
       </nav>
     </div>

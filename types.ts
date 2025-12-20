@@ -1,3 +1,4 @@
+
 export enum Role {
   CUSTOMER = 'CUSTOMER',
   PROVIDER = 'PROVIDER',
@@ -55,6 +56,7 @@ export interface User {
   trustScore: number; 
   isVerified: boolean;
   hospitalityCashflow?: number;
+  avatarUrl?: string;
   // Trust Indicators
   cancellationRate?: number;
   onTimeRate?: number;

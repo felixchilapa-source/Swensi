@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, BookingStatus } from '../types';
 
 interface LodgeDashboardProps {
@@ -17,6 +17,7 @@ interface LodgeDashboardProps {
 const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings, onUpdateBooking, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState<'requests' | 'guests' | 'account'>('requests');
   const [roomInput, setRoomInput] = useState<{ [key: string]: string }>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -35,6 +36,21 @@ const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings,
   const handleSaveProfile = () => {
     onUpdateUser({ name: editName, phone: editPhone });
     setIsEditing(false);
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        onUpdateUser({ avatarUrl: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -98,8 +114,26 @@ const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings,
         {activeTab === 'account' && (
           <div className="animate-fade-in space-y-6">
             <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl text-center">
-              <div className="w-24 h-24 mx-auto bg-purple-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic shadow-2xl mb-6 overflow-hidden">
-                {user.name.charAt(0)}
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleFileChange} 
+              />
+              
+              <div 
+                onClick={handleAvatarClick}
+                className="w-24 h-24 mx-auto bg-purple-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic shadow-2xl mb-6 overflow-hidden relative group cursor-pointer"
+              >
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="Station" className="w-full h-full object-cover" />
+                ) : (
+                  user.name.charAt(0)
+                )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <i className="fa-solid fa-camera text-xl"></i>
+                </div>
               </div>
               
               {!isEditing ? (
