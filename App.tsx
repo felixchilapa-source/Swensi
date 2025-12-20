@@ -1,12 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
-import { Role, User, Booking, BookingStatus, Location, SystemLog } from './types.ts';
-import { SUPER_ADMIN, TRANSLATIONS } from './constants.tsx';
-import Auth from './components/Auth.tsx';
-import CustomerDashboard from './components/CustomerDashboard.tsx';
-import ProviderDashboard from './components/ProviderDashboard.tsx';
-import AdminDashboard from './components/AdminDashboard.tsx';
-import LodgeDashboard from './components/LodgeDashboard.tsx';
+import { Role, User, Booking, BookingStatus, Location, SystemLog } from './types';
+import { SUPER_ADMIN, TRANSLATIONS } from './constants';
+import Auth from './components/Auth';
+import CustomerDashboard from './components/CustomerDashboard';
+import ProviderDashboard from './components/ProviderDashboard';
+import AdminDashboard from './components/AdminDashboard';
+import LodgeDashboard from './components/LodgeDashboard';
 
 interface SwensiNotification {
   id: string;
@@ -26,8 +25,8 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [notifications, setNotifications] = useState<SwensiNotification[]>([]);
-  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
-  const [currentLocation, setCurrentLocation] = useState<Location>({ lat: -9.3283, lng: 32.7569 });
+  const [systemLogs] = useState<SystemLog[]>([]);
+  const [currentLocation] = useState<Location>({ lat: -9.3283, lng: 32.7569 });
   const [adminNumbers] = useState<string[]>([SUPER_ADMIN, '0965722947', '0967981910']);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('swensi-theme') === 'dark');
   const [language, setLanguage] = useState(() => localStorage.getItem('swensi-lang') || 'en');
