@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, Location, BookingStatus, ShoppingItem, Role } from '../types';
 import { CATEGORIES, Category } from '../constants';
@@ -22,10 +21,11 @@ interface CustomerDashboardProps {
   onBecomeProvider: (kyc: { license: string, address: string, photo: string }) => void;
   onUpdateUser: (updates: Partial<User>) => void;
   t: (key: string) => string;
+  onToggleViewMode?: () => void;
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, onAddBooking, onConfirmCompletion, t, onBecomeProvider, onUpdateUser
+  user, logout, bookings, onAddBooking, onConfirmCompletion, t, onBecomeProvider, onUpdateUser, onToggleViewMode
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -307,6 +307,15 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
              </div>
              <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-0.5 opacity-60 italic">Escrow Balance</p>
            </div>
+           {user.role !== Role.CUSTOMER && (
+              <button 
+                onClick={onToggleViewMode}
+                className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20"
+                title="Switch to Management"
+              >
+                <i className="fa-solid fa-rotate"></i>
+              </button>
+           )}
            <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 border border-slate-200/50 dark:border-white/10 transition-colors">
             <i className="fa-solid fa-power-off text-xs"></i>
            </button>
@@ -329,31 +338,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               <div className="absolute -right-2 top-0 w-16 h-16 bg-emerald-600/5 rounded-full blur-2xl"></div>
             </div>
             
-            {/* Quick Action Tiles */}
-            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-               <div className="min-w-[140px] bg-emerald-600/10 border border-emerald-600/20 rounded-3xl p-5 flex flex-col gap-3">
-                  <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                    <i className="fa-solid fa-plus"></i>
-                  </div>
-                  <p className="text-[10px] font-black uppercase italic text-emerald-600">Quick Deposit</p>
-               </div>
-               <div className="min-w-[140px] bg-blue-600/10 border border-blue-600/20 rounded-3xl p-5 flex flex-col gap-3">
-                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                    <i className="fa-solid fa-headset"></i>
-                  </div>
-                  <p className="text-[10px] font-black uppercase italic text-blue-600">SOS Support</p>
-               </div>
-               <div className="min-w-[140px] bg-amber-600/10 border border-amber-600/20 rounded-3xl p-5 flex flex-col gap-3">
-                  <div className="w-10 h-10 bg-amber-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                    <i className="fa-solid fa-star"></i>
-                  </div>
-                  <p className="text-[10px] font-black uppercase italic text-amber-600">Saved Nodes</p>
-               </div>
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               {CATEGORIES.map(cat => (
-                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] service-card shadow-sm hover:border-emerald-600 group transition-all duration-300 relative overflow-hidden">
+                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] service-card shadow-sm hover:border-emerald-600 group transition-all duration-300 relative overflow-hidden text-left">
                   <div className="absolute top-[-20%] right-[-20%] w-[50%] h-[50%] bg-emerald-500/5 rounded-full blur-xl group-hover:scale-150 transition-transform"></div>
                   <div className="bg-emerald-50 dark:bg-emerald-500/10 w-14 h-14 rounded-2xl flex items-center justify-center text-emerald-700 dark:text-emerald-500 text-2xl group-hover:scale-110 group-hover:rotate-6 transition-all border border-emerald-100 dark:border-emerald-500/10"><i className={cat.icon}></i></div>
                   <div className="w-full relative z-10">
@@ -362,22 +349,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   </div>
                 </button>
               ))}
-            </div>
-
-            <div className="bg-gradient-to-br from-secondary to-slate-800 dark:from-slate-900 dark:to-black p-6 rounded-[40px] text-white shadow-xl relative overflow-hidden group border border-white/5">
-                <div className="absolute right-[-10%] bottom-[-10%] w-32 h-32 bg-emerald-600/10 rounded-full blur-2xl"></div>
-                <div className="flex justify-between items-start mb-4 relative z-10">
-                   <div>
-                      <p className="text-[8px] font-black uppercase tracking-[0.3em] text-emerald-500 mb-1">Community Insight</p>
-                      <h4 className="text-xl font-black italic tracking-tighter">Your Trust Rating is {user.trustScore}%</h4>
-                   </div>
-                   <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:rotate-12 transition-transform">
-                      <i className="fa-solid fa-shield-halved text-emerald-500"></i>
-                   </div>
-                </div>
-                <p className="text-[10px] font-bold text-slate-400 leading-relaxed max-w-[80%] relative z-10">
-                   Higher trust scores reduce commission fees and prioritize your missions in the Nakonde corridor.
-                </p>
             </div>
           </div>
         )}
@@ -431,13 +402,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             <div className="bg-white dark:bg-slate-900 rounded-[45px] p-10 border border-slate-100 dark:border-white/5 shadow-2xl text-center relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-emerald-600/10 to-transparent"></div>
               
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*" 
-                onChange={handleFileChange} 
-              />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
               
               <div 
                 onClick={handleAvatarClick}
@@ -456,17 +421,16 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               {!isEditing ? (
                 <div className="relative z-10">
                   <div className="inline-block px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-4">
-                     <span className="text-[9px] font-black text-emerald-600 uppercase italic tracking-widest">Market Client</span>
+                     <span className="text-[9px] font-black text-emerald-600 uppercase italic tracking-widest">{user.role} CLIENT</span>
                   </div>
                   <h2 className="text-3xl font-black text-secondary dark:text-white italic uppercase tracking-tighter">{user.name}</h2>
-                  <div className="flex items-center justify-center gap-2 mt-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest italic">{user.phone}</p>
-                  </div>
+                  <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest italic">{user.phone}</p>
                   
                   <div className="mt-10 pt-8 border-t border-slate-100 dark:border-white/5 space-y-4">
                     <button onClick={() => setIsEditing(true)} className="w-full bg-slate-50 dark:bg-white/5 text-emerald-600 border border-emerald-600/20 font-black py-4.5 rounded-[24px] text-[10px] uppercase tracking-widest active:scale-95 transition-all italic">Modify Operational Data</button>
-                    <button onClick={() => setShowKYCModal(true)} className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-black py-4.5 rounded-[24px] text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all italic border-b-4 border-indigo-900">Elevate to Partner Node</button>
+                    {user.role === Role.CUSTOMER && (
+                      <button onClick={() => setShowKYCModal(true)} className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-black py-4.5 rounded-[24px] text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all italic border-b-4 border-indigo-900">Elevate to Partner Node</button>
+                    )}
                     <button onClick={logout} className="w-full text-red-500 font-black py-4 text-[9px] uppercase tracking-[0.3em] hover:bg-red-500/5 rounded-2xl transition-colors mt-4">Deauthorize Session</button>
                   </div>
                 </div>
@@ -500,18 +464,18 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       </div>
 
       <nav className="absolute bottom-8 left-8 right-8 h-20 glass-nav rounded-[35px] border border-white/20 flex justify-around items-center px-6 shadow-2xl z-50 backdrop-blur-2xl">
-        <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center flex-1 transition-all ${activeTab === 'home' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}>
+        <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center transition-all ${activeTab === 'home' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}>
           <i className={`fa-solid ${activeTab === 'home' ? 'fa-house-chimney' : 'fa-house'} text-xl`}></i>
           <span className="text-[9px] font-black uppercase mt-1.5 tracking-widest italic">{t('home')}</span>
         </button>
-        <button onClick={() => setActiveTab('active')} className={`flex flex-col items-center flex-1 transition-all ${activeTab === 'active' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}>
+        <button onClick={() => setActiveTab('active')} className={`flex-1 flex flex-col items-center transition-all ${activeTab === 'active' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}>
           <div className="relative">
              <i className="fa-solid fa-bolt-lightning text-xl"></i>
              {activeBookings.length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>}
           </div>
           <span className="text-[9px] font-black uppercase mt-1.5 tracking-widest italic">Live Ops</span>
         </button>
-        <button onClick={() => setActiveTab('account')} className={`flex flex-col items-center flex-1 transition-all ${activeTab === 'account' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}>
+        <button onClick={() => setActiveTab('account')} className={`flex-1 flex flex-col items-center transition-all ${activeTab === 'account' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}>
           <i className="fa-solid fa-circle-user text-xl"></i>
           <span className="text-[9px] font-black uppercase mt-1.5 tracking-widest italic">{t('account')}</span>
         </button>

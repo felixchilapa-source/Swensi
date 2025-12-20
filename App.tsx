@@ -16,6 +16,7 @@ interface SwensiNotification {
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [viewMode, setViewMode] = useState<'MANAGEMENT' | 'CUSTOMER'>('CUSTOMER');
   const [allUsers, setAllUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('swensi-users-v2');
     return saved ? JSON.parse(saved) : [];
@@ -83,30 +84,31 @@ const App: React.FC = () => {
 
   const t = (key: string) => TRANSLATIONS[language]?.[key] || TRANSLATIONS['en'][key] || key;
 
-  const handleLogin = (phone: string, selectedLang: string, forcedRole?: Role) => {
+  const handleLogin = (phone: string, selectedLang: string) => {
     const existingUser = allUsers.find(u => u.phone === phone);
     if (existingUser) {
-      // Allow role switching if specified, or use existing role
-      const finalUser = forcedRole ? { ...existingUser, role: forcedRole } : existingUser;
       setLanguage(selectedLang);
-      setUser(finalUser);
-      addNotification('TERMINAL AUTH', `Welcome back, ${finalUser.name}`, 'SUCCESS');
+      setUser(existingUser);
+      // Auto-switch to management if applicable
+      if (existingUser.role !== Role.CUSTOMER) setViewMode('MANAGEMENT');
+      else setViewMode('CUSTOMER');
+      addNotification('TERMINAL AUTH', `Welcome back, ${existingUser.name}`, 'SUCCESS');
     }
   };
 
-  const handleRegister = (phone: string, name: string, avatar: string, lang: string, role: Role) => {
+  const handleRegister = (phone: string, name: string, avatar: string, lang: string) => {
     const isAdmin = adminNumbers.includes(phone);
     const newUser: User = {
       id: Math.random().toString(36).substr(2, 9),
       phone,
-      role: isAdmin ? Role.ADMIN : role,
+      role: isAdmin ? Role.ADMIN : Role.CUSTOMER,
       name,
       avatarUrl: avatar,
       isActive: true,
       balance: 1500.00,
       rating: 5.0,
       memberSince: Date.now(),
-      trustScore: role === Role.PROVIDER ? 50 : 85,
+      trustScore: 85,
       isVerified: isAdmin,
       language: lang,
       completedMissions: 0,
@@ -116,6 +118,7 @@ const App: React.FC = () => {
     setAllUsers(prev => [...prev, newUser]);
     setLanguage(lang);
     setUser(newUser);
+    setViewMode(isAdmin ? 'MANAGEMENT' : 'CUSTOMER');
     addNotification('NODE REGISTERED', `Welcome to the Corridor, ${name}`, 'SUCCESS');
   };
 
@@ -124,7 +127,6 @@ const App: React.FC = () => {
     const updatedUser = { ...user, ...updates };
     setUser(updatedUser);
     setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-    addNotification('TERMINAL SYNC', 'Identity data successfully updated.', 'SUCCESS');
   };
 
   const handleAddAdmin = (phone: string) => {
@@ -167,6 +169,7 @@ const App: React.FC = () => {
     };
     setUser(updatedUser);
     setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    setViewMode('MANAGEMENT');
     addNotification('KYC SUBMITTED', 'Dossier received. Admin approval required for signal access.', 'SUCCESS');
   };
 
@@ -199,6 +202,7 @@ const App: React.FC = () => {
         setUser(u => u ? { ...u, balance: newBalance } : null);
         setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance } : u));
         setPendingPayment(null);
+        addNotification('MISSION LOGGED', 'Mission successfully synchronized with the corridor.', 'SUCCESS');
       }
     });
   };
@@ -222,6 +226,97 @@ const App: React.FC = () => {
       }
       return b;
     }));
+  };
+
+  // Helper to determine what dashboard to show
+  const renderDashboard = () => {
+    if (!user) return null;
+
+    if (viewMode === 'CUSTOMER') {
+      return (
+        <CustomerDashboard 
+          user={user} 
+          logout={() => setUser(null)} 
+          bookings={bookings.filter(b => b.customerId === user.id)} 
+          onAddBooking={addBooking} 
+          location={currentLocation} 
+          onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} 
+          onUpdateBooking={updateBooking} 
+          onRate={() => {}} 
+          onUploadFacePhoto={() => {}} 
+          onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+          isDarkMode={isDarkMode} 
+          onLanguageChange={setLanguage} 
+          onBecomeProvider={handleBecomeProviderWithKYC} 
+          onUpdateUser={handleUpdateUser} 
+          t={t} 
+          onToggleViewMode={() => setViewMode('MANAGEMENT')}
+        />
+      );
+    }
+
+    switch (user.role) {
+      case Role.ADMIN:
+        return (
+          <AdminDashboard 
+            user={user} 
+            logout={() => setUser(null)} 
+            bookings={bookings} 
+            allUsers={allUsers} 
+            systemLogs={systemLogs} 
+            onToggleBlock={() => {}} 
+            onDeleteUser={() => {}} 
+            onToggleVerification={handleToggleVerification} 
+            onUpdateUserRole={() => {}} 
+            adminNumbers={adminNumbers} 
+            onAddAdmin={handleAddAdmin} 
+            onRemoveAdmin={handleRemoveAdmin} 
+            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+            isDarkMode={isDarkMode} 
+            onLanguageChange={setLanguage} 
+            sysDefaultLang={language} 
+            onUpdateSysDefaultLang={() => {}} 
+            t={t}
+            onToggleViewMode={() => setViewMode('CUSTOMER')}
+          />
+        );
+      case Role.PROVIDER:
+        return (
+          <ProviderDashboard 
+            user={user} 
+            logout={() => setUser(null)} 
+            bookings={bookings} 
+            allUsers={allUsers} 
+            onUpdateStatus={(id, status, pid) => updateBooking(id, { status, providerId: pid })} 
+            onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} 
+            onUpdateBooking={updateBooking} 
+            onUpdateSubscription={() => {}} 
+            location={currentLocation} 
+            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+            isDarkMode={isDarkMode} 
+            onLanguageChange={setLanguage} 
+            onUpdateUser={handleUpdateUser} 
+            t={t}
+            onToggleViewMode={() => setViewMode('CUSTOMER')}
+          />
+        );
+      case Role.LODGE:
+        return (
+          <LodgeDashboard 
+            user={user} 
+            logout={() => setUser(null)} 
+            bookings={bookings.filter(b => b.lodgeId === user.id || b.category === 'lodging')} 
+            onUpdateBooking={updateBooking} 
+            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+            isDarkMode={isDarkMode} 
+            onLanguageChange={setLanguage} 
+            onUpdateUser={handleUpdateUser} 
+            t={t} 
+          />
+        );
+      default:
+        return null;
+    }
   };
 
   return (
@@ -252,35 +347,7 @@ const App: React.FC = () => {
           adminNumbers={adminNumbers} 
           existingUsers={allUsers}
         />
-      ) : (
-        <>
-          {user.role === Role.ADMIN && (
-            <AdminDashboard 
-              user={user} 
-              logout={() => setUser(null)} 
-              bookings={bookings} 
-              allUsers={allUsers} 
-              systemLogs={systemLogs} 
-              onToggleBlock={() => {}} 
-              onDeleteUser={() => {}} 
-              onToggleVerification={handleToggleVerification} 
-              onUpdateUserRole={() => {}} 
-              adminNumbers={adminNumbers} 
-              onAddAdmin={handleAddAdmin} 
-              onRemoveAdmin={handleRemoveAdmin} 
-              onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-              isDarkMode={isDarkMode} 
-              onLanguageChange={setLanguage} 
-              sysDefaultLang={language} 
-              onUpdateSysDefaultLang={() => {}} 
-              t={t} 
-            />
-          )}
-          {user.role === Role.CUSTOMER && <CustomerDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.customerId === user.id)} onAddBooking={addBooking} location={currentLocation} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onRate={() => {}} onUploadFacePhoto={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onBecomeProvider={handleBecomeProviderWithKYC} onUpdateUser={handleUpdateUser} t={t} />}
-          {user.role === Role.PROVIDER && <ProviderDashboard user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} onUpdateStatus={(id, status, pid) => updateBooking(id, { status, providerId: pid })} onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} onUpdateBooking={updateBooking} onUpdateSubscription={() => {}} location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onUpdateUser={handleUpdateUser} t={t} />}
-          {user.role === Role.LODGE && <LodgeDashboard user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.lodgeId === user.id || b.category === 'lodging')} onUpdateBooking={updateBooking} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} onUpdateUser={handleUpdateUser} t={t} />}
-        </>
-      )}
+      ) : renderDashboard()}
 
       {pendingPayment && (
         <div className="fixed inset-0 z-[600] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6">

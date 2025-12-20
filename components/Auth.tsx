@@ -4,8 +4,8 @@ import { COLORS, LANGUAGES } from '../constants';
 import TermsModal from './TermsModal';
 
 interface AuthProps {
-  onLogin: (phone: string, lang: string, forcedRole?: Role) => void;
-  onRegister: (phone: string, name: string, avatar: string, lang: string, role: Role) => void;
+  onLogin: (phone: string, lang: string) => void;
+  onRegister: (phone: string, name: string, avatar: string, lang: string) => void;
   onToggleTheme: () => void;
   isDarkMode: boolean;
   language: string;
@@ -19,12 +19,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [extraOtp, setExtraOtp] = useState('');
-  const [step, setStep] = useState<1 | 2 | 3 | 'role_select' | 'profile_setup'>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 'profile_setup'>(1);
   const [loading, setLoading] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role>(Role.CUSTOMER);
   
   // Registration States
   const [regName, setRegName] = useState('');
@@ -41,30 +40,19 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      setStep('role_select');
+      setStep(2);
+      alert(`Node Auth Protocol Active. Code: 123456`);
     }, 800);
-  };
-
-  const handleRoleSelection = (role: Role) => {
-    setSelectedRole(role);
-    setStep(2);
-    alert(`Node Auth Protocol ${role === Role.ADMIN ? 'A-SEC' : 'C-STD'} active. Code: 123456`);
   };
 
   const verifyOtp = () => {
     if (otp === '123456') {
-      if (selectedRole === Role.ADMIN) {
-        if (isAdmin) {
-          setStep(3);
-          alert('Layer 2 Challenge: 999888');
-        } else {
-          alert('Unauthorized Phone for Command Node access.');
-          setStep('role_select');
-        }
+      if (isAdmin) {
+        setStep(3);
+        alert('Layer 2 Challenge: 999888');
       } else {
-        // For Customers/Providers/Lodges
         if (userExists) {
-          onLogin(phone, language, selectedRole);
+          onLogin(phone, language);
         } else {
           setStep('profile_setup');
         }
@@ -77,7 +65,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
   const verifyExtraOtp = () => {
     if (extraOtp === '999888') {
       if (userExists) {
-        onLogin(phone, language, Role.ADMIN);
+        onLogin(phone, language);
       } else {
         setStep('profile_setup');
       }
@@ -88,7 +76,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
 
   const handleCompleteRegistration = () => {
     if (!regName.trim()) return alert('Please provide an operational alias (Name)');
-    onRegister(phone, regName, regAvatar, language, selectedRole);
+    onRegister(phone, regName, regAvatar, language);
   };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,41 +174,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
                 {loading ? <i className="fa-solid fa-circle-notch animate-spin"></i> : "Establish Signal"}
               </button>
             </div>
-          </div>
-        )}
-
-        {step === 'role_select' && (
-          <div className="animate-fade-in space-y-4">
-             <p className="text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 italic">Identification Required</p>
-             <div className="grid gap-3">
-                <button onClick={() => handleRoleSelection(Role.CUSTOMER)} className="p-5 bg-white dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[32px] text-left hover:border-blue-600 transition-all flex items-center gap-5 group">
-                   <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-600"><i className="fa-solid fa-user-tag text-xl"></i></div>
-                   <div>
-                     <p className="text-[11px] font-black text-secondary dark:text-white uppercase">Market Client</p>
-                     <p className="text-[8px] font-bold text-slate-400 uppercase">Logistics & Services</p>
-                   </div>
-                </button>
-                <button onClick={() => handleRoleSelection(Role.PROVIDER)} className="p-5 bg-white dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[32px] text-left hover:border-amber-600 transition-all flex items-center gap-5 group">
-                   <div className="w-12 h-12 bg-amber-600/10 rounded-2xl flex items-center justify-center text-amber-600"><i className="fa-solid fa-shuttle-van text-xl"></i></div>
-                   <div>
-                     <p className="text-[11px] font-black text-secondary dark:text-white uppercase">Corridor Partner</p>
-                     <p className="text-[8px] font-bold text-slate-400 uppercase">Verified Service Node</p>
-                   </div>
-                </button>
-                <button onClick={() => handleRoleSelection(Role.LODGE)} className="p-5 bg-white dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[32px] text-left hover:border-purple-600 transition-all flex items-center gap-5 group">
-                   <div className="w-12 h-12 bg-purple-600/10 rounded-2xl flex items-center justify-center text-purple-600"><i className="fa-solid fa-hotel text-xl"></i></div>
-                   <div>
-                     <p className="text-[11px] font-black text-secondary dark:text-white uppercase">Station Manager</p>
-                     <p className="text-[8px] font-bold text-slate-400 uppercase">Hospitality Hub</p>
-                   </div>
-                </button>
-                {isAdmin && (
-                  <button onClick={() => handleRoleSelection(Role.ADMIN)} className="p-5 bg-slate-900 border-2 border-red-600/30 rounded-[32px] text-left flex items-center gap-5 group">
-                     <div className="w-12 h-12 bg-red-600/10 rounded-2xl flex items-center justify-center text-red-600"><i className="fa-solid fa-shield-halved text-xl"></i></div>
-                     <div><p className="text-[11px] font-black text-white uppercase">Command Node</p></div>
-                  </button>
-                )}
-             </div>
           </div>
         )}
 

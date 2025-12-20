@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { User, Booking, Role, SystemLog } from '../types';
 import { SUPER_ADMIN, LANGUAGES } from '../constants';
@@ -22,6 +21,7 @@ interface AdminDashboardProps {
   sysDefaultLang: string;
   onUpdateSysDefaultLang: (lang: string) => void;
   t: (key: string) => string;
+  onToggleViewMode?: () => void;
 }
 
 interface NavItem {
@@ -30,7 +30,7 @@ interface NavItem {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-  user, logout, allUsers, bookings, onToggleVerification, adminNumbers, onAddAdmin, onRemoveAdmin, t
+  user, logout, allUsers, bookings, onToggleVerification, adminNumbers, onAddAdmin, onRemoveAdmin, t, onToggleViewMode
 }) => {
   const [view, setView] = useState<'stats' | 'registry' | 'security' | 'hospitality'>('stats');
   const [newAdminPhone, setNewAdminPhone] = useState('');
@@ -68,9 +68,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <p className="text-[7px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">Strategic Operations</p>
           </div>
         </div>
-        <button onClick={logout} className="w-9 h-9 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center border border-red-500/20">
-          <i className="fa-solid fa-power-off text-xs"></i>
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+              onClick={onToggleViewMode}
+              className="w-10 h-10 rounded-2xl bg-emerald-600/10 text-emerald-500 flex items-center justify-center border border-emerald-600/20"
+              title="Switch to Booking"
+            >
+              <i className="fa-solid fa-cart-plus"></i>
+            </button>
+          <button onClick={logout} className="w-9 h-9 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center border border-red-500/20">
+            <i className="fa-solid fa-power-off text-xs"></i>
+          </button>
+        </div>
       </header>
 
       {/* Dossier Review Modal */}

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, BookingStatus, Role, Location } from '../types';
 import { TRUSTED_COMMISSION_BONUS } from '../constants';
@@ -20,9 +19,10 @@ interface ProviderDashboardProps {
   isDarkMode: boolean;
   onLanguageChange: (lang: string) => void;
   t: (key: string) => string;
+  onToggleViewMode?: () => void;
 }
 
-const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, bookings, allUsers, onUpdateStatus, onUpdateBooking, onUpdateUser }) => {
+const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, bookings, allUsers, onUpdateStatus, onUpdateBooking, onUpdateUser, onToggleViewMode }) => {
   const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'account'>('leads');
   const [isOnline, setIsOnline] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,7 +54,6 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
   }, [bookings, isTrusted, isEligibleForShopping, isOnline, isAuthorized]);
 
   const activeJobs = useMemo(() => bookings.filter(b => b.providerId === user.id && b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings, user.id]);
-  const hospitalityEarnings = (user.hospitalityCashflow || 0) * TRUSTED_COMMISSION_BONUS;
 
   const handleSaveProfile = () => {
     onUpdateUser({ name: editName, phone: editPhone });
@@ -90,6 +89,13 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ user, logout, boo
              </div>
           </div>
           <div className="flex items-center gap-3">
+             <button 
+                onClick={onToggleViewMode}
+                className="w-10 h-10 rounded-2xl bg-emerald-600/10 text-emerald-500 flex items-center justify-center border border-emerald-600/20"
+                title="Switch to Booking"
+              >
+                <i className="fa-solid fa-cart-plus"></i>
+              </button>
              <div className="flex flex-col items-end">
                 <span className={`text-[8px] font-black uppercase tracking-widest ${isOnline && isAuthorized ? 'text-emerald-500' : 'text-red-500'}`}>
                   {isAuthorized ? (isOnline ? 'Signal Active' : 'Offline') : 'Locked'}
