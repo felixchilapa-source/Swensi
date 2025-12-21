@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode, Feedback, ShoppingItem } from '../types';
 import { CATEGORIES, Category, PAYMENT_NUMBERS, LANGUAGES, COLORS } from '../constants';
 import Map from './Map';
@@ -33,8 +33,14 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
+  const [showKycForm, setShowKycForm] = useState(false);
+  
+  // KYC State
+  const [kycLicense, setKycLicense] = useState('');
+  const [kycAddress, setKycAddress] = useState('');
+  const [kycPhoto, setKycPhoto] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [missionDesc, setMissionDesc] = useState('');
   const [mapCenter, setMapCenter] = useState<Location>(location);
   
@@ -42,12 +48,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [shoppingItems, setShoppingItems] = useState<string[]>([]);
   const [newItem, setNewItem] = useState('');
 
-  // Discover nearby service nodes
   const nearbyMarkers = useMemo(() => {
     return allUsers
       .filter(u => u.id !== user.id && u.location && u.isActive)
       .map(u => {
-        let color = '#94a3b8'; // Default slate
+        let color = '#94a3b8'; 
         let label = u.name;
 
         if (u.role === Role.LODGE) {
@@ -65,7 +70,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           loc: u.location!,
           color,
           label,
-          // Consider "live" if active in last 10 mins
           isLive: u.lastActive > Date.now() - 600000 
         };
       });
@@ -82,6 +86,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       setShoppingItems([...shoppingItems, newItem.trim()]);
       setNewItem('');
     }
+  };
+
+  const handleKycSubmit = () => {
+    if (!kycLicense || !kycAddress) return alert("All fields are required for verification.");
+    onBecomeProvider({ license: kycLicense, address: kycAddress, photo: kycPhoto });
+    setShowKycForm(false);
   };
 
   const handleLaunchMission = (targetLodgeId?: string) => {
@@ -156,16 +166,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     ...nearbyMarkers
                   ]} 
                />
-               <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-                  <div className="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                    <span className="text-[7px] font-black text-white uppercase italic">Lodges</span>
-                  </div>
-                  <div className="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                    <span className="text-[7px] font-black text-white uppercase italic">Shops</span>
-                  </div>
-               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pb-4">
@@ -184,85 +184,56 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           </div>
         )}
 
-        {selectedCategory && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl animate-fade-in">
-            <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-8 shadow-2xl animate-zoom-in overflow-hidden flex flex-col max-h-[85vh]">
-              <div className="flex justify-between items-center mb-6">
+        {activeTab === 'account' && (
+          <div className="animate-fade-in space-y-8">
+             <div className="flex items-center gap-6 p-6 bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 shadow-xl">
+                <div className="w-20 h-20 rounded-[30px] bg-slate-100 dark:bg-white/5 overflow-hidden border-2 border-emerald-600/20">
+                   {user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl font-black">{user.name.charAt(0)}</div>}
+                </div>
                 <div>
-                  <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white leading-none">{selectedCategory.name}</h3>
-                  <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest mt-2">{selectedCategory.hint}</p>
+                   <h3 className="text-xl font-black text-secondary dark:text-white italic uppercase">{user.name}</h3>
+                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">{user.phone}</p>
+                   <span className="inline-block mt-3 px-3 py-1 bg-emerald-600/10 text-emerald-600 text-[8px] font-black uppercase rounded-full italic">{user.role}</span>
                 </div>
-                <button onClick={() => setSelectedCategory(null)} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400"><i className="fa-solid fa-xmark"></i></button>
-              </div>
+             </div>
 
-              {selectedCategory.id === 'shop_for_me' && (
-                <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar mb-6">
-                   <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-3xl border border-slate-100 dark:border-white/10">
-                      <p className="text-[10px] font-black text-slate-500 uppercase italic mb-3">Shopping List Builder</p>
-                      <div className="flex gap-2 mb-4">
-                        <input 
-                          value={newItem} 
-                          onChange={(e) => setNewItem(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && handleAddItem()}
-                          placeholder="Add item..." 
-                          className="flex-1 bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-3 text-xs outline-none" 
-                        />
-                        <button onClick={handleAddItem} className="w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center"><i className="fa-solid fa-plus"></i></button>
+             {/* Partner Enrollment */}
+             {user.role === Role.CUSTOMER && (
+               <div className="bg-gradient-to-br from-blue-700 to-blue-900 p-8 rounded-[40px] shadow-2xl relative overflow-hidden">
+                  <div className="relative z-10">
+                    <h4 className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none mb-3">Become a Partner</h4>
+                    <p className="text-[11px] text-blue-100 font-medium mb-6 leading-relaxed">Monetize your trade skills or vehicle in the Nakonde Corridor. Join our network of verified agents.</p>
+                    <button onClick={() => setShowKycForm(true)} className="px-8 py-4 bg-white text-blue-700 text-[10px] font-black uppercase rounded-2xl italic tracking-widest shadow-xl">Apply Now</button>
+                  </div>
+                  <i className="fa-solid fa-briefcase absolute -bottom-6 -right-6 text-9xl text-white/5 transform rotate-12"></i>
+               </div>
+             )}
+
+             {showKycForm && (
+                <div className="fixed inset-0 z-[2000] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6">
+                  <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-8 shadow-2xl animate-zoom-in space-y-6">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-xl font-black italic uppercase">Partner Enrollment</h3>
+                      <button onClick={() => setShowKycForm(false)} className="text-slate-400"><i className="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-blue-600 uppercase italic">ID / License Number</label>
+                        <input value={kycLicense} onChange={e => setKycLicense(e.target.value)} placeholder="NRC or Trade License #" className="w-full bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border-none outline-none text-xs font-bold" />
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {shoppingItems.map((item, idx) => (
-                          <div key={idx} className="bg-emerald-600/10 text-emerald-600 border border-emerald-600/20 px-3 py-1.5 rounded-full text-[10px] font-black flex items-center gap-2">
-                            {item}
-                            <button onClick={() => setShoppingItems(shoppingItems.filter((_, i) => i !== idx))}><i className="fa-solid fa-xmark"></i></button>
-                          </div>
-                        ))}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-blue-600 uppercase italic">Base Operations Address</label>
+                        <input value={kycAddress} onChange={e => setKycAddress(e.target.value)} placeholder="e.g. Area 12, Nakonde" className="w-full bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border-none outline-none text-xs font-bold" />
                       </div>
-                   </div>
-                   <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Specific instructions for the trusted agent..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white h-24 focus:border-emerald-600 outline-none" />
-                   <button 
-                    disabled={shoppingItems.length === 0}
-                    onClick={() => handleLaunchMission()} 
-                    className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest disabled:opacity-40"
-                   >
-                     Launch Trusted Mission
-                   </button>
+                      <button onClick={handleKycSubmit} className="w-full py-5 bg-blue-600 text-white font-black rounded-3xl text-[10px] uppercase italic tracking-widest shadow-xl">Submit for Verification</button>
+                    </div>
+                  </div>
                 </div>
-              )}
-
-              {selectedCategory.id === 'lodging' && (
-                <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar mb-6">
-                  <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest italic ml-2 mb-4">Available Vacancies</p>
-                  {availableLodges.map(lodge => (
-                      <button 
-                        key={lodge.id} 
-                        onClick={() => handleLaunchMission(lodge.id)}
-                        className="w-full bg-slate-50 dark:bg-white/5 p-5 rounded-[28px] border border-slate-100 dark:border-white/5 flex items-center justify-between group active:scale-95 transition-all"
-                      >
-                         <div className="flex items-center gap-4">
-                           <div className="w-12 h-12 rounded-2xl bg-purple-600/10 text-purple-600 flex items-center justify-center text-xl">
-                             <i className="fa-solid fa-bed"></i>
-                           </div>
-                           <div className="text-left">
-                             <p className="text-xs font-black uppercase text-slate-900 dark:text-white italic leading-none">{lodge.name}</p>
-                             <p className="text-[8px] font-black uppercase text-purple-600 mt-2 tracking-widest">{lodge.availableRooms} Rooms Open</p>
-                           </div>
-                         </div>
-                         <i className="fa-solid fa-chevron-right text-slate-300 group-hover:text-purple-600"></i>
-                      </button>
-                  ))}
-                </div>
-              )}
-
-              {selectedCategory.id !== 'shop_for_me' && selectedCategory.id !== 'lodging' && (
-                <div className="space-y-6">
-                  <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Mission Directives..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white h-32 focus:border-emerald-600 outline-none" />
-                  <button onClick={() => handleLaunchMission()} className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest">Launch Protocol</button>
-                </div>
-              )}
-            </div>
+             )}
           </div>
         )}
 
+        {/* ... existing logic for active bookings ... */}
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in">
              {activeBookings.length === 0 && <div className="py-20 text-center opacity-20"><p className="text-[10px] font-black uppercase tracking-[0.4em]">No Active Gigs</p></div>}
@@ -273,15 +244,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       <span className="text-[8px] font-black bg-emerald-600/10 text-emerald-600 px-3 py-1 rounded-full uppercase italic">{b.status}</span>
                    </div>
                    <p className="text-[11px] text-slate-500 dark:text-slate-400 italic leading-relaxed">{b.description}</p>
-                   {b.isShoppingOrder && b.shoppingItems && (
-                     <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex flex-wrap gap-2">
-                       {b.shoppingItems.map(item => (
-                         <span key={item.id} className="bg-slate-100 dark:bg-white/5 text-slate-500 text-[9px] px-3 py-1 rounded-full font-bold">
-                           <i className="fa-solid fa-check mr-2 opacity-30"></i>{item.name}
-                         </span>
-                       ))}
-                     </div>
-                   )}
                 </div>
              ))}
           </div>
