@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode, Feedback, ShoppingItem } from '../types';
-import { CATEGORIES, Category, PAYMENT_NUMBERS, LANGUAGES } from '../constants';
+import { CATEGORIES, Category, PAYMENT_NUMBERS, LANGUAGES, COLORS } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 import AIAssistant from './AIAssistant';
@@ -41,6 +41,35 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   // Shopping list builder
   const [shoppingItems, setShoppingItems] = useState<string[]>([]);
   const [newItem, setNewItem] = useState('');
+
+  // Discover nearby service nodes
+  const nearbyMarkers = useMemo(() => {
+    return allUsers
+      .filter(u => u.id !== user.id && u.location && u.isActive)
+      .map(u => {
+        let color = '#94a3b8'; // Default slate
+        let label = u.name;
+
+        if (u.role === Role.LODGE) {
+          color = COLORS.HOSPITALITY;
+          label = `Lodge: ${u.name}`;
+        } else if (u.role === Role.SHOP_OWNER) {
+          color = COLORS.WARNING;
+          label = `Shop: ${u.name}`;
+        } else if (u.role === Role.PROVIDER) {
+          color = COLORS.PRIMARY;
+          label = `Agent: ${u.name}`;
+        }
+
+        return {
+          loc: u.location!,
+          color,
+          label,
+          // Consider "live" if active in last 10 mins
+          isLive: u.lastActive > Date.now() - 600000 
+        };
+      });
+  }, [allUsers, user.id]);
 
   const availableLodges = useMemo(() => 
     allUsers.filter(u => u.role === Role.LODGE && (u.availableRooms || 0) > 0),
@@ -112,11 +141,31 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           <div className="animate-fade-in space-y-8">
             <div className="flex justify-between items-end">
               <h1 className="text-3xl font-black text-secondary dark:text-white uppercase italic tracking-tighter">Nakonde Hub</h1>
-              <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest italic animate-pulse">Live Signal</span>
+              <div className="flex flex-col items-end">
+                <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest italic animate-pulse">Live Corridor Signal</span>
+                <p className="text-[7px] font-bold text-slate-400 uppercase mt-0.5">{nearbyMarkers.length} Active Nodes Nearby</p>
+              </div>
             </div>
 
-            <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl">
-               <Map center={mapCenter} onSaveNode={onSaveNode} markers={[{ loc: location, color: '#059669', label: 'My Node' }]} />
+            <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl relative">
+               <Map 
+                  center={mapCenter} 
+                  onSaveNode={onSaveNode} 
+                  markers={[
+                    { loc: location, color: '#059669', label: 'My Terminal', isLive: true },
+                    ...nearbyMarkers
+                  ]} 
+               />
+               <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
+                  <div className="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                    <span className="text-[7px] font-black text-white uppercase italic">Lodges</span>
+                  </div>
+                  <div className="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    <span className="text-[7px] font-black text-white uppercase italic">Shops</span>
+                  </div>
+               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pb-4">
