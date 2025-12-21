@@ -68,6 +68,7 @@ export interface User {
   role: Role;
   name: string;
   isActive: boolean;
+  lastActive: number; // For suspension logic
   location?: Location;
   balance: number; 
   earnings?: number;

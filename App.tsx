@@ -15,6 +15,8 @@ interface SwensiNotification {
   type: 'INFO' | 'ALERT' | 'SUCCESS' | 'SMS';
 }
 
+const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [viewMode, setViewMode] = useState<'MANAGEMENT' | 'CUSTOMER'>('CUSTOMER');
@@ -47,6 +49,25 @@ const App: React.FC = () => {
       .then((data) => setBackendMessage(data.message))
       .catch(() => setBackendMessage("Hub Online"));
   }, []);
+
+  // AUTO-SUSPENSION LOGIC
+  useEffect(() => {
+    const now = Date.now();
+    let hasChanges = false;
+    const checkedUsers = allUsers.map(u => {
+      // If user was active more than 6 months ago and is currently active
+      if (u.isActive && u.lastActive && (now - u.lastActive > SIX_MONTHS_MS)) {
+        hasChanges = true;
+        return { ...u, isActive: false };
+      }
+      return u;
+    });
+
+    if (hasChanges) {
+      setAllUsers(checkedUsers);
+      console.log("Swensi: Periodic maintenance complete. Inactive accounts suspended.");
+    }
+  }, []); // Run once on startup
 
   useEffect(() => {
     localStorage.setItem('swensi-users-v3', JSON.stringify(allUsers));
@@ -91,9 +112,9 @@ const App: React.FC = () => {
 
   const handleDeposit = useCallback((amount: number) => {
     if (!user) return;
-    const updatedUsers = allUsers.map(u => u.id === user.id ? { ...u, balance: u.balance + amount } : u);
+    const updatedUsers = allUsers.map(u => u.id === user.id ? { ...u, balance: u.balance + amount, lastActive: Date.now() } : u);
     setAllUsers(updatedUsers);
-    const updatedUser = { ...user, balance: user.balance + amount };
+    const updatedUser = { ...user, balance: user.balance + amount, lastActive: Date.now() };
     setUser(updatedUser);
     addNotification('DEPOSIT SUCCESS', `ZMW ${amount.toFixed(2)} added to Escrow.`, 'SUCCESS');
     sendMockSMS(user.phone, `Swensi: ZMW ${amount.toFixed(2)} deposit confirmed. Balance: ZMW ${updatedUser.balance.toFixed(2)}.`);
@@ -103,7 +124,7 @@ const App: React.FC = () => {
     if (!user) return;
     const currentNodes = user.savedNodes || [];
     const updatedNodes = [...currentNodes, node];
-    const updatedUser = { ...user, savedNodes: updatedNodes };
+    const updatedUser = { ...user, savedNodes: updatedNodes, lastActive: Date.now() };
     setUser(updatedUser);
     setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
     addNotification('NODE SAVED', `${node.name} added to your corridor.`, 'SUCCESS');
@@ -112,26 +133,42 @@ const App: React.FC = () => {
   const handleLogin = (phone: string, lang: string) => {
     const existingUser = allUsers.find(u => u.phone === phone);
     if (existingUser) {
-      setUser(existingUser);
+      if (!existingUser.isActive) {
+        addNotification('ACCESS DENIED', 'This terminal node has been suspended due to 6-month inactivity. Contact Admin.', 'ALERT');
+        return;
+      }
+      
+      const updatedUser = { ...existingUser, lastActive: Date.now() };
+      setUser(updatedUser);
+      setAllUsers(prev => prev.map(u => u.id === existingUser.id ? updatedUser : u));
       setLanguage(lang);
       localStorage.setItem('swensi-lang', lang);
-      // Auto-set view mode for management roles
-      if (existingUser.role !== Role.CUSTOMER) {
+      
+      if (updatedUser.role !== Role.CUSTOMER) {
         setViewMode('MANAGEMENT');
       } else {
         setViewMode('CUSTOMER');
       }
-      addNotification('ACCESS GRANTED', `Terminal linked to ${existingUser.name}`, 'SUCCESS');
+      addNotification('ACCESS GRANTED', `Terminal linked to ${updatedUser.name}`, 'SUCCESS');
     }
   };
 
   const handleRegister = (phone: string, name: string, avatar: string, lang: string) => {
+    // DEDUPLICATION CHECK
+    const existingUser = allUsers.find(u => u.phone === phone);
+    if (existingUser) {
+      console.log("Swensi Hub: Duplicate phone detected. Routing to login flow.");
+      handleLogin(phone, lang);
+      return;
+    }
+
     const newUser: User = {
       id: 'USR-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
       phone,
       name,
       role: Role.CUSTOMER,
       isActive: true,
+      lastActive: Date.now(),
       balance: 100, 
       memberSince: Date.now(),
       rating: 5.0,
@@ -164,7 +201,8 @@ const App: React.FC = () => {
       homeAddress: kyc.address,
       isVerified: false, 
       trustScore: 50,
-      kycSubmittedAt: Date.now()
+      kycSubmittedAt: Date.now(),
+      lastActive: Date.now()
     };
     setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
     setUser(updatedUser);
@@ -202,7 +240,7 @@ const App: React.FC = () => {
 
         const newCouncilOrder: CouncilOrder = {
           id: councilOrderId,
-          bookingId: bookingId, // Associated with the booking above
+          bookingId: bookingId, 
           customerPhone: user?.phone || '',
           levyAmount: price * 0.05,
           type: 'TRANSPORT_LEVY',
@@ -218,8 +256,9 @@ const App: React.FC = () => {
         setCouncilOrders(prev => [newCouncilOrder, ...prev]);
         
         const newBalance = (user?.balance || 0) - price;
-        setUser(u => u ? { ...u, balance: newBalance } : null);
-        setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance } : u));
+        const updatedUser = user ? { ...user, balance: newBalance, lastActive: Date.now() } : null;
+        setUser(updatedUser);
+        setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance, lastActive: Date.now() } : u));
         setPendingPayment(null);
         addNotification('MISSION LOGGED', 'Escrow secured and Council Levy issued.', 'SUCCESS');
       }
@@ -229,7 +268,6 @@ const App: React.FC = () => {
   const renderDashboard = () => {
     if (!user) return null;
 
-    // Both Admins and Providers can switch to CUSTOMER view to book services
     if (viewMode === 'CUSTOMER' || user.role === Role.CUSTOMER) {
       return (
         <CustomerDashboard 
@@ -248,8 +286,9 @@ const App: React.FC = () => {
           onLanguageChange={setLanguage} 
           onBecomeProvider={upgradeToProvider} 
           onUpdateUser={(updates) => {
-            setUser(u => u ? { ...u, ...updates } : null);
-            setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...updates } : u));
+            const updated = user ? { ...user, ...updates, lastActive: Date.now() } : null;
+            setUser(updated);
+            setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...updates, lastActive: Date.now() } : u));
           }} 
           t={(k) => TRANSLATIONS[language]?.[k] || k} 
           onToggleViewMode={() => setViewMode('MANAGEMENT')}
@@ -267,10 +306,10 @@ const App: React.FC = () => {
             user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} councilOrders={councilOrders}
             systemLogs={[]} onToggleBlock={() => {}} onDeleteUser={() => {}} 
             onToggleVerification={(userId) => {
-              setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: !u.isVerified } : u));
+              setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: !u.isVerified, lastActive: Date.now() } : u));
             }} 
             onUpdateUserRole={(userId, role) => {
-              setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
+              setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role, lastActive: Date.now() } : u));
             }}
             adminNumbers={adminNumbers} 
             onAddAdmin={(p) => setAdminNumbers(prev => [...prev, p])} 
