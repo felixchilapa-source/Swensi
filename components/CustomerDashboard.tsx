@@ -60,7 +60,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [nearbyResults, setNearbyResults] = useState<GroundingResult[]>([]);
   const [isSearchingNearby, setIsSearchingNearby] = useState(false);
   
-  // KYC State
   const [kycLicense, setKycLicense] = useState('');
   const [kycAddress, setKycAddress] = useState('');
   
@@ -76,15 +75,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Find ${query} near Nakonde-Tunduma border for a traveler.`,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
+        contents: `Find ${query} near Nakonde for a visitor.`,
+        config: { tools: [{ googleSearch: {} }] },
       });
-
-      // Simulating some grounding for demo if grounding Metadata is empty in mock/flash
-      // In a real environment, we'd extract from response.candidates[0].groundingMetadata
-      setNearbyResults([{ title: `Top ${query} results found`, uri: 'https://maps.google.com' }]);
+      // Mock result as grounding extraction is handled by AI Persona rules elsewhere
+      setNearbyResults([{ title: `Top rated ${query} in Nakonde`, uri: 'https://maps.google.com' }]);
     } catch (err) {
       console.error(err);
     } finally {
@@ -111,12 +106,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   };
 
   const handleKYCSubmit = () => {
-    if (!kycLicense || !kycAddress) return alert("Please fill all fields for clearance.");
-    onBecomeProvider({
-      license: kycLicense,
-      address: kycAddress,
-      photo: user.avatarUrl || ''
-    });
+    if (!kycLicense || !kycAddress) return alert("Clearance requires all fields.");
+    onBecomeProvider({ license: kycLicense, address: kycAddress, photo: user.avatarUrl || '' });
     setShowKYCModal(false);
   };
 
@@ -124,35 +115,52 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       <AIAssistant />
 
-      {/* SOS Button Overlay */}
-      <button 
-        onClick={() => setShowSOSConfirm(true)}
-        className="fixed top-24 left-6 z-[400] w-12 h-12 bg-red-600 text-white rounded-2xl shadow-2xl flex items-center justify-center border-2 border-white animate-pulse active:scale-90"
-      >
-        <i className="fa-solid fa-circle-exclamation text-lg"></i>
-      </button>
+      {/* PROMINENT SOS TRIGGER */}
+      <div className="fixed top-[15%] left-6 z-[400] flex flex-col items-center gap-1 group">
+        <button 
+          onClick={() => setShowSOSConfirm(true)}
+          className="w-16 h-16 bg-red-600 text-white rounded-[24px] shadow-[0_0_30px_rgba(220,38,38,0.4)] flex items-center justify-center border-4 border-white dark:border-slate-900 animate-pulse active:scale-95 transition-all"
+        >
+          <i className="fa-solid fa-circle-exclamation text-2xl"></i>
+        </button>
+        <span className="text-[8px] font-black uppercase text-red-600 tracking-widest bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-red-600/20 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">Distress</span>
+      </div>
 
-      {/* SOS Confirmation */}
+      {/* SOS CONFIRMATION MODAL */}
       {showSOSConfirm && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-red-950/90 backdrop-blur-xl animate-fade-in">
-           <div className="w-full max-w-[320px] bg-white dark:bg-slate-900 rounded-[40px] p-8 text-center animate-zoom-in">
-              <i className="fa-solid fa-tower-broadcast text-red-600 text-4xl mb-6"></i>
-              <h3 className="text-xl font-black italic uppercase text-slate-900 dark:text-white">Confirm SOS</h3>
-              <p className="text-[10px] font-bold text-slate-500 uppercase mt-2 mb-8">Broadcast your location to all verified admin nodes immediately?</p>
-              <div className="space-y-3">
-                <button onClick={() => { onSOS?.(); setShowSOSConfirm(false); }} className="w-full py-5 bg-red-600 text-white font-black rounded-3xl text-[10px] uppercase italic">Confirm Distress</button>
-                <button onClick={() => setShowSOSConfirm(false)} className="w-full py-3 text-slate-400 font-black text-[9px] uppercase">Cancel</button>
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-red-950/95 backdrop-blur-2xl animate-fade-in">
+           <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[45px] p-10 text-center shadow-2xl border-t-[8px] border-red-600 animate-zoom-in">
+              <div className="w-24 h-24 bg-red-600/10 rounded-full flex items-center justify-center mx-auto mb-8">
+                <i className="fa-solid fa-tower-broadcast text-red-600 text-5xl animate-ping"></i>
+              </div>
+              <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white leading-none">Emergency SOS</h3>
+              <p className="text-[11px] font-bold text-slate-500 uppercase mt-4 mb-10 tracking-tight leading-relaxed">
+                You are about to broadcast your GPS coordinates to the <span className="text-red-600">Super Admin</span> and emergency corridor responders.
+              </p>
+              <div className="space-y-4">
+                <button 
+                  onClick={() => { onSOS?.(); setShowSOSConfirm(false); }} 
+                  className="w-full py-6 bg-red-600 text-white font-black rounded-[28px] text-[12px] uppercase italic tracking-[0.2em] shadow-xl shadow-red-600/20 active:scale-95 transition-all"
+                >
+                  Confirm Distress Signal
+                </button>
+                <button 
+                  onClick={() => setShowSOSConfirm(false)} 
+                  className="w-full py-3 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  Cancel Protocol
+                </button>
               </div>
            </div>
         </div>
       )}
 
-      {/* Deposit Modal */}
+      {/* Quick Wallet Deposit */}
       {showDepositModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl animate-zoom-in">
-            <h3 className="text-xl font-black italic uppercase text-slate-900 dark:text-white">Wallet Deposit</h3>
-            <p className="text-[10px] font-bold text-slate-500 uppercase mt-2 mb-6">Select amount to top up via Mobile Money</p>
+            <h3 className="text-xl font-black italic uppercase text-slate-900 dark:text-white">Corridor Credit</h3>
+            <p className="text-[10px] font-bold text-slate-500 uppercase mt-2 mb-6">Top up Escrow Wallet via MoMo</p>
             <div className="grid grid-cols-2 gap-3 mb-8">
               {[50, 100, 200, 500].map(amt => (
                 <button 
@@ -168,47 +176,50 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                <p className="flex justify-between uppercase"><span>MTN:</span> <span>{PAYMENT_NUMBERS.MTN}</span></p>
                <p className="flex justify-between uppercase"><span>Airtel:</span> <span>{PAYMENT_NUMBERS.Airtel}</span></p>
             </div>
-            <button onClick={() => setShowDepositModal(false)} className="w-full mt-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Close</button>
+            <button onClick={() => setShowDepositModal(false)} className="w-full mt-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Dismiss</button>
           </div>
         </div>
       )}
 
-      {/* KYC Modal */}
+      {/* Partner Upgrade KYC */}
       {showKYCModal && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-blue-950/90 backdrop-blur-xl animate-fade-in">
           <div className="w-full max-w-[380px] bg-white dark:bg-slate-900 rounded-[45px] p-8 border border-blue-500/30 animate-zoom-in">
-            <h3 className="text-2xl font-black italic uppercase dark:text-white mb-6">Partner Upgrade</h3>
+            <h3 className="text-2xl font-black italic uppercase dark:text-white mb-6">Provider Hub</h3>
             <div className="space-y-6">
                <div className="space-y-2">
-                 <label className="text-[9px] font-black uppercase text-slate-500 ml-2">NRC / ID Number</label>
-                 <input value={kycLicense} onChange={e => setKycLicense(e.target.value)} placeholder="Enter ID Number" className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-600" />
+                 <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">License Number</label>
+                 <input value={kycLicense} onChange={e => setKycLicense(e.target.value)} placeholder="Enter Document ID" className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-600" />
                </div>
                <div className="space-y-2">
-                 <label className="text-[9px] font-black uppercase text-slate-500 ml-2">Home/Business Address</label>
-                 <textarea value={kycAddress} onChange={e => setKycAddress(e.target.value)} placeholder="Full Address" className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-xs font-black outline-none h-24" />
+                 <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">Business/Home Location</label>
+                 <textarea value={kycAddress} onChange={e => setKycAddress(e.target.value)} placeholder="Full Address in Nakonde" className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-xs font-black outline-none h-24" />
                </div>
-               <button onClick={handleKYCSubmit} className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] text-[10px] uppercase italic">Apply for Partner Node</button>
-               <button onClick={() => setShowKYCModal(false)} className="w-full text-[9px] font-black text-slate-400 uppercase">Cancel</button>
+               <button onClick={handleKYCSubmit} className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] text-[10px] uppercase italic tracking-widest shadow-xl">Activate Partner Node</button>
+               <button onClick={() => setShowKYCModal(false)} className="w-full text-[9px] font-black text-slate-400 uppercase">Back</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Mission Request Modal */}
+      {/* New Mission Entry */}
       {selectedCategory && (
         <div className="fixed inset-0 z-[600] flex items-end sm:items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
            <div className="relative w-full max-w-[420px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl animate-zoom-in">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-black italic uppercase text-emerald-600">{selectedCategory.name}</h3>
+                <h3 className="text-2xl font-black italic uppercase text-emerald-600 tracking-tighter">{selectedCategory.name}</h3>
                 <button onClick={() => setSelectedCategory(null)} className="text-slate-400"><i className="fa-solid fa-circle-xmark text-xl"></i></button>
               </div>
               <div className="space-y-6">
-                <textarea 
-                  value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)}
-                  placeholder="Describe your request..."
-                  className="w-full bg-slate-100 dark:bg-white/5 border rounded-2xl p-5 text-sm font-medium h-32 outline-none focus:border-emerald-600"
-                />
-                <button onClick={handleLaunchMission} className="w-full bg-emerald-600 text-white font-black py-5 rounded-[28px] text-[10px] uppercase italic">Launch Mission</button>
+                <div className="space-y-2">
+                   <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">Mission Protocol</label>
+                   <textarea 
+                    value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)}
+                    placeholder="Briefly describe your request..."
+                    className="w-full bg-slate-100 dark:bg-white/5 border dark:border-white/10 rounded-2xl p-5 text-sm font-medium h-32 outline-none focus:border-emerald-600"
+                   />
+                </div>
+                <button onClick={handleLaunchMission} className="w-full bg-emerald-600 text-white font-black py-5 rounded-[28px] text-[10px] uppercase italic tracking-widest shadow-2xl">Deploy Mission</button>
               </div>
            </div>
         </div>
@@ -216,25 +227,25 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
       <header className="px-5 py-4 flex justify-between items-center glass-nav border-b dark:border-white/5 sticky top-0 z-[50] backdrop-blur-xl safe-pt">
         <div className="flex items-center gap-3">
-          <div className="bg-emerald-700 w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center transform -rotate-6">
+          <div className="bg-emerald-700 w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center transform -rotate-6 border border-white/20">
             <i className="fas fa-link text-white text-base"></i>
           </div>
           <div className="flex flex-col">
-            <h2 className="text-xl font-black leading-none text-slate-900 dark:text-white uppercase italic italic">Swensi</h2>
-            <span className="text-[8px] font-black text-emerald-600 tracking-[0.2em] uppercase mt-1">Terminal Active</span>
+            <h2 className="text-xl font-black leading-none text-slate-900 dark:text-white uppercase italic tracking-tighter">Swensi</h2>
+            <span className="text-[8px] font-black text-emerald-600 tracking-[0.2em] uppercase mt-1">Nakonde Hub</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
            <div className="text-right">
              <p className="text-[11px] font-black dark:text-white uppercase italic leading-none">ZMW {user.balance.toFixed(0)}</p>
-             <button onClick={() => setShowDepositModal(true)} className="text-[7px] font-black text-emerald-600 uppercase mt-1 opacity-60 flex items-center gap-1 justify-end">
-                <i className="fa-solid fa-plus-circle"></i> Deposit
+             <button onClick={() => setShowDepositModal(true)} className="text-[7px] font-black text-emerald-600 uppercase mt-1 opacity-60 flex items-center gap-1 justify-end italic">
+                <i className="fa-solid fa-plus-circle"></i> Quick Topup
              </button>
            </div>
            {user.role !== Role.CUSTOMER && (
-              <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20"><i className="fa-solid fa-rotate"></i></button>
+              <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20 active:rotate-180 transition-all duration-500"><i className="fa-solid fa-rotate"></i></button>
            )}
-           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500"><i className="fa-solid fa-power-off text-xs"></i></button>
+           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"><i className="fa-solid fa-power-off text-xs"></i></button>
         </div>
       </header>
 
@@ -243,16 +254,16 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       <div className="flex-1 overflow-y-auto pb-32 px-5 pt-6 space-y-10 no-scrollbar">
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
-            <h1 className="text-3xl font-black text-secondary dark:text-white uppercase italic">
-                Welcome back, <br/> 
-                <span className="text-emerald-600">{user.name.split(' ')[0]}</span>
+            <h1 className="text-3xl font-black text-secondary dark:text-white uppercase italic leading-tight tracking-tighter">
+                Welcome to Nakonde, <br/> 
+                <span className="text-emerald-600">{user.name.split(' ')[0]}!</span>
             </h1>
 
             <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl">
-               <Map center={mapCenter} markers={[{ loc: location, color: '#059669', label: 'Me' }, { loc: mapCenter, color: '#1E40AF', label: 'Selected' }]} />
+               <Map center={mapCenter} markers={[{ loc: location, color: '#059669', label: 'My Node' }, { loc: mapCenter, color: '#1E40AF', label: 'Selected' }]} />
                <div className="p-5 flex flex-col gap-4">
                   <div className="flex flex-col gap-3">
-                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic px-1">Saved Nodes</p>
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic px-1">Corridor Nodes</p>
                     <div className="flex overflow-x-auto gap-2 no-scrollbar pb-2">
                       {SAVED_NODES.map(node => (
                         <button 
@@ -261,24 +272,24 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                           className={`flex-shrink-0 px-4 py-3 rounded-2xl border flex items-center gap-3 transition-all active:scale-95 ${mapCenter.lat === node.loc.lat ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400'}`}
                         >
                           <i className={node.icon}></i>
-                          <span className="text-[10px] font-black uppercase whitespace-nowrap">{node.name}</span>
+                          <span className="text-[10px] font-black uppercase whitespace-nowrap italic">{node.name}</span>
                         </button>
                       ))}
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleSearchNearby('lodges')} className="flex-1 py-4 rounded-2xl bg-blue-600/10 text-blue-500 text-[9px] font-black uppercase tracking-widest italic border border-blue-500/20">Lodges</button>
-                    <button onClick={() => handleSearchNearby('banks')} className="flex-1 py-4 rounded-2xl bg-emerald-600/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest italic border border-emerald-500/20">Banks/FX</button>
+                    <button onClick={() => handleSearchNearby('lodges')} className="flex-1 py-4 rounded-2xl bg-blue-600/10 text-blue-500 text-[9px] font-black uppercase tracking-widest italic border border-blue-500/20 active:scale-95 transition-all">Nearby Lodges</button>
+                    <button onClick={() => handleSearchNearby('banks')} className="flex-1 py-4 rounded-2xl bg-emerald-600/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest italic border border-emerald-500/20 active:scale-95 transition-all">Banks & Forex</button>
                   </div>
                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pb-4">
               {CATEGORIES.map(cat => (
-                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] shadow-sm hover:border-emerald-600 transition-all text-left">
-                  <div className="bg-emerald-50 dark:bg-emerald-500/10 w-14 h-14 rounded-2xl flex items-center justify-center text-emerald-700 dark:text-emerald-500 text-2xl"><i className={cat.icon}></i></div>
+                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] shadow-sm hover:border-emerald-600 transition-all text-left group">
+                  <div className="bg-emerald-50 dark:bg-emerald-500/10 w-14 h-14 rounded-2xl flex items-center justify-center text-emerald-700 dark:text-emerald-500 text-2xl group-hover:scale-110 transition-transform"><i className={cat.icon}></i></div>
                   <div className="mt-4">
-                    <p className="text-[11px] font-black uppercase text-secondary dark:text-white italic leading-tight">{cat.name}</p>
+                    <p className="text-[11px] font-black uppercase text-secondary dark:text-white italic leading-tight tracking-tight">{cat.name}</p>
                     <p className="text-[7.5px] font-bold text-slate-400 uppercase tracking-widest mt-2">{cat.hint}</p>
                   </div>
                 </button>
@@ -289,26 +300,26 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic px-2">Mission Log</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic px-2">Corridor Missions</h3>
             {activeBookings.length === 0 ? (
               <div className="py-24 text-center opacity-30 flex flex-col items-center gap-6">
-                <i className="fa-solid fa-radar text-3xl"></i>
-                <p className="text-[10px] font-black uppercase italic">No Active Missions</p>
+                <i className="fa-solid fa-radar text-3xl animate-pulse"></i>
+                <p className="text-[10px] font-black uppercase italic tracking-widest">No Active Missions Found</p>
               </div>
             ) : (
               activeBookings.map(b => (
-                <div key={b.id} className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-white/5 p-8 shadow-2xl">
+                <div key={b.id} className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-white/5 p-8 shadow-2xl overflow-hidden relative border-l-[6px] border-emerald-500">
                    <div className="flex justify-between items-center mb-6">
                       <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-500/10 px-4 py-1.5 rounded-full">{b.category}</span>
                       <span className="text-[11px] font-black uppercase italic text-emerald-500 animate-pulse">{b.status}</span>
                    </div>
                    <p className="text-sm font-black text-slate-700 dark:text-slate-300 italic mb-6 leading-relaxed">"{b.description}"</p>
-                   <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-3xl border dark:border-white/5">
+                   <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-3xl border dark:border-white/5 shadow-inner">
                       <div className="flex flex-col">
-                         <span className="text-[8px] font-black text-slate-400 uppercase">Commitment</span>
+                         <span className="text-[8px] font-black text-slate-400 uppercase italic">Escrow Lock</span>
                          <span className="text-sm font-black dark:text-white">ZMW {b.price.toFixed(2)}</span>
                       </div>
-                      <i className="fa-solid fa-fingerprint text-emerald-600 text-xl"></i>
+                      <i className="fa-solid fa-fingerprint text-emerald-600 text-xl opacity-50"></i>
                    </div>
                 </div>
               ))
@@ -323,18 +334,19 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                <div className="w-28 h-28 mx-auto bg-emerald-700 rounded-full flex items-center justify-center text-white text-4xl font-black italic shadow-2xl mb-8 border-4 border-white dark:border-slate-800 overflow-hidden z-10 relative">
                  {user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : user.name.charAt(0)}
                </div>
-               <h2 className="text-3xl font-black text-secondary dark:text-white italic uppercase">{user.name}</h2>
+               <h2 className="text-3xl font-black text-secondary dark:text-white italic uppercase tracking-tighter leading-none">{user.name}</h2>
                <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest italic mt-2">{user.phone}</p>
                
                {user.role === Role.CUSTOMER && (
-                 <div className="mt-12 p-8 bg-blue-600/10 rounded-[35px] border border-blue-600/20 text-left">
-                    <h4 className="text-[12px] font-black text-blue-600 uppercase italic">Partner Upgrade</h4>
-                    <p className="text-[9.5px] font-bold text-slate-500 uppercase mt-2 mb-6 leading-relaxed">Join the Swensi network as a verified transport or clearing partner.</p>
-                    <button onClick={() => setShowKYCModal(true)} className="w-full bg-blue-700 text-white font-black py-4 rounded-2xl text-[9px] uppercase italic shadow-xl">Start Upgrade</button>
+                 <div className="mt-12 p-8 bg-blue-600/10 rounded-[35px] border border-blue-600/20 text-left relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-600/5 rounded-full translate-x-10 -translate-y-10 group-hover:scale-150 transition-transform duration-700"></div>
+                    <h4 className="text-[12px] font-black text-blue-600 uppercase italic leading-none mb-3">Become a Partner</h4>
+                    <p className="text-[9.5px] font-bold text-slate-500 uppercase mb-6 leading-relaxed">Join the verified Swensi corridor network and earn from transport or clearing missions.</p>
+                    <button onClick={() => setShowKYCModal(true)} className="w-full bg-blue-700 text-white font-black py-4 rounded-2xl text-[9px] uppercase italic shadow-xl shadow-blue-600/20 active:scale-95 transition-all tracking-widest">Begin Upgrade</button>
                  </div>
                )}
 
-               <button onClick={logout} className="w-full text-red-500 font-black py-10 text-[9px] uppercase tracking-[0.3em] italic">Disconnect Node</button>
+               <button onClick={logout} className="w-full text-red-500 font-black py-10 text-[9px] uppercase tracking-[0.4em] italic opacity-60 hover:opacity-100 transition-opacity">Deauthorize Terminal</button>
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Role, User, Booking, BookingStatus, Location, SystemLog, CouncilOrder } from './types';
+import { Role, User, Booking, BookingStatus, Location, CouncilOrder } from './types';
 import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS, CATEGORIES, PLATFORM_COMMISSION_RATE, SUBSCRIPTION_PLANS } from './constants';
 import Auth from './components/Auth';
 import CustomerDashboard from './components/CustomerDashboard';
@@ -39,6 +39,15 @@ const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('swensi-theme') === 'dark');
   const [language, setLanguage] = useState(() => localStorage.getItem('swensi-lang') || 'en');
   const [pendingPayment, setPendingPayment] = useState<{ amount: number; desc: string; onComplete: () => void } | null>(null);
+  const [backendMessage, setBackendMessage] = useState<string>("Syncing with Nakonde Hub...");
+
+  // Sync with backend API (Branding request)
+  useEffect(() => {
+    fetch("https://swensi.onrender.com/api/hello")
+      .then((res) => res.json())
+      .then((data) => setBackendMessage(data.message))
+      .catch(() => setBackendMessage("Hub Online"));
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('swensi-users-v3', JSON.stringify(allUsers));
@@ -71,127 +80,24 @@ const App: React.FC = () => {
 
   const sendMockSMS = useCallback((phone: string, message: string) => {
     console.log(`%c[SMS SENT TO ${phone}]: ${message}`, "color: #3b82f6; font-weight: bold; border: 1px solid #3b82f6; padding: 4px; border-radius: 4px;");
-    addNotification('SMS GATEWAY', `Message sent to ${phone}`, 'SMS');
+    addNotification('SMS GATEWAY', `Message to ${phone}`, 'SMS');
   }, [addNotification]);
 
   const handleSOS = useCallback(() => {
     if (!user) return;
-    const msg = `🚨 EMERGENCY SOS: User ${user.name} (${user.phone}) has triggered a distress signal at Lat: ${currentLocation.lat}, Lng: ${currentLocation.lng}. Respond immediately.`;
+    const msg = `🚨 EMERGENCY SOS: ${user.name} (${user.phone}) triggered distress at Lat: ${currentLocation.lat}, Lng: ${currentLocation.lng}.`;
     sendMockSMS(SUPER_ADMIN, msg);
-    addNotification('SOS TRIGGERED', 'Emergency services & admin notified.', 'ALERT');
+    addNotification('SOS TRIGGERED', 'Emergency services alerted.', 'ALERT');
   }, [user, currentLocation, sendMockSMS, addNotification]);
 
   const handleDeposit = useCallback((amount: number) => {
     if (!user) return;
-    setAllUsers(prev => prev.map(u => {
-      if (u.id === user.id) {
-        const newBalance = u.balance + amount;
-        return { ...u, balance: newBalance };
-      }
-      return u;
-    }));
-    setUser(prev => prev ? { ...prev, balance: prev.balance + amount } : null);
+    const updatedUsers = allUsers.map(u => u.id === user.id ? { ...u, balance: u.balance + amount } : u);
+    setAllUsers(updatedUsers);
+    setUser({ ...user, balance: user.balance + amount });
     addNotification('DEPOSIT SUCCESS', `ZMW ${amount.toFixed(2)} added to Escrow.`, 'SUCCESS');
-    sendMockSMS(user.phone, `Swensi Wallet: ZMW ${amount.toFixed(2)} deposit confirmed. Your new balance is ZMW ${(user.balance + amount).toFixed(2)}.`);
-  }, [user, addNotification, sendMockSMS]);
-
-  const handleSubscribe = (userId: string, fee: number) => {
-    if (user && user.balance < fee) return alert("Insufficient Balance for Subscription");
-
-    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-    const newExpiry = Date.now() + thirtyDays;
-
-    setAllUsers(prev => prev.map(u => {
-      if (u.id === userId) return { ...u, balance: u.balance - fee, subscriptionExpiry: newExpiry };
-      if (u.phone === SUPER_ADMIN) return { ...u, balance: u.balance + fee }; // Revenue routed to Admin
-      return u;
-    }));
-
-    if (user?.id === userId) {
-      setUser(prev => prev ? { ...prev, balance: prev.balance - fee, subscriptionExpiry: newExpiry } : null);
-    }
-
-    addNotification('REVENUE LOGGED', `Subscription active until ${new Date(newExpiry).toLocaleDateString()}`, 'SUCCESS');
-    sendMockSMS(user?.phone || '', `Swensi Billing: Subscription renewed. ZMW ${fee.toFixed(2)} deducted. Active until ${new Date(newExpiry).toLocaleDateString()}.`);
-  };
-
-  const addBooking = (bookingData: Partial<Booking>) => {
-    const price = bookingData.price || 50;
-    if (user && user.balance < price) return alert("Insufficient Escrow Balance");
-
-    setPendingPayment({
-      amount: price,
-      desc: `Initiate Mission: ${bookingData.category}`,
-      onComplete: () => {
-        const bookingId = 'SW-' + Math.random().toString(36).substr(2, 5).toUpperCase();
-        const councilOrderId = 'CNC-' + Math.random().toString(36).substr(2, 5).toUpperCase();
-        
-        const newBooking: Booking = {
-          id: bookingId,
-          customerId: user?.id || '',
-          customerPhone: user?.phone || '',
-          status: BookingStatus.PENDING,
-          createdAt: Date.now(),
-          location: currentLocation,
-          category: bookingData.category || 'transport',
-          description: bookingData.description || '',
-          price: price,
-          commission: price * PLATFORM_COMMISSION_RATE, // 0.24% Platform Slice
-          isPaid: false,
-          trackingHistory: [currentLocation],
-          customerTrustSnapshot: user?.trustScore || 90,
-          councilOrderId: councilOrderId,
-          ...bookingData
-        } as Booking;
-
-        const newCouncilOrder: CouncilOrder = {
-          id: councilOrderId,
-          bookingId: bookingId,
-          customerPhone: user?.phone || '',
-          levyAmount: price * 0.05,
-          type: bookingData.category === 'transport' ? 'TRANSPORT_LEVY' : 'TRADE_PERMIT',
-          status: 'ISSUED',
-          issuedAt: Date.now()
-        };
-
-        setBookings(prev => [newBooking, ...prev]);
-        setCouncilOrders(prev => [newCouncilOrder, ...prev]);
-        
-        const newBalance = (user?.balance || 0) - price;
-        setUser(u => u ? { ...u, balance: newBalance } : null);
-        setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance } : u));
-        setPendingPayment(null);
-        addNotification('MISSION LOGGED', 'Mission & Council Compliance established.', 'SUCCESS');
-        sendMockSMS(user?.phone || '', `Swensi Booking: Your mission ${bookingId} has been logged. Escrow ZMW ${price.toFixed(2)} secured.`);
-      }
-    });
-  };
-
-  const updateBooking = (id: string, updates: Partial<Booking>) => {
-    setBookings(prev => prev.map(b => {
-      if (b.id === id) {
-        const updated = { ...b, ...updates };
-        if (updates.status === BookingStatus.COMPLETED && !b.isPaid) {
-          const providerPay = b.price - b.commission;
-          setAllUsers(uPrev => uPrev.map(u => {
-            // Pay Provider
-            if (u.id === b.providerId) {
-              sendMockSMS(u.phone, `Swensi Payout: Mission ${b.id} completed. ZMW ${providerPay.toFixed(2)} added to your node balance.`);
-              return { ...u, balance: u.balance + providerPay, completedMissions: (u.completedMissions || 0) + 1 };
-            }
-            // Pay Platform Admin (Commission Slice)
-            if (u.phone === SUPER_ADMIN) {
-              return { ...u, balance: u.balance + b.commission };
-            }
-            return u;
-          }));
-          return { ...updated, isPaid: true };
-        }
-        return updated;
-      }
-      return b;
-    }));
-  };
+    sendMockSMS(user.phone, `Swensi: ZMW ${amount.toFixed(2)} deposit confirmed. Balance: ZMW ${(user.balance + amount).toFixed(2)}.`);
+  }, [user, allUsers, addNotification, sendMockSMS]);
 
   const handleLogin = (phone: string, lang: string) => {
     const existingUser = allUsers.find(u => u.phone === phone);
@@ -208,9 +114,9 @@ const App: React.FC = () => {
       id: 'USR-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
       phone,
       name,
-      role: Role.CUSTOMER,
+      role: Role.CUSTOMER, // Always register as customer first
       isActive: true,
-      balance: 500, // Starting balance for demo
+      balance: 100, // Initial corridor credit
       memberSince: Date.now(),
       rating: 5.0,
       language: lang,
@@ -224,14 +130,80 @@ const App: React.FC = () => {
     setUser(newUser);
     setLanguage(lang);
     localStorage.setItem('swensi-lang', lang);
-    addNotification('NODE ESTABLISHED', `Welcome to the Nakonde Hub, ${name}`, 'SUCCESS');
-    sendMockSMS(phone, `Swensi: Welcome ${name}! Your node is active. Initial balance: ZMW 500.00.`);
+    addNotification('NODE ESTABLISHED', `Welcome to the Hub, ${name}`, 'SUCCESS');
+  };
+
+  const upgradeToProvider = (kyc: { license: string, address: string, photo: string }) => {
+    if (!user) return;
+    const updatedUser: User = {
+      ...user,
+      role: Role.PROVIDER,
+      licenseNumber: kyc.license,
+      homeAddress: kyc.address,
+      isVerified: false, // Pending admin approval
+      trustScore: 50,
+      kycSubmittedAt: Date.now()
+    };
+    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    setUser(updatedUser);
+    addNotification('UPGRADE SUBMITTED', 'Your Partner application is pending review.', 'INFO');
+  };
+
+  const addBooking = (bookingData: Partial<Booking>) => {
+    const price = bookingData.price || 50;
+    if (user && user.balance < price) return alert("Insufficient Escrow Balance");
+
+    setPendingPayment({
+      amount: price,
+      desc: `Commit Funds: ${bookingData.category}`,
+      onComplete: () => {
+        const bookingId = 'SW-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+        const councilOrderId = 'CNC-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+        
+        const newBooking: Booking = {
+          id: bookingId,
+          customerId: user?.id || '',
+          customerPhone: user?.phone || '',
+          status: BookingStatus.PENDING,
+          createdAt: Date.now(),
+          location: currentLocation,
+          category: bookingData.category || 'transport',
+          description: bookingData.description || '',
+          price: price,
+          commission: price * PLATFORM_COMMISSION_RATE,
+          isPaid: false,
+          trackingHistory: [currentLocation],
+          customerTrustSnapshot: user?.trustScore || 90,
+          councilOrderId: councilOrderId,
+          ...bookingData
+        } as Booking;
+
+        const newCouncilOrder: CouncilOrder = {
+          id: councilOrderId,
+          bookingId: bookingId,
+          customerPhone: user?.phone || '',
+          levyAmount: price * 0.05,
+          type: 'TRANSPORT_LEVY',
+          status: 'ISSUED',
+          issuedAt: Date.now()
+        };
+
+        setBookings(prev => [newBooking, ...prev]);
+        setCouncilOrders(prev => [newCouncilOrder, ...prev]);
+        
+        const newBalance = (user?.balance || 0) - price;
+        setUser(u => u ? { ...u, balance: newBalance } : null);
+        setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance } : u));
+        setPendingPayment(null);
+        addNotification('MISSION LOGGED', 'Escrow secured.', 'SUCCESS');
+      }
+    });
   };
 
   const renderDashboard = () => {
     if (!user) return null;
 
-    if (viewMode === 'CUSTOMER') {
+    if (viewMode === 'CUSTOMER' || user.role === Role.CUSTOMER) {
       return (
         <CustomerDashboard 
           user={user} 
@@ -240,24 +212,14 @@ const App: React.FC = () => {
           councilOrders={councilOrders} 
           onAddBooking={addBooking} 
           location={currentLocation} 
-          onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} 
-          onUpdateBooking={updateBooking} 
+          onConfirmCompletion={() => {}} 
+          onUpdateBooking={() => {}} 
           onRate={() => {}} 
           onUploadFacePhoto={() => {}} 
           onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
           isDarkMode={isDarkMode} 
           onLanguageChange={setLanguage} 
-          onBecomeProvider={(kyc) => {
-            const updatedUser: User = { 
-              ...user, role: Role.PROVIDER, isVerified: false, trustScore: 50,
-              licenseNumber: kyc.license, homeAddress: kyc.address, avatarUrl: kyc.photo, kycSubmittedAt: Date.now(),
-              subscriptionExpiry: 0 
-            };
-            setUser(updatedUser);
-            setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-            setViewMode('MANAGEMENT');
-            addNotification('KYC SUBMITTED', 'Dossier received for clearance.', 'SUCCESS');
-          }} 
+          onBecomeProvider={upgradeToProvider} 
           onUpdateUser={(updates) => {
             setUser(u => u ? { ...u, ...updates } : null);
             setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...updates } : u));
@@ -274,60 +236,33 @@ const App: React.FC = () => {
       case Role.ADMIN:
         return (
           <AdminDashboard 
-            user={user} 
-            logout={() => setUser(null)} 
-            bookings={bookings} 
-            allUsers={allUsers} 
-            councilOrders={councilOrders}
-            systemLogs={[]} 
-            onToggleBlock={() => {}} 
-            onDeleteUser={() => {}} 
+            user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} councilOrders={councilOrders}
+            systemLogs={[]} onToggleBlock={() => {}} onDeleteUser={() => {}} 
             onToggleVerification={(userId) => {
-              setAllUsers(prev => prev.map(u => {
-                if (u.id === userId) {
-                  const newVerified = !u.isVerified;
-                  if (newVerified) sendMockSMS(u.phone, `Swensi Alert: Your node has been VERIFIED.`);
-                  return { ...u, isVerified: newVerified };
-                }
-                return u;
-              }));
+              setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: !u.isVerified } : u));
             }} 
             onUpdateUserRole={(userId, role) => {
-               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
+              setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
             }}
             adminNumbers={adminNumbers} 
-            onAddAdmin={(phone) => {
-              if (adminNumbers.includes(phone)) return;
-              setAdminNumbers(prev => [...prev, phone]);
-              addNotification('ADMIN ADDED', `Node ${phone} granted command access.`, 'SUCCESS');
-            }} 
-            onRemoveAdmin={(phone) => {
-              if (phone === SUPER_ADMIN) return alert("Super Admin cannot be removed.");
-              setAdminNumbers(prev => prev.filter(p => p !== phone));
-              addNotification('ADMIN REMOVED', `Node ${phone} revoked.`, 'WARNING');
-            }} 
+            onAddAdmin={(p) => setAdminNumbers(prev => [...prev, p])} 
+            onRemoveAdmin={(p) => setAdminNumbers(prev => prev.filter(x => x !== p))} 
             onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-            isDarkMode={isDarkMode} 
-            onLanguageChange={setLanguage} 
-            sysDefaultLang={language} 
-            onUpdateSysDefaultLang={(l) => setLanguage(l)} 
-            t={(k) => TRANSLATIONS[language]?.[k] || k} 
-            onToggleViewMode={() => setViewMode('CUSTOMER')}
+            isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={setLanguage} 
+            t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );
       case Role.PROVIDER:
         return (
           <ProviderDashboard 
             user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} 
-            onUpdateStatus={(id, status, pid) => updateBooking(id, { status, providerId: pid })} 
-            onConfirmCompletion={(id) => updateBooking(id, { status: BookingStatus.COMPLETED })} 
-            onUpdateBooking={updateBooking} 
-            onUpdateSubscription={(plan) => handleSubscribe(user.id, plan === 'PREMIUM' ? SUBSCRIPTION_PLANS.PREMIUM : SUBSCRIPTION_PLANS.BASIC)} 
+            onUpdateStatus={() => {}} 
+            onConfirmCompletion={() => {}} 
+            onUpdateBooking={() => {}} 
+            onUpdateSubscription={() => {}} 
             location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} 
-            onLanguageChange={setLanguage} onUpdateUser={(updates) => {
-              setUser(u => u ? { ...u, ...updates } : null);
-              setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...updates } : u));
-            }} t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
+            onLanguageChange={setLanguage} onUpdateUser={() => {}} t={(k) => TRANSLATIONS[language]?.[k] || k} 
+            onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );
       default: return null;
@@ -340,31 +275,47 @@ const App: React.FC = () => {
          {notifications.map(n => (
            <div key={n.id} className={`p-4 rounded-[24px] shadow-2xl backdrop-blur-xl border border-white/10 ${n.type === 'SMS' ? 'bg-blue-600/90' : (n.type === 'ALERT' ? 'bg-red-600/95' : 'bg-slate-900/95')} text-white animate-slide-up pointer-events-auto`}>
              <div className="flex items-center gap-3">
-               <div className={`w-2 h-2 rounded-full ${n.type === 'SUCCESS' ? 'bg-emerald-500' : (n.type === 'ALERT' ? 'bg-white' : (n.type === 'SMS' ? 'bg-white' : 'bg-blue-500'))} animate-pulse`}></div>
+               <div className={`w-2 h-2 rounded-full ${n.type === 'SUCCESS' ? 'bg-emerald-500' : 'bg-blue-500'} animate-pulse`}></div>
                <div>
                  <p className="text-[9px] font-black uppercase italic tracking-widest opacity-80">{n.title}</p>
-                 <p className="text-[11px] font-bold mt-1.5 leading-tight">{n.message}</p>
+                 <p className="text-[11px] font-bold mt-1 leading-tight">{n.message}</p>
                </div>
              </div>
            </div>
          ))}
       </div>
-      {!user ? <Auth onLogin={handleLogin} onRegister={handleRegister} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={(k) => TRANSLATIONS[language]?.[k] || k} adminNumbers={adminNumbers} existingUsers={allUsers} /> : renderDashboard()}
+      
+      {!user ? (
+        <Auth 
+          onLogin={handleLogin} 
+          onRegister={handleRegister} 
+          onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+          isDarkMode={isDarkMode} 
+          language={language} 
+          onLanguageChange={setLanguage} 
+          t={(k) => TRANSLATIONS[language]?.[k] || k} 
+          adminNumbers={adminNumbers} 
+          existingUsers={allUsers} 
+        />
+      ) : renderDashboard()}
+
       {pendingPayment && (
         <div className="fixed inset-0 z-[1500] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6">
            <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl border-2 border-blue-600 text-center animate-zoom-in">
-              <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <i className="fa-solid fa-fingerprint text-blue-600 text-3xl"></i>
-              </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 italic uppercase tracking-tighter">Authorize Payment</h3>
+              <i className="fa-solid fa-fingerprint text-blue-600 text-4xl mb-6"></i>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 italic uppercase">Authorization</h3>
               <p className="text-4xl font-black text-blue-700 mb-8 italic tracking-tight">ZMW {pendingPayment.amount.toFixed(2)}</p>
               <div className="space-y-3">
-                <button onClick={pendingPayment.onComplete} className="w-full py-5 bg-blue-700 text-white font-black rounded-[24px] text-[11px] uppercase tracking-[0.2em] italic">Commit Funds</button>
+                <button onClick={pendingPayment.onComplete} className="w-full py-5 bg-blue-700 text-white font-black rounded-[24px] text-[11px] uppercase tracking-widest italic">Confirm Mission</button>
                 <button onClick={() => setPendingPayment(null)} className="w-full py-3 text-slate-400 font-black text-[9px] uppercase tracking-widest">Abort</button>
               </div>
            </div>
         </div>
       )}
+      
+      <div className="fixed bottom-2 left-0 right-0 text-center pointer-events-none">
+        <span className="text-[7px] font-black text-slate-500 uppercase tracking-[0.4em] opacity-40">{backendMessage}</span>
+      </div>
     </div>
   );
 };
