@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { Role, User, Booking, BookingStatus, Location, CouncilOrder, SavedNode } from './types';
+import { Role, User, Booking, BookingStatus, Location, CouncilOrder, SavedNode, Feedback } from './types';
 import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS, CATEGORIES, PLATFORM_COMMISSION_RATE, SUBSCRIPTION_PLANS } from './constants';
 import Auth from './components/Auth';
 import CustomerDashboard from './components/CustomerDashboard';
@@ -27,6 +28,10 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('swensi-bookings-v3');
     return saved ? JSON.parse(saved) : [];
   });
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>(() => {
+    const saved = localStorage.getItem('swensi-feedback-v3');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [councilOrders, setCouncilOrders] = useState<CouncilOrder[]>(() => {
     const saved = localStorage.getItem('swensi-council-v3');
     return saved ? JSON.parse(saved) : [];
@@ -49,7 +54,6 @@ const App: React.FC = () => {
       .catch(() => setBackendMessage("Hub Online"));
   }, []);
 
-  // AUTO-SUSPENSION LOGIC
   useEffect(() => {
     const now = Date.now();
     let hasChanges = false;
@@ -63,25 +67,14 @@ const App: React.FC = () => {
 
     if (hasChanges) {
       setAllUsers(checkedUsers);
-      console.log("Swensi: Periodic maintenance complete. Inactive accounts suspended.");
     }
   }, []); 
 
-  useEffect(() => {
-    localStorage.setItem('swensi-users-v3', JSON.stringify(allUsers));
-  }, [allUsers]);
-
-  useEffect(() => {
-    localStorage.setItem('swensi-bookings-v3', JSON.stringify(bookings));
-  }, [bookings]);
-
-  useEffect(() => {
-    localStorage.setItem('swensi-council-v3', JSON.stringify(councilOrders));
-  }, [councilOrders]);
-
-  useEffect(() => {
-    localStorage.setItem('swensi-admins-v3', JSON.stringify(adminNumbers));
-  }, [adminNumbers]);
+  useEffect(() => { localStorage.setItem('swensi-users-v3', JSON.stringify(allUsers)); }, [allUsers]);
+  useEffect(() => { localStorage.setItem('swensi-bookings-v3', JSON.stringify(bookings)); }, [bookings]);
+  useEffect(() => { localStorage.setItem('swensi-feedback-v3', JSON.stringify(feedbacks)); }, [feedbacks]);
+  useEffect(() => { localStorage.setItem('swensi-council-v3', JSON.stringify(councilOrders)); }, [councilOrders]);
+  useEffect(() => { localStorage.setItem('swensi-admins-v3', JSON.stringify(adminNumbers)); }, [adminNumbers]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -91,22 +84,19 @@ const App: React.FC = () => {
   const addNotification = useCallback((title: string, message: string, type: 'INFO' | 'ALERT' | 'SUCCESS' | 'SMS' = 'INFO') => {
     const id = Math.random().toString(36).substr(2, 9);
     setNotifications(prev => [{ id, title, message, type }, ...prev]);
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 5000);
+    setTimeout(() => { setNotifications(prev => prev.filter(n => n.id !== id)); }, 5000);
   }, []);
 
   const sendMockSMS = useCallback((phone: string, message: string) => {
-    console.log(`%c[SMS SENT TO ${phone}]: ${message}`, "color: #3b82f6; font-weight: bold; border: 1px solid #3b82f6; padding: 4px; border-radius: 4px;");
     addNotification('SMS GATEWAY', `Message to ${phone}`, 'SMS');
   }, [addNotification]);
 
   const handleSOS = useCallback(() => {
     if (!user) return;
-    const msg = `🚨 EMERGENCY SOS: ${user.name} (${user.phone}) triggered distress at Lat: ${currentLocation.lat}, Lng: ${currentLocation.lng}.`;
+    const msg = `🚨 EMERGENCY SOS: ${user.name} (${user.phone}) triggered distress.`;
     sendMockSMS(SUPER_ADMIN, msg);
     addNotification('SOS TRIGGERED', 'Emergency services alerted.', 'ALERT');
-  }, [user, currentLocation, sendMockSMS, addNotification]);
+  }, [user, sendMockSMS, addNotification]);
 
   const handleDeposit = useCallback((amount: number) => {
     if (!user) return;
@@ -115,24 +105,28 @@ const App: React.FC = () => {
     const updatedUser = { ...user, balance: user.balance + amount, lastActive: Date.now() };
     setUser(updatedUser);
     addNotification('DEPOSIT SUCCESS', `ZMW ${amount.toFixed(2)} added to Escrow.`, 'SUCCESS');
-    sendMockSMS(user.phone, `Swensi: ZMW ${amount.toFixed(2)} deposit confirmed. Balance: ZMW ${updatedUser.balance.toFixed(2)}.`);
-  }, [user, allUsers, addNotification, sendMockSMS]);
+  }, [user, allUsers, addNotification]);
 
-  const handleSaveNode = useCallback((node: SavedNode) => {
-    if (!user) return;
-    const currentNodes = user.savedNodes || [];
-    const updatedNodes = [...currentNodes, node];
-    const updatedUser = { ...user, savedNodes: updatedNodes, lastActive: Date.now() };
-    setUser(updatedUser);
-    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-    addNotification('NODE SAVED', `${node.name} added to your corridor.`, 'SUCCESS');
-  }, [user, addNotification]);
+  const handleSendFeedback = (feedbackData: Partial<Feedback>) => {
+    const newFeedback: Feedback = {
+      id: 'FB-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+      userId: user?.id || 'anonymous',
+      userPhone: user?.phone || 'unknown',
+      rating: feedbackData.rating || 5,
+      comment: feedbackData.comment || '',
+      timestamp: Date.now(),
+      isRead: false,
+      ...feedbackData
+    };
+    setFeedbacks(prev => [newFeedback, ...prev]);
+    addNotification('FEEDBACK SENT', 'Admin has been notified of your experience.', 'SUCCESS');
+  };
 
   const handleLogin = (phone: string, lang: string) => {
     const existingUser = allUsers.find(u => u.phone === phone);
     if (existingUser) {
       if (!existingUser.isActive) {
-        addNotification('ACCESS DENIED', 'This terminal node has been suspended. Contact Admin.', 'ALERT');
+        addNotification('ACCESS DENIED', 'This terminal node has been suspended.', 'ALERT');
         return;
       }
       const updatedUser = { ...existingUser, lastActive: Date.now() };
@@ -160,24 +154,6 @@ const App: React.FC = () => {
     setViewMode('CUSTOMER');
     localStorage.setItem('swensi-lang', lang);
     addNotification('NODE ESTABLISHED', `Welcome to the Hub, ${name}`, 'SUCCESS');
-  };
-
-  const upgradeToProvider = (kyc: { license: string, address: string, photo: string }) => {
-    if (!user) return;
-    const updatedUser: User = { 
-      ...user, 
-      role: Role.PROVIDER, 
-      licenseNumber: kyc.license, 
-      homeAddress: kyc.address, 
-      isVerified: false, 
-      trustScore: 50, 
-      kycSubmittedAt: Date.now(), 
-      lastActive: Date.now(),
-      avatarUrl: kyc.photo || user.avatarUrl
-    };
-    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-    setUser(updatedUser);
-    addNotification('UPGRADE SUBMITTED', 'Your Partner application is pending review.', 'INFO');
   };
 
   const addBooking = (bookingData: Partial<Booking>) => {
@@ -228,18 +204,9 @@ const App: React.FC = () => {
         setUser(updatedUser);
         setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance, lastActive: Date.now() } : u));
         setPendingPayment(null);
-        addNotification('MISSION LOGGED', 'Escrow secured. Radar broadcasted to all providers.', 'SUCCESS');
-        
-        if (user?.role !== Role.PROVIDER) {
-          addNotification('NEW GIG RADAR', `A ${newBooking.category} mission is available.`, 'ALERT');
-        }
+        addNotification('MISSION LOGGED', 'Broadcasted to all providers.', 'SUCCESS');
       }
     });
-  };
-
-  const handleUpdateStatus = (id: string, status: BookingStatus, providerId: string) => {
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status, providerId } : b));
-    addNotification('MISSION UPDATE', `Mission ${id} status: ${status}`, 'INFO');
   };
 
   const renderDashboard = () => {
@@ -254,14 +221,16 @@ const App: React.FC = () => {
           councilOrders={councilOrders.filter(co => co.customerPhone === user.phone)} 
           onAddBooking={addBooking} 
           location={currentLocation} 
-          onConfirmCompletion={() => {}} 
-          onUpdateBooking={() => {}} 
-          onRate={() => {}} 
-          onUploadFacePhoto={() => {}} 
+          onSendFeedback={handleSendFeedback}
           onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
           isDarkMode={isDarkMode} 
           onLanguageChange={setLanguage} 
-          onBecomeProvider={upgradeToProvider} 
+          onBecomeProvider={(kyc) => {
+            const updatedUser: User = { ...user, role: Role.PROVIDER, licenseNumber: kyc.license, homeAddress: kyc.address, isVerified: false, trustScore: 50, kycSubmittedAt: Date.now(), lastActive: Date.now(), avatarUrl: kyc.photo || user.avatarUrl };
+            setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+            setUser(updatedUser);
+            addNotification('UPGRADE SUBMITTED', 'Your Partner application is pending review.', 'INFO');
+          }} 
           onUpdateUser={(updates) => {
             const updated = user ? { ...user, ...updates, lastActive: Date.now() } : null;
             setUser(updated);
@@ -271,7 +240,13 @@ const App: React.FC = () => {
           onToggleViewMode={() => setViewMode('MANAGEMENT')}
           onSOS={handleSOS}
           onDeposit={handleDeposit}
-          onSaveNode={handleSaveNode}
+          onSaveNode={(node) => {
+             const updatedNodes = [...(user.savedNodes || []), node];
+             const updatedUser = { ...user, savedNodes: updatedNodes, lastActive: Date.now() };
+             setUser(updatedUser);
+             setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+             addNotification('NODE SAVED', `${node.name} added.`, 'SUCCESS');
+          }}
         />
       );
     }
@@ -280,69 +255,39 @@ const App: React.FC = () => {
       case Role.ADMIN:
         return (
           <AdminDashboard 
-            user={user} 
-            logout={() => setUser(null)} 
-            bookings={bookings} 
-            allUsers={allUsers} 
-            councilOrders={councilOrders}
-            systemLogs={[]} 
-            onToggleBlock={(userId) => {
+            user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} councilOrders={councilOrders} feedbacks={feedbacks}
+            systemLogs={[]} onToggleBlock={(userId) => {
               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: !u.isActive, lastActive: Date.now() } : u));
             }} 
-            onDeleteUser={(userId) => {
-              setAllUsers(prev => prev.filter(u => u.id !== userId));
-            }} 
+            onDeleteUser={(userId) => setAllUsers(prev => prev.filter(u => u.id !== userId))} 
             onToggleVerification={(userId) => {
               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: !u.isVerified, lastActive: Date.now() } : u));
-              addNotification('NODE AUTHORIZED', 'Service agent has been granted corridor access.', 'SUCCESS');
+              addNotification('NODE AUTHORIZED', 'Partner access granted.', 'SUCCESS');
             }} 
             onUpdateUserRole={(userId, role) => {
               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role, lastActive: Date.now() } : u));
             }}
-            adminNumbers={adminNumbers} 
-            onAddAdmin={(p) => setAdminNumbers(prev => [...prev, p])} 
-            onRemoveAdmin={(p) => setAdminNumbers(prev => prev.filter(x => x !== p))} 
-            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-            isDarkMode={isDarkMode} 
-            onLanguageChange={setLanguage} 
-            sysDefaultLang={language} 
-            onUpdateSysDefaultLang={setLanguage} 
-            t={(k) => TRANSLATIONS[language]?.[k] || k} 
-            onToggleViewMode={() => setViewMode('CUSTOMER')}
+            onMarkFeedbackRead={(id) => setFeedbacks(prev => prev.map(f => f.id === id ? { ...f, isRead: true } : f))}
+            adminNumbers={adminNumbers} onAddAdmin={(p) => setAdminNumbers(prev => [...prev, p])} onRemoveAdmin={(p) => setAdminNumbers(prev => prev.filter(x => x !== p))} 
+            onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={setLanguage} 
+            t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );
       case Role.PROVIDER:
         return (
           <ProviderDashboard 
-            user={user} 
-            logout={() => setUser(null)} 
-            bookings={bookings} 
-            allUsers={allUsers} 
-            onUpdateStatus={handleUpdateStatus} 
+            user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} 
+            onUpdateStatus={(id, status, pId) => {
+              setBookings(prev => prev.map(b => b.id === id ? { ...b, status, providerId: pId } : b));
+              addNotification('MISSION UPDATE', `Mission ${id} status: ${status}`, 'INFO');
+            }} 
             onConfirmCompletion={(id) => {
               setBookings(prev => prev.map(b => b.id === id ? { ...b, status: BookingStatus.COMPLETED, isPaid: true } : b));
-              addNotification('MISSION COMPLETED', 'Protocol closed and funds released.', 'SUCCESS');
+              addNotification('MISSION COMPLETED', 'Payment released.', 'SUCCESS');
             }} 
-            onUpdateBooking={() => {}} 
-            onUpdateSubscription={(plan) => {
-              const fee = plan === 'BASIC' ? SUBSCRIPTION_PLANS.BASIC : SUBSCRIPTION_PLANS.PREMIUM;
-              if (user.balance < fee) return alert("Insufficient balance for subscription.");
-              const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000);
-              const updated = { ...user, subscriptionExpiry: expiry, balance: user.balance - fee, isPremium: plan === 'PREMIUM' };
-              setUser(updated);
-              setAllUsers(prev => prev.map(u => u.id === user.id ? updated : u));
-              addNotification('SUBSCRIPTION ACTIVE', 'Your corridor access has been extended.', 'SUCCESS');
-            }} 
-            location={currentLocation} 
-            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-            isDarkMode={isDarkMode} 
-            onLanguageChange={setLanguage} 
-            onUpdateUser={(updates) => {
-              const updated = { ...user, ...updates, lastActive: Date.now() };
-              setUser(updated);
-              setAllUsers(prev => prev.map(u => u.id === user.id ? updated : u));
-            }} 
-            t={(k) => TRANSLATIONS[language]?.[k] || k} 
+            onUpdateBooking={() => {}} onUpdateSubscription={() => {}} 
+            location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} 
+            onLanguageChange={setLanguage} onUpdateUser={() => {}} t={(k) => TRANSLATIONS[language]?.[k] || k} 
             onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );

@@ -32,6 +32,18 @@ export interface SavedNode {
   loc: Location;
 }
 
+export interface Feedback {
+  id: string;
+  userId: string;
+  userPhone: string;
+  targetProviderId?: string;
+  bookingId?: string;
+  rating: number;
+  comment: string;
+  timestamp: number;
+  isRead: boolean;
+}
+
 export interface ShoppingItem {
   id: string;
   name: string;
@@ -40,7 +52,7 @@ export interface ShoppingItem {
 
 export interface CouncilOrder {
   id: string;
-  bookingId: string; // Critical association link
+  bookingId: string;
   customerPhone: string;
   levyAmount: number;
   type: 'TRANSPORT_LEVY' | 'TRADE_PERMIT' | 'BORDER_CLEARANCE';
@@ -68,7 +80,7 @@ export interface User {
   role: Role;
   name: string;
   isActive: boolean;
-  lastActive: number; // For suspension logic
+  lastActive: number;
   location?: Location;
   balance: number; 
   earnings?: number;
@@ -80,13 +92,10 @@ export interface User {
   hospitalityCashflow?: number;
   avatarUrl?: string;
   savedNodes?: SavedNode[];
-  // Subscription Fields
   subscriptionExpiry?: number;
-  // KYC Fields
   licenseNumber?: string;
   homeAddress?: string;
   kycSubmittedAt?: number;
-  // Trust Indicators
   cancellationRate?: number;
   onTimeRate?: number;
   completedMissions?: number;
@@ -116,12 +125,10 @@ export interface Booking {
   shopOwnerPhone?: string;
   roomNumber?: string;
   receiptId?: string;
-  councilOrderId?: string; // Link to specific council order
+  councilOrderId?: string;
   cancellationReason?: string;
-  // Support for Booking for Others
   recipientName?: string;
   recipientPhone?: string;
-  // Performance snapshots
   customerTrustSnapshot?: number;
   providerTrustSnapshot?: number;
 }

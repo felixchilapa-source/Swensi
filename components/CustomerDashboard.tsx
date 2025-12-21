@@ -1,22 +1,10 @@
+
 import React, { useState, useMemo } from 'react';
-import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode } from '../types';
+import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode, Feedback } from '../types';
 import { CATEGORIES, Category, PAYMENT_NUMBERS, LANGUAGES } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 import AIAssistant from './AIAssistant';
-import { GoogleGenAI } from "@google/genai";
-
-interface GroundingResult {
-  title: string;
-  uri: string;
-}
-
-const STATIC_SAVED_NODES: SavedNode[] = [
-  { id: 'border', name: 'Tunduma Border', icon: 'fa-solid fa-gate', loc: { lat: -9.3330, lng: 32.7600 } },
-  { id: 'market', name: 'Nakonde Market', icon: 'fa-solid fa-shop', loc: { lat: -9.3250, lng: 32.7550 } },
-  { id: 'station', name: 'Main Station', icon: 'fa-solid fa-bus-simple', loc: { lat: -9.3300, lng: 32.7580 } },
-  { id: 'total', name: 'Total Station', icon: 'fa-solid fa-gas-pump', loc: { lat: -9.3200, lng: 32.7500 } },
-];
 
 interface CustomerDashboardProps {
   user: User;
@@ -24,11 +12,8 @@ interface CustomerDashboardProps {
   bookings: Booking[];
   councilOrders: CouncilOrder[];
   onAddBooking: (data: Partial<Booking>) => void;
-  onUpdateBooking: (id: string, updates: Partial<Booking>) => void;
   location: Location;
-  onConfirmCompletion: (id: string) => void;
-  onRate: (id: string, rating: number) => void;
-  onUploadFacePhoto: (id: string, url: string) => void;
+  onSendFeedback: (f: Partial<Feedback>) => void;
   onToggleTheme: () => void;
   isDarkMode: boolean;
   onLanguageChange: (lang: string) => void;
@@ -42,154 +27,53 @@ interface CustomerDashboardProps {
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, councilOrders, onAddBooking, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, t, onToggleTheme, isDarkMode, onLanguageChange 
+  user, logout, bookings, onAddBooking, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange 
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [showDepositModal, setShowDepositModal] = useState(false);
-  const [showSOSConfirm, setShowSOSConfirm] = useState(false);
-  const [showKYCModal, setShowKYCModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [missionDesc, setMissionDesc] = useState('');
   const [mapCenter, setMapCenter] = useState<Location>(location);
   const [destinationNode, setDestinationNode] = useState<SavedNode | null>(null);
-  const [nearbyResults, setNearbyResults] = useState<GroundingResult[]>([]);
-  const [isSearchingNearby, setIsSearchingNearby] = useState(false);
-  
-  const [kycLicense, setKycLicense] = useState('');
-  const [kycAddress, setKycAddress] = useState('');
-  
-  const [missionDesc, setMissionDesc] = useState('');
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings]);
 
-  const allSavedNodes = useMemo(() => {
-    return [...STATIC_SAVED_NODES, ...(user.savedNodes || [])];
-  }, [user.savedNodes]);
-
-  const handleSearchNearby = async (query: string) => {
-    setIsSearchingNearby(true);
-    setNearbyResults([]);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Find ${query} near Nakonde for a visitor.`,
-        config: { tools: [{ googleSearch: {} }] },
-      });
-      
-      const results: GroundingResult[] = [];
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (chunks) {
-        chunks.forEach((chunk: any) => {
-          if (chunk.web) {
-            results.push({ title: chunk.web.title, uri: chunk.web.uri });
-          }
-        });
-      }
-      setNearbyResults(results.length > 0 ? results : [{ title: `Top rated ${query} in Nakonde`, uri: 'https://maps.google.com' }]);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSearchingNearby(false);
-    }
-  };
-
-  const jumpToNode = (node: SavedNode) => {
-    setMapCenter(node.loc);
-  };
-
   const handleLaunchMission = () => {
     if (!selectedCategory) return;
-    onAddBooking({
-      category: selectedCategory.id,
-      description: missionDesc,
-      price: selectedCategory.basePrice,
-      location: location,
-      destination: destinationNode?.loc
-    });
+    onAddBooking({ category: selectedCategory.id, description: missionDesc, price: selectedCategory.basePrice, location: location, destination: destinationNode?.loc });
     setSelectedCategory(null);
-    setDestinationNode(null);
     setMissionDesc('');
     setActiveTab('active');
   };
 
-  const markers = useMemo(() => {
-    const list = [{ loc: location, color: '#059669', label: 'My Origin' }];
-    if (destinationNode) {
-      list.push({ loc: destinationNode.loc, color: '#3b82f6', label: 'Destination' });
-    } else {
-      list.push({ loc: mapCenter, color: '#1E40AF', label: 'Pointer' });
-    }
-    return list;
-  }, [location, destinationNode, mapCenter]);
+  const handleFeedbackSubmit = () => {
+    onSendFeedback({ rating, comment });
+    setShowFeedbackModal(false);
+    setComment('');
+  };
 
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       <AIAssistant />
 
-      {/* PROMINENT SOS TRIGGER */}
-      <div className="fixed top-[12%] right-6 z-[400] flex flex-col items-center gap-1.5 group">
-        <button 
-          onClick={() => setShowSOSConfirm(true)}
-          className="w-16 h-16 bg-red-600 text-white rounded-[26px] shadow-[0_0_50px_rgba(220,38,38,0.6)] flex items-center justify-center border-4 border-white dark:border-slate-900 animate-pulse active:scale-90 transition-all ring-4 ring-red-600/10"
-          aria-label="Emergency SOS Alert"
-        >
-          <i className="fa-solid fa-circle-exclamation text-3xl"></i>
-        </button>
-        <span className="text-[7px] font-black uppercase text-red-600 tracking-[0.2em] bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 rounded-full border border-red-600/30 shadow-2xl backdrop-blur-md">SOS Distress</span>
-      </div>
-
-      {/* SOS CONFIRMATION MODAL */}
-      {showSOSConfirm && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-red-950/95 backdrop-blur-3xl animate-fade-in">
-           <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[45px] p-10 text-center shadow-2xl border-t-[10px] border-red-600 animate-zoom-in overflow-hidden relative">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-red-600/5 rounded-full translate-x-12 -translate-y-12"></div>
-              <div className="w-24 h-24 bg-red-600/10 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner ring-4 ring-red-600/5">
-                <i className="fa-solid fa-tower-broadcast text-red-600 text-5xl animate-ping"></i>
-              </div>
-              <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white leading-none tracking-tighter">Emergency Signal</h3>
-              <p className="text-[11px] font-bold text-slate-500 uppercase mt-4 mb-10 tracking-tight leading-relaxed px-2">
-                Broadcast your current GPS coordinates to the <span className="text-red-600 font-black underline underline-offset-4 decoration-2">Super Admin Console</span> immediately?
-              </p>
-              <div className="space-y-4">
-                <button 
-                  onClick={() => { onSOS?.(); setShowSOSConfirm(false); }} 
-                  className="w-full py-6 bg-red-600 text-white font-black rounded-[30px] text-[12px] uppercase italic tracking-[0.2em] shadow-2xl shadow-red-600/40 active:scale-95 transition-all flex items-center justify-center gap-3"
-                >
-                  <i className="fa-solid fa-satellite-dish"></i> Transmit Now
-                </button>
-                <button 
-                  onClick={() => setShowSOSConfirm(false)} 
-                  className="w-full py-3 text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                >
-                  Cancel Protocol
-                </button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Header */}
       <header className="px-5 py-4 flex justify-between items-center glass-nav border-b dark:border-white/5 sticky top-0 z-[50] backdrop-blur-xl safe-pt">
         <div className="flex items-center gap-3">
-          <div className="bg-emerald-700 w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center transform -rotate-6 border border-white/20">
+          <div className="bg-emerald-700 w-10 h-10 rounded-2xl flex items-center justify-center transform -rotate-6">
             <i className="fas fa-link text-white text-base"></i>
           </div>
-          <div className="flex flex-col">
-            <h2 className="text-xl font-black leading-none text-slate-900 dark:text-white uppercase italic tracking-tighter">Swensi</h2>
-            <span className="text-[8px] font-black text-emerald-600 tracking-[0.2em] uppercase mt-1">Nakonde Hub</span>
-          </div>
+          <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Swensi</h2>
         </div>
         <div className="flex items-center gap-3">
            <div className="text-right">
-             <p className="text-[11px] font-black dark:text-white uppercase italic leading-none">ZMW {user.balance.toFixed(0)}</p>
-             <button onClick={() => setShowDepositModal(true)} className="text-[7px] font-black text-emerald-600 uppercase mt-1 opacity-60 flex items-center gap-1 justify-end italic">
-                <i className="fa-solid fa-plus-circle"></i> Quick Topup
-             </button>
+             <p className="text-[11px] font-black dark:text-white uppercase italic">ZMW {user.balance.toFixed(0)}</p>
+             <button onClick={() => setShowFeedbackModal(true)} className="text-[7px] font-black text-emerald-600 uppercase italic">Rate Experience</button>
            </div>
            {user.role !== Role.CUSTOMER && (
-              <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20 active:rotate-180 transition-all duration-500"><i className="fa-solid fa-rotate"></i></button>
+              <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20"><i className="fa-solid fa-rotate"></i></button>
            )}
-           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"><i className="fa-solid fa-power-off text-xs"></i></button>
+           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400"><i className="fa-solid fa-power-off text-xs"></i></button>
         </div>
       </header>
 
@@ -198,45 +82,21 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       <div className="flex-1 overflow-y-auto pb-32 px-5 pt-6 space-y-10 no-scrollbar">
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
-            <h1 className="text-3xl font-black text-secondary dark:text-white uppercase italic leading-tight tracking-tighter">
-                Welcome to Nakonde, <br/> 
-                <span className="text-emerald-600">{user.name.split(' ')[0]}!</span>
-            </h1>
+            <h1 className="text-3xl font-black text-secondary dark:text-white uppercase italic tracking-tighter">Nakonde Hub</h1>
 
             <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl">
-               <Map 
-                center={mapCenter} 
-                onSaveNode={onSaveNode}
-                markers={markers} 
-               />
-               <div className="p-5 flex flex-col gap-4">
-                  <div className="flex flex-col gap-3">
-                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic px-1">Corridor Nodes</p>
-                    <div className="flex overflow-x-auto gap-2 no-scrollbar pb-2">
-                      {allSavedNodes.map(node => (
-                        <button 
-                          key={node.id} 
-                          onClick={() => jumpToNode(node)}
-                          className={`flex-shrink-0 px-4 py-3 rounded-2xl border flex items-center gap-3 transition-all active:scale-95 ${mapCenter.lat === node.loc.lat ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400'}`}
-                        >
-                          <i className={node.icon}></i>
-                          <span className="text-[10px] font-black uppercase whitespace-nowrap italic">{node.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-               </div>
+               <Map center={mapCenter} onSaveNode={onSaveNode} markers={[{ loc: location, color: '#059669', label: 'My Node' }]} />
             </div>
 
             <div className="grid grid-cols-2 gap-4 pb-4">
               {CATEGORIES.map(cat => (
-                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] shadow-sm hover:border-emerald-500 transition-all group">
+                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] shadow-sm group">
                    <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">
                       <i className={`${cat.icon} text-xl`}></i>
                    </div>
                    <div className="text-left">
                       <p className="text-[10px] font-black uppercase text-slate-400 mb-1 italic">{cat.name}</p>
-                      <p className="text-sm font-black text-secondary dark:text-white leading-tight italic uppercase tracking-tighter">ZMW {cat.basePrice}</p>
+                      <p className="text-sm font-black text-secondary dark:text-white italic tracking-tighter">ZMW {cat.basePrice}</p>
                    </div>
                 </button>
               ))}
@@ -244,42 +104,36 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           </div>
         )}
 
+        {/* Feedback Modal */}
+        {showFeedbackModal && (
+          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+            <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-10 shadow-2xl animate-zoom-in">
+              <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white mb-6">Service Buzz</h3>
+              <div className="flex gap-2 justify-center mb-8">
+                 {[1,2,3,4,5].map(s => (
+                   <button key={s} onClick={() => setRating(s)} className={`w-10 h-10 rounded-full flex items-center justify-center text-xl transition-all ${rating >= s ? 'text-amber-500 bg-amber-500/10' : 'text-slate-300'}`}>
+                     <i className="fa-solid fa-star"></i>
+                   </button>
+                 ))}
+              </div>
+              <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Tell us how we did..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-emerald-600 h-32 mb-6" />
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setShowFeedbackModal(false)} className="py-5 text-slate-400 font-black text-[10px] uppercase italic">Close</button>
+                <button onClick={handleFeedbackSubmit} className="py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase italic shadow-2xl">Broadcast</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Mission Launcher Modal */}
         {selectedCategory && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
-            <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-10 shadow-2xl border border-emerald-500/20 animate-zoom-in">
-              <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white mb-2">Configure Mission</h3>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-8">Launching {selectedCategory.name} Protocol</p>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="text-[9px] font-black uppercase text-emerald-600 ml-2 tracking-widest italic">Destination Node</label>
-                  <select 
-                    value={destinationNode?.id || ''}
-                    onChange={(e) => setDestinationNode(allSavedNodes.find(n => n.id === e.target.value) || null)}
-                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-emerald-600 transition-all mt-1"
-                  >
-                    <option value="">Select Destination...</option>
-                    {allSavedNodes.map(node => (
-                      <option key={node.id} value={node.id}>{node.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[9px] font-black uppercase text-emerald-600 ml-2 tracking-widest italic">Mission Directives</label>
-                  <textarea 
-                    value={missionDesc}
-                    onChange={(e) => setMissionDesc(e.target.value)}
-                    placeholder="Provide specific instructions for the agent..."
-                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-emerald-600 transition-all mt-1 h-32 no-scrollbar"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 pt-4">
-                  <button onClick={() => setSelectedCategory(null)} className="py-5 text-slate-400 font-black text-[10px] uppercase tracking-widest italic">Abort</button>
-                  <button onClick={handleLaunchMission} className="py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase tracking-widest shadow-2xl italic">Launch Node</button>
-                </div>
+          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-xl">
+            <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-10 animate-zoom-in">
+              <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white mb-2">{selectedCategory.name}</h3>
+              <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Instructions..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white h-32 mt-4" />
+              <div className="grid grid-cols-2 gap-3 pt-4">
+                <button onClick={() => setSelectedCategory(null)} className="py-5 text-slate-400 font-black text-[10px] uppercase italic">Abort</button>
+                <button onClick={handleLaunchMission} className="py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic">Launch Mission</button>
               </div>
             </div>
           </div>
@@ -287,29 +141,14 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in">
-             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic ml-2">Active Protocol</h3>
-             {activeBookings.length === 0 && (
-               <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
-                  <i className="fa-solid fa-radar text-4xl animate-pulse"></i>
-                  <p className="text-[10px] font-black uppercase tracking-[0.4em]">No Active Missions</p>
-               </div>
-             )}
+             {activeBookings.length === 0 && <div className="py-20 text-center opacity-20"><p className="text-[10px] font-black uppercase tracking-[0.4em]">No Active Gigs</p></div>}
              {activeBookings.map(b => (
-                <div key={b.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-xl">
-                   <Map center={b.location} markers={[
-                     { loc: b.location, color: '#059669', label: 'Origin' },
-                     { loc: b.destination || b.location, color: '#3b82f6', label: 'Target', isLive: true }
-                   ]} />
-                   <div className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                         <div>
-                            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest italic">{b.category}</p>
-                            <h4 className="text-xl font-black text-secondary dark:text-white italic tracking-tighter">{b.id}</h4>
-                         </div>
-                         <span className="text-[8px] font-black bg-emerald-600/10 text-emerald-600 px-3 py-1 rounded-full uppercase italic tracking-widest">{b.status}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">{b.description}</p>
+                <div key={b.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-xl p-6">
+                   <div className="flex justify-between items-start mb-4">
+                      <h4 className="text-xl font-black text-secondary dark:text-white italic">{b.id}</h4>
+                      <span className="text-[8px] font-black bg-emerald-600/10 text-emerald-600 px-3 py-1 rounded-full uppercase italic">{b.status}</span>
                    </div>
+                   <p className="text-[11px] text-slate-500 dark:text-slate-400 italic leading-relaxed">{b.description}</p>
                 </div>
              ))}
           </div>
@@ -317,18 +156,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       </div>
 
       <nav className="absolute bottom-6 left-6 right-6 h-20 glass-nav rounded-[32px] border border-white/10 flex justify-around items-center px-4 shadow-2xl z-50">
-        <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center ${activeTab === 'home' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}>
-          <i className="fa-solid fa-house text-lg"></i>
-          <span className="text-[8px] font-black uppercase mt-1.5 italic">Hub</span>
-        </button>
-        <button onClick={() => setActiveTab('active')} className={`flex-1 flex flex-col items-center ${activeTab === 'active' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}>
-          <i className="fa-solid fa-route text-lg"></i>
-          <span className="text-[8px] font-black uppercase mt-1.5 italic">Trips</span>
-        </button>
-        <button onClick={() => setActiveTab('account')} className={`flex-1 flex flex-col items-center ${activeTab === 'account' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}>
-          <i className="fa-solid fa-user text-lg"></i>
-          <span className="text-[8px] font-black uppercase mt-1.5 italic">Profile</span>
-        </button>
+        <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center ${activeTab === 'home' ? 'text-emerald-600' : 'text-slate-400'}`}><i className="fa-solid fa-house"></i></button>
+        <button onClick={() => setActiveTab('active')} className={`flex-1 flex flex-col items-center ${activeTab === 'active' ? 'text-emerald-600' : 'text-slate-400'}`}><i className="fa-solid fa-route"></i></button>
+        <button onClick={() => setActiveTab('account')} className={`flex-1 flex flex-col items-center ${activeTab === 'account' ? 'text-emerald-600' : 'text-slate-400'}`}><i className="fa-solid fa-user"></i></button>
       </nav>
     </div>
   );
