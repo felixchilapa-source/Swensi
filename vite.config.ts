@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -7,9 +8,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    chunkSizeWarningLimit: 2000, // Adjusted to silence large chunk warnings
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
+      external: ['@google/genai'],
       output: {
+        globals: {
+          '@google/genai': 'GoogleGenAI'
+        },
         manualChunks: {
           vendor: ['react', 'react-dom', 'd3'],
         },

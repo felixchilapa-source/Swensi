@@ -3,6 +3,7 @@ export enum Role {
   CUSTOMER = 'CUSTOMER',
   PROVIDER = 'PROVIDER',
   ADMIN = 'ADMIN',
+  WORKFLOW = 'WORKFLOW',
   SHOP_OWNER = 'SHOP_OWNER',
   LODGE = 'LODGE'
 }

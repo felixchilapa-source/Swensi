@@ -40,7 +40,8 @@ interface NavItem {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   user, logout, allUsers, bookings, councilOrders, feedbacks, onToggleVerification, onMarkFeedbackRead, onToggleBlock, onUpdateUserRole, t, onToggleViewMode 
 }) => {
-  const [view, setView] = useState<AdminView>('stats');
+  const isWorkflow = user.role === Role.WORKFLOW;
+  const [view, setView] = useState<AdminView>(isWorkflow ? 'approvals' : 'stats');
   const [searchQuery, setSearchQuery] = useState('');
   
   const stats = useMemo(() => {
@@ -51,13 +52,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return { commissions, subscriptions, pendingApprovals, unreadFeedback, activeUsers: allUsers.length };
   }, [bookings, allUsers, feedbacks]);
 
-  const navItems: NavItem[] = [
-    { id: 'stats', icon: 'fa-chart-pie', label: 'ROI' },
-    { id: 'approvals', icon: 'fa-user-check', label: 'Auth' },
-    { id: 'feedback', icon: 'fa-comments', label: 'Buzz' },
-    { id: 'missions', icon: 'fa-route', label: 'Ops' },
-    { id: 'registry', icon: 'fa-users', label: 'Nodes' }
-  ];
+  const navItems = useMemo((): NavItem[] => {
+    const fullItems: NavItem[] = [
+      { id: 'stats', icon: 'fa-chart-pie', label: 'ROI' },
+      { id: 'approvals', icon: 'fa-user-check', label: 'Auth' },
+      { id: 'feedback', icon: 'fa-comments', label: 'Buzz' },
+      { id: 'missions', icon: 'fa-route', label: 'Ops' },
+      { id: 'registry', icon: 'fa-users', label: 'Nodes' }
+    ];
+    
+    if (isWorkflow) {
+      return fullItems.filter(item => ['approvals', 'registry'].includes(item.id));
+    }
+    return fullItems;
+  }, [isWorkflow]);
 
   const pendingProviders = useMemo(() => 
     allUsers.filter(u => u.role === Role.PROVIDER && !u.isVerified), 
@@ -83,12 +91,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="flex flex-col h-full bg-slate-950 text-white relative overflow-hidden">
       <header className="px-5 py-6 border-b border-white/5 flex justify-between items-center bg-slate-950/90 backdrop-blur-xl z-50 safe-pt">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center border-2 border-red-400/20">
-            <i className="fa-solid fa-tower-broadcast text-xs animate-pulse"></i>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isWorkflow ? 'bg-amber-600 border-amber-400/20' : 'bg-red-600 border-red-400/20'}`}>
+            <i className={`fa-solid ${isWorkflow ? 'fa-check-double' : 'fa-tower-broadcast'} text-xs animate-pulse`}></i>
           </div>
           <div>
-            <h2 className="text-base font-black uppercase italic leading-none">Admin Console</h2>
-            <p className="text-[7px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">Corridor Oversight</p>
+            <h2 className="text-base font-black uppercase italic leading-none">{isWorkflow ? 'Workflow Console' : 'Admin Console'}</h2>
+            <p className="text-[7px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">{isWorkflow ? 'Approval Pipeline' : 'Corridor Oversight'}</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -101,7 +109,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <nav className="flex bg-white/5 p-1 rounded-2xl border border-white/5 sticky top-0 z-40 backdrop-blur-md">
           {navItems.map((v) => (
             <button key={v.id} onClick={() => setView(v.id)}
-              className={`flex-1 py-3 rounded-xl text-[7px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-1 relative ${view === v.id ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500'}`}>
+              className={`flex-1 py-3 rounded-xl text-[7px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-1 relative ${view === v.id ? (isWorkflow ? 'bg-amber-600' : 'bg-red-600') + ' text-white shadow-xl' : 'text-slate-500'}`}>
               <i className={`fa-solid ${v.icon} text-[10px]`}></i> {v.label}
               {v.id === 'approvals' && stats.pendingApprovals > 0 && (
                 <span className="absolute top-1 right-2 w-2 h-2 bg-white rounded-full animate-ping"></span>
@@ -110,7 +118,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           ))}
         </nav>
 
-        {view === 'stats' && (
+        {view === 'stats' && !isWorkflow && (
           <div className="space-y-4 animate-fade-in">
              <div className="bg-gradient-to-br from-red-600 to-slate-900 p-8 rounded-[40px] shadow-xl relative overflow-hidden">
                 <p className="text-white/60 text-[9px] font-black uppercase mb-1 tracking-widest italic">Consolidated Yield</p>
@@ -149,7 +157,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <button onClick={() => onToggleBlock(p.id)} className="py-4 bg-white/5 text-red-500 rounded-2xl text-[9px] font-black uppercase italic">Block</button>
-                        <button onClick={() => onToggleVerification(p.id)} className="py-4 bg-emerald-600 text-white rounded-2xl text-[9px] font-black uppercase italic">Authorize</button>
+                        <button onClick={() => onToggleVerification(p.id)} className={`py-4 ${isWorkflow ? 'bg-amber-600' : 'bg-emerald-600'} text-white rounded-2xl text-[9px] font-black uppercase italic`}>Authorize</button>
                       </div>
                    </div>
                 ))}
@@ -183,7 +191,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button onClick={() => onToggleBlock(u.id)} className={`px-3 py-1.5 rounded-lg text-[7px] font-black uppercase italic ${u.isActive ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                            {u.isActive ? 'Block' : 'Unblock'}
                         </button>
-                        <button onClick={() => onUpdateUserRole(u.id, u.role === Role.ADMIN ? Role.CUSTOMER : Role.ADMIN)} className="px-3 py-1.5 bg-blue-500/10 text-blue-500 rounded-lg text-[7px] font-black uppercase italic">Role</button>
+                        {!isWorkflow && (
+                          <button onClick={() => onUpdateUserRole(u.id, u.role === Role.ADMIN ? Role.CUSTOMER : Role.ADMIN)} className="px-3 py-1.5 bg-blue-500/10 text-blue-500 rounded-lg text-[7px] font-black uppercase italic">Role</button>
+                        )}
                      </div>
                   </div>
                 ))}
@@ -191,7 +201,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {view === 'missions' && (
+        {view === 'missions' && !isWorkflow && (
            <div className="space-y-4">
               {bookings.map(b => (
                 <div key={b.id} className="bg-white/5 p-6 rounded-[35px] border border-white/5">

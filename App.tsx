@@ -277,6 +277,7 @@ const App: React.FC = () => {
 
     switch (user.role) {
       case Role.ADMIN:
+      case Role.WORKFLOW:
         return (
           <AdminDashboard 
             user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} councilOrders={councilOrders} feedbacks={feedbacks}
