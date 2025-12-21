@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode } from '../types';
-import { CATEGORIES, Category, PAYMENT_NUMBERS } from '../constants';
+import { CATEGORIES, Category, PAYMENT_NUMBERS, LANGUAGES } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 import AIAssistant from './AIAssistant';
@@ -42,7 +42,7 @@ interface CustomerDashboardProps {
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, councilOrders, onAddBooking, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, t
+  user, logout, bookings, councilOrders, onAddBooking, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, t, onToggleTheme, isDarkMode, onLanguageChange 
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -121,7 +121,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       <AIAssistant />
 
-      {/* PROMINENT SOS TRIGGER - HIGH VISIBILITY POSITION */}
+      {/* PROMINENT SOS TRIGGER */}
       <div className="fixed top-[12%] right-6 z-[400] flex flex-col items-center gap-1.5 group">
         <button 
           onClick={() => setShowSOSConfirm(true)}
@@ -133,7 +133,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         <span className="text-[7px] font-black uppercase text-red-600 tracking-[0.2em] bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 rounded-full border border-red-600/30 shadow-2xl backdrop-blur-md">SOS Distress</span>
       </div>
 
-      {/* SOS CONFIRMATION MODAL - HIGH IMPACT */}
+      {/* SOS CONFIRMATION MODAL */}
       {showSOSConfirm && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-red-950/95 backdrop-blur-3xl animate-fade-in">
            <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[45px] p-10 text-center shadow-2xl border-t-[10px] border-red-600 animate-zoom-in overflow-hidden relative">
@@ -180,67 +180,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 </button>
               ))}
             </div>
-            <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/10 space-y-1 text-[9px] font-bold text-slate-500">
-               <p className="flex justify-between uppercase"><span>MTN:</span> <span>{PAYMENT_NUMBERS.MTN}</span></p>
-               <p className="flex justify-between uppercase"><span>Airtel:</span> <span>{PAYMENT_NUMBERS.Airtel}</span></p>
-            </div>
             <button onClick={() => setShowDepositModal(false)} className="w-full mt-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Dismiss</button>
           </div>
         </div>
       )}
 
-      {/* Partner Upgrade KYC */}
-      {showKYCModal && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-blue-950/90 backdrop-blur-xl animate-fade-in">
-          <div className="w-full max-w-[380px] bg-white dark:bg-slate-900 rounded-[45px] p-8 border border-blue-500/30 animate-zoom-in">
-            <h3 className="text-2xl font-black italic uppercase dark:text-white mb-6">Provider Hub</h3>
-            <div className="space-y-6">
-               <div className="space-y-2">
-                 <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">License Number</label>
-                 <input value={kycLicense} onChange={e => setKycLicense(e.target.value)} placeholder="Enter Document ID" className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-600" />
-               </div>
-               <div className="space-y-2">
-                 <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">Business/Home Location</label>
-                 <textarea value={kycAddress} onChange={e => setKycAddress(e.target.value)} placeholder="Full Address in Nakonde" className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-xs font-black outline-none h-24" />
-               </div>
-               <button onClick={handleKYCSubmit} className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] text-[10px] uppercase italic tracking-widest shadow-xl">Activate Partner Node</button>
-               <button onClick={() => setShowKYCModal(false)} className="w-full text-[9px] font-black text-slate-400 uppercase">Back</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Mission Entry */}
-      {selectedCategory && (
-        <div className="fixed inset-0 z-[600] flex items-end sm:items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-           <div className="relative w-full max-w-[420px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl animate-zoom-in">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-black italic uppercase text-emerald-600 tracking-tighter">{selectedCategory.name}</h3>
-                <button onClick={() => setSelectedCategory(null)} className="text-slate-400"><i className="fa-solid fa-circle-xmark text-xl"></i></button>
-              </div>
-              <div className="space-y-6">
-                <div className="space-y-2">
-                   <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">Mission Protocol</label>
-                   <textarea 
-                    value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)}
-                    placeholder="Briefly describe your request..."
-                    className="w-full bg-slate-100 dark:bg-white/5 border dark:border-white/10 rounded-2xl p-5 text-sm font-medium h-32 outline-none focus:border-emerald-600"
-                   />
-                </div>
-                <div className="space-y-2">
-                   <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">Landmark</label>
-                   <input 
-                    value={landmark} onChange={(e) => setLandmark(e.target.value)}
-                    placeholder="e.g. Near Nakonde Market or Total Station"
-                    className="w-full bg-slate-100 dark:bg-white/5 border dark:border-white/10 rounded-2xl p-4 text-xs font-black outline-none"
-                   />
-                </div>
-                <button onClick={handleLaunchMission} className="w-full bg-emerald-600 text-white font-black py-5 rounded-[28px] text-[10px] uppercase italic tracking-widest shadow-2xl">Deploy Mission</button>
-              </div>
-           </div>
-        </div>
-      )}
-
+      {/* Header */}
       <header className="px-5 py-4 flex justify-between items-center glass-nav border-b dark:border-white/5 sticky top-0 z-[50] backdrop-blur-xl safe-pt">
         <div className="flex items-center gap-3">
           <div className="bg-emerald-700 w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center transform -rotate-6 border border-white/20">
@@ -301,15 +246,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     <button onClick={() => handleSearchNearby('lodges')} className="flex-1 py-4 rounded-2xl bg-blue-600/10 text-blue-500 text-[9px] font-black uppercase tracking-widest italic border border-blue-500/20 active:scale-95 transition-all">Nearby Lodges</button>
                     <button onClick={() => handleSearchNearby('banks')} className="flex-1 py-4 rounded-2xl bg-emerald-600/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest italic border border-emerald-500/20 active:scale-95 transition-all">Banks & Forex</button>
                   </div>
-                  {nearbyResults.length > 0 && (
-                    <div className="space-y-2 mt-2">
-                      {nearbyResults.map((r, i) => (
-                        <a key={i} href={r.uri} target="_blank" rel="noopener noreferrer" className="block p-3 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-xl text-[10px] font-bold text-blue-600 dark:text-blue-400 underline">
-                          {r.title}
-                        </a>
-                      ))}
-                    </div>
-                  )}
                </div>
             </div>
 
@@ -356,7 +292,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         )}
 
         {activeTab === 'account' && (
-          <div className="animate-fade-in space-y-6">
+          <div className="animate-fade-in space-y-8">
              <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl text-center">
                 <div className="w-24 h-24 mx-auto bg-emerald-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic shadow-2xl mb-6 overflow-hidden">
                   {user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : user.name.charAt(0)}
@@ -371,7 +307,46 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   )}
                 </div>
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2 italic leading-none">{user.phone}</p>
-                <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/5 space-y-3">
+             </div>
+
+             {/* System Preferences */}
+             <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl space-y-8">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-4 italic ml-2">System Preferences</h3>
+                  
+                  {/* Theme Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-100 dark:border-white/10">
+                    <div className="flex items-center gap-3">
+                      <i className={`fa-solid ${isDarkMode ? 'fa-moon text-blue-500' : 'fa-sun text-amber-500'} text-lg`}></i>
+                      <span className="text-[10px] font-black uppercase tracking-widest dark:text-white italic">Appearance</span>
+                    </div>
+                    <button 
+                      onClick={onToggleTheme}
+                      className={`w-12 h-6 rounded-full relative transition-colors ${isDarkMode ? 'bg-blue-600' : 'bg-slate-300'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-md ${isDarkMode ? 'right-1' : 'left-1'}`}></div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Language Picker */}
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2 italic">Corridor Dialect</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {LANGUAGES.map(lang => (
+                      <button 
+                        key={lang.code}
+                        onClick={() => onLanguageChange(lang.code)}
+                        className={`p-4 rounded-2xl border flex items-center justify-center gap-3 transition-all active:scale-95 ${user.language === lang.code ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg' : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/10 text-slate-600 dark:text-slate-400'}`}
+                      >
+                        <span className="text-lg">{lang.flag}</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest italic">{lang.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 dark:border-white/5 space-y-3">
                    <button onClick={() => setShowKYCModal(true)} className="w-full bg-blue-700/10 text-blue-600 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest italic border border-blue-600/20">Become a Provider</button>
                    <button onClick={logout} className="w-full bg-red-500/10 text-red-500 font-black py-4 rounded-3xl text-[9px] uppercase tracking-widest italic border border-red-500/20">Disconnect</button>
                 </div>

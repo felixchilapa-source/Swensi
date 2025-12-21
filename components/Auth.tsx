@@ -92,17 +92,39 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
       <TermsModal isOpen={showTermsModal} onClose={() => setShowTermsModal(false)} />
       
       {/* Top Controls */}
-      <div className="absolute top-12 left-6 right-6 flex justify-between items-center z-50">
-        <button 
-          onClick={() => setShowLangPicker(!showLangPicker)}
-          className="px-4 py-2 rounded-2xl flex items-center gap-2 bg-white/5 text-slate-300 backdrop-blur-xl border border-white/10 shadow-xl"
-        >
-          <span className="text-base leading-none">{selectedLanguage.flag}</span>
-          <span className="text-[10px] font-black uppercase tracking-widest leading-none">{selectedLanguage.name}</span>
-          <i className="fa-solid fa-chevron-down text-[8px] opacity-40"></i>
-        </button>
+      <div className="absolute top-12 left-6 right-6 flex justify-between items-center z-[100]">
+        <div className="relative">
+          <button 
+            onClick={() => setShowLangPicker(!showLangPicker)}
+            className="px-4 py-2 rounded-2xl flex items-center gap-2 bg-white/5 text-slate-300 backdrop-blur-xl border border-white/10 shadow-xl active:scale-95 transition-all"
+          >
+            <span className="text-base leading-none">{selectedLanguage.flag}</span>
+            <span className="text-[10px] font-black uppercase tracking-widest leading-none">{selectedLanguage.name}</span>
+            <i className={`fa-solid fa-chevron-down text-[8px] transition-transform ${showLangPicker ? 'rotate-180' : ''}`}></i>
+          </button>
 
-        <button onClick={onToggleTheme} className="w-11 h-11 rounded-2xl flex items-center justify-center bg-white/5 text-slate-300 backdrop-blur-xl border border-white/10 shadow-xl">
+          {showLangPicker && (
+            <div className="absolute top-12 left-0 w-48 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-white/10 overflow-hidden z-[110] animate-zoom-in">
+              {LANGUAGES.map(lang => (
+                <button 
+                  key={lang.code}
+                  onClick={() => {
+                    onLanguageChange(lang.code);
+                    setShowLangPicker(false);
+                  }}
+                  className="w-full px-6 py-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors border-b border-slate-100 dark:border-white/5 last:border-none text-left"
+                >
+                  <span className="text-xl">{lang.flag}</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${language === lang.code ? 'text-blue-500' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {lang.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button onClick={onToggleTheme} className="w-11 h-11 rounded-2xl flex items-center justify-center bg-white/5 text-slate-300 backdrop-blur-xl border border-white/10 shadow-xl active:scale-95 transition-all">
           <i className={`fa-solid ${isDarkMode ? 'fa-sun text-amber-500' : 'fa-moon text-blue-500'}`}></i>
         </button>
       </div>
@@ -119,11 +141,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
                 Swensi <span className="text-blue-500">Nakonde</span>
               </h1>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] px-4">
-                The trusted link for traders, transporters, and agents.
+                {t('slogan')}
               </p>
             </div>
 
-            {/* Service Badges (User-Friendly UI Component) */}
+            {/* Service Badges */}
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 px-1">
               {[
                 { icon: 'fa-cart-shopping', label: 'Traders' },
@@ -141,7 +163,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
             {/* Input Section */}
             <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[40px] p-8 shadow-2xl space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-blue-500 ml-4 tracking-widest italic">Enter Phone Number</label>
+                <label className="text-[10px] font-black uppercase text-blue-500 ml-4 tracking-widest italic">{t('login_phone')}</label>
                 <div className="flex items-center bg-slate-900 border-2 border-slate-800 rounded-[24px] px-6 py-5 focus-within:border-blue-600 transition-all">
                   <span className="text-slate-500 font-black mr-4 text-lg italic border-r pr-4 border-white/10">+260</span>
                   <input 
@@ -152,7 +174,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
                     className="flex-1 outline-none text-xl font-black text-white bg-transparent"
                   />
                 </div>
-                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest ml-4">New here? Just enter your phone to register.</p>
               </div>
 
               <div className="px-2">
@@ -201,7 +222,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
                 className="w-full border-2 rounded-[24px] py-6 text-center text-5xl font-black tracking-[0.2em] outline-none border-slate-800 bg-slate-900 text-white focus:border-blue-600 shadow-inner"
               />
               <div className="space-y-4">
-                <button onClick={verifyOtp} className="w-full bg-blue-600 text-white font-black py-6 rounded-[24px] shadow-2xl uppercase italic tracking-widest">Verify Code</button>
+                <button onClick={verifyOtp} className="w-full bg-blue-600 text-white font-black py-6 rounded-[24px] shadow-2xl uppercase italic tracking-widest">{t('verify_phone')}</button>
                 <button onClick={() => setStep(1)} className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Change Phone Number</button>
               </div>
             </div>
@@ -269,12 +290,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
               />
               <button onClick={verifyExtraOtp} className="w-full bg-slate-100 text-slate-900 font-black py-6 rounded-[24px] uppercase italic tracking-widest">Authorize Admin</button>
             </div>
-            <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest italic opacity-50">Admin Bypass: 999888</p>
           </div>
         )}
       </div>
 
-      {/* Footer Support Info */}
       <div className="absolute bottom-8 left-0 right-0 text-center opacity-40">
         <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em]">Nakonde Secure Protocol • v2.1.2</p>
       </div>
