@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { User, Booking, Role, SystemLog, CouncilOrder } from '../types';
 import { SUPER_ADMIN, LANGUAGES } from '../constants';
@@ -36,6 +35,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   const [view, setView] = useState<'stats' | 'registry' | 'council' | 'security'>('stats');
   const [newAdminPhone, setNewAdminPhone] = useState('');
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   
   const stats = useMemo(() => {
     // Total Commissions from Trades (PLATFORM_COMMISSION_RATE)
@@ -175,21 +175,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <h3 className="text-xl font-black italic tracking-tighter uppercase px-2">Node Registry</h3>
               <div className="space-y-3">
                  {allUsers.map(u => (
-                    <div key={u.id} className="bg-white/5 p-5 rounded-3xl border border-white/10 flex justify-between items-center">
-                       <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black italic shadow-lg border-2 ${u.role === Role.PROVIDER ? 'bg-blue-600 border-blue-400/20' : 'bg-slate-800 border-slate-700'}`}>
-                             {u.avatarUrl ? <img src={u.avatarUrl} className="w-full h-full object-cover rounded-[14px]" /> : u.name.charAt(0)}
-                          </div>
-                          <div>
-                             <p className="text-xs font-black uppercase italic tracking-tight">{u.name}</p>
-                             <div className="flex items-center gap-2 mt-1">
-                                <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded-full ${u.subscriptionExpiry && u.subscriptionExpiry > Date.now() ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
-                                  {u.role === Role.PROVIDER ? (u.subscriptionExpiry && u.subscriptionExpiry > Date.now() ? 'Subscribed' : 'Unpaid') : u.role}
-                                </span>
+                    <div key={u.id} className="bg-white/5 p-5 rounded-3xl border border-white/10 flex flex-col gap-4">
+                       <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-4">
+                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black italic shadow-lg border-2 ${u.role === Role.PROVIDER ? 'bg-blue-600 border-blue-400/20' : 'bg-slate-800 border-slate-700'}`}>
+                                {u.avatarUrl ? <img src={u.avatarUrl} className="w-full h-full object-cover rounded-[14px]" /> : u.name.charAt(0)}
+                             </div>
+                             <div>
+                                <p className="text-xs font-black uppercase italic tracking-tight">{u.name}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                   <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded-full ${u.subscriptionExpiry && u.subscriptionExpiry > Date.now() ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
+                                     {u.role === Role.PROVIDER ? (u.subscriptionExpiry && u.subscriptionExpiry > Date.now() ? 'Subscribed' : 'Unpaid') : u.role}
+                                   </span>
+                                   {u.role === Role.PROVIDER && u.kycSubmittedAt && !u.isVerified && (
+                                     <span className="text-[7px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 animate-pulse">Review Required</span>
+                                   )}
+                                </div>
                              </div>
                           </div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => setExpandedUserId(expandedUserId === u.id ? null : u.id)} 
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${expandedUserId === u.id ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-400 border border-white/10'}`}
+                            >
+                              <i className="fa-solid fa-eye text-[10px]"></i>
+                            </button>
+                            <button onClick={() => onToggleVerification(u.id)} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${u.isVerified ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-white/5 text-slate-500 border border-white/10'}`}>
+                              <i className="fa-solid fa-certificate text-[10px]"></i>
+                            </button>
+                          </div>
                        </div>
-                       <button onClick={() => onToggleVerification(u.id)} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${u.isVerified ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-white/5 text-slate-500 border border-white/10'}`}><i className="fa-solid fa-certificate"></i></button>
+                       
+                       {expandedUserId === u.id && (
+                         <div className="mt-2 pt-4 border-t border-white/5 space-y-4 animate-slide-up">
+                            <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-1">
+                                  <p className="text-[7px] font-black uppercase text-slate-500 tracking-widest italic">License / ID</p>
+                                  <p className="text-[11px] font-bold text-slate-200">{u.licenseNumber || 'Not Provided'}</p>
+                               </div>
+                               <div className="space-y-1">
+                                  <p className="text-[7px] font-black uppercase text-slate-500 tracking-widest italic">KYC Date</p>
+                                  <p className="text-[11px] font-bold text-slate-200">{u.kycSubmittedAt ? new Date(u.kycSubmittedAt).toLocaleDateString() : 'N/A'}</p>
+                               </div>
+                            </div>
+                            <div className="space-y-1">
+                               <p className="text-[7px] font-black uppercase text-slate-500 tracking-widest italic">Business Address</p>
+                               <p className="text-[11px] font-bold text-slate-200">{u.homeAddress || 'Not Provided'}</p>
+                            </div>
+                         </div>
+                       )}
                     </div>
                  ))}
               </div>
