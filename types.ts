@@ -25,6 +25,13 @@ export interface Location {
   address?: string;
 }
 
+export interface SavedNode {
+  id: string;
+  name: string;
+  icon: string;
+  loc: Location;
+}
+
 export interface ShoppingItem {
   id: string;
   name: string;
@@ -33,12 +40,16 @@ export interface ShoppingItem {
 
 export interface CouncilOrder {
   id: string;
-  bookingId: string;
+  bookingId: string; // Critical association link
   customerPhone: string;
   levyAmount: number;
   type: 'TRANSPORT_LEVY' | 'TRADE_PERMIT' | 'BORDER_CLEARANCE';
   status: 'ISSUED' | 'PAID' | 'VERIFIED';
   issuedAt: number;
+  metadata?: {
+    category: string;
+    description: string;
+  };
 }
 
 export interface SystemLog {
@@ -67,6 +78,7 @@ export interface User {
   isVerified: boolean;
   hospitalityCashflow?: number;
   avatarUrl?: string;
+  savedNodes?: SavedNode[];
   // Subscription Fields
   subscriptionExpiry?: number;
   // KYC Fields
@@ -103,7 +115,7 @@ export interface Booking {
   shopOwnerPhone?: string;
   roomNumber?: string;
   receiptId?: string;
-  councilOrderId?: string;
+  councilOrderId?: string; // Link to specific council order
   cancellationReason?: string;
   // Support for Booking for Others
   recipientName?: string;

@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { User, Booking, Location, BookingStatus, Role, CouncilOrder } from '../types';
+import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode } from '../types';
 import { CATEGORIES, Category, PAYMENT_NUMBERS } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
@@ -12,18 +11,10 @@ interface GroundingResult {
   uri: string;
 }
 
-interface SavedNode {
-  id: string;
-  name: string;
-  icon: string;
-  loc: Location;
-}
-
-const SAVED_NODES: SavedNode[] = [
+const STATIC_SAVED_NODES: SavedNode[] = [
   { id: 'border', name: 'Tunduma Border', icon: 'fa-solid fa-gate', loc: { lat: -9.3330, lng: 32.7600 } },
   { id: 'market', name: 'Nakonde Market', icon: 'fa-solid fa-shop', loc: { lat: -9.3250, lng: 32.7550 } },
   { id: 'station', name: 'Main Station', icon: 'fa-solid fa-bus-simple', loc: { lat: -9.3300, lng: 32.7580 } },
-  { id: 'total', name: 'Total Station', icon: 'fa-solid fa-gas-pump', loc: { lat: -9.3200, lng: 32.7500 } },
 ];
 
 interface CustomerDashboardProps {
@@ -46,10 +37,11 @@ interface CustomerDashboardProps {
   onToggleViewMode?: () => void;
   onSOS?: () => void;
   onDeposit?: (amount: number) => void;
+  onSaveNode?: (node: SavedNode) => void;
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, councilOrders, onAddBooking, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, t
+  user, logout, bookings, councilOrders, onAddBooking, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, t
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -68,6 +60,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings]);
 
+  const allSavedNodes = useMemo(() => {
+    return [...STATIC_SAVED_NODES, ...(user.savedNodes || [])];
+  }, [user.savedNodes]);
+
   const handleSearchNearby = async (query: string) => {
     setIsSearchingNearby(true);
     setNearbyResults([]);
@@ -78,8 +74,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         contents: `Find ${query} near Nakonde for a visitor.`,
         config: { tools: [{ googleSearch: {} }] },
       });
-      // Mock result as grounding extraction is handled by AI Persona rules elsewhere
-      setNearbyResults([{ title: `Top rated ${query} in Nakonde`, uri: 'https://maps.google.com' }]);
+      
+      const results: GroundingResult[] = [];
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (chunks) {
+        chunks.forEach((chunk: any) => {
+          if (chunk.web) {
+            results.push({ title: chunk.web.title, uri: chunk.web.uri });
+          }
+        });
+      }
+      setNearbyResults(results.length > 0 ? results : [{ title: `Top rated ${query} in Nakonde`, uri: 'https://maps.google.com' }]);
     } catch (err) {
       console.error(err);
     } finally {
@@ -115,94 +120,51 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       <AIAssistant />
 
-      {/* PROMINENT SOS TRIGGER */}
-      <div className="fixed top-[15%] left-6 z-[400] flex flex-col items-center gap-1 group">
+      <div className="fixed top-[12%] right-6 z-[400] flex flex-col items-center gap-1.5 group">
         <button 
           onClick={() => setShowSOSConfirm(true)}
-          className="w-16 h-16 bg-red-600 text-white rounded-[24px] shadow-[0_0_30px_rgba(220,38,38,0.4)] flex items-center justify-center border-4 border-white dark:border-slate-900 animate-pulse active:scale-95 transition-all"
+          className="w-16 h-16 bg-red-600 text-white rounded-[26px] shadow-[0_0_50px_rgba(220,38,38,0.6)] flex items-center justify-center border-4 border-white dark:border-slate-900 animate-pulse"
+          aria-label="Emergency SOS Alert"
         >
-          <i className="fa-solid fa-circle-exclamation text-2xl"></i>
+          <i className="fa-solid fa-circle-exclamation text-3xl"></i>
         </button>
-        <span className="text-[8px] font-black uppercase text-red-600 tracking-widest bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-red-600/20 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">Distress</span>
+        <span className="text-[7px] font-black uppercase text-red-600 tracking-[0.2em] bg-white/95 dark:bg-slate-900/95 px-3 py-1.5 rounded-full border border-red-600/30 shadow-2xl backdrop-blur-md">SOS Distress</span>
       </div>
 
-      {/* SOS CONFIRMATION MODAL */}
       {showSOSConfirm && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-red-950/95 backdrop-blur-2xl animate-fade-in">
-           <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[45px] p-10 text-center shadow-2xl border-t-[8px] border-red-600 animate-zoom-in">
-              <div className="w-24 h-24 bg-red-600/10 rounded-full flex items-center justify-center mx-auto mb-8">
-                <i className="fa-solid fa-tower-broadcast text-red-600 text-5xl animate-ping"></i>
-              </div>
-              <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white leading-none">Emergency SOS</h3>
-              <p className="text-[11px] font-bold text-slate-500 uppercase mt-4 mb-10 tracking-tight leading-relaxed">
-                You are about to broadcast your GPS coordinates to the <span className="text-red-600">Super Admin</span> and emergency corridor responders.
-              </p>
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-red-950/95 backdrop-blur-3xl animate-fade-in">
+           <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[45px] p-10 text-center shadow-2xl border-t-[10px] border-red-600 animate-zoom-in">
+              <i className="fa-solid fa-tower-broadcast text-red-600 text-5xl mb-6"></i>
+              <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white leading-none tracking-tighter">Emergency Signal</h3>
+              <p className="text-[11px] font-bold text-slate-500 uppercase mt-4 mb-10 tracking-tight leading-relaxed">Broadcast GPS to Super Admin Console?</p>
               <div className="space-y-4">
                 <button 
                   onClick={() => { onSOS?.(); setShowSOSConfirm(false); }} 
-                  className="w-full py-6 bg-red-600 text-white font-black rounded-[28px] text-[12px] uppercase italic tracking-[0.2em] shadow-xl shadow-red-600/20 active:scale-95 transition-all"
+                  className="w-full py-6 bg-red-600 text-white font-black rounded-[30px] text-[12px] uppercase italic tracking-[0.2em] shadow-2xl shadow-red-600/40"
                 >
-                  Confirm Distress Signal
+                  Transmit Now
                 </button>
-                <button 
-                  onClick={() => setShowSOSConfirm(false)} 
-                  className="w-full py-3 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  Cancel Protocol
-                </button>
+                <button onClick={() => setShowSOSConfirm(false)} className="w-full py-3 text-slate-400 font-black text-[10px] uppercase">Cancel</button>
               </div>
            </div>
         </div>
       )}
 
-      {/* Quick Wallet Deposit */}
       {showDepositModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-[340px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl animate-zoom-in">
-            <h3 className="text-xl font-black italic uppercase text-slate-900 dark:text-white">Corridor Credit</h3>
-            <p className="text-[10px] font-bold text-slate-500 uppercase mt-2 mb-6">Top up Escrow Wallet via MoMo</p>
+            <h3 className="text-xl font-black italic uppercase dark:text-white">Corridor Credit</h3>
+            <p className="text-[10px] font-bold text-slate-500 uppercase mt-2 mb-6">Top up via MoMo</p>
             <div className="grid grid-cols-2 gap-3 mb-8">
               {[50, 100, 200, 500].map(amt => (
-                <button 
-                  key={amt} 
-                  onClick={() => { onDeposit?.(amt); setShowDepositModal(false); }}
-                  className="py-4 rounded-2xl bg-emerald-600/10 text-emerald-600 font-black border border-emerald-600/20 hover:bg-emerald-600 hover:text-white transition-all text-xs"
-                >
-                  ZMW {amt}
-                </button>
+                <button key={amt} onClick={() => { onDeposit?.(amt); setShowDepositModal(false); }} className="py-4 rounded-2xl bg-emerald-600/10 text-emerald-600 font-black border border-emerald-600/20 text-xs hover:bg-emerald-600 hover:text-white transition-all">ZMW {amt}</button>
               ))}
             </div>
-            <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/10 space-y-1 text-[9px] font-bold text-slate-500">
-               <p className="flex justify-between uppercase"><span>MTN:</span> <span>{PAYMENT_NUMBERS.MTN}</span></p>
-               <p className="flex justify-between uppercase"><span>Airtel:</span> <span>{PAYMENT_NUMBERS.Airtel}</span></p>
-            </div>
-            <button onClick={() => setShowDepositModal(false)} className="w-full mt-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Dismiss</button>
+            <button onClick={() => setShowDepositModal(false)} className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest">Dismiss</button>
           </div>
         </div>
       )}
 
-      {/* Partner Upgrade KYC */}
-      {showKYCModal && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-blue-950/90 backdrop-blur-xl animate-fade-in">
-          <div className="w-full max-w-[380px] bg-white dark:bg-slate-900 rounded-[45px] p-8 border border-blue-500/30 animate-zoom-in">
-            <h3 className="text-2xl font-black italic uppercase dark:text-white mb-6">Provider Hub</h3>
-            <div className="space-y-6">
-               <div className="space-y-2">
-                 <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">License Number</label>
-                 <input value={kycLicense} onChange={e => setKycLicense(e.target.value)} placeholder="Enter Document ID" className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-600" />
-               </div>
-               <div className="space-y-2">
-                 <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">Business/Home Location</label>
-                 <textarea value={kycAddress} onChange={e => setKycAddress(e.target.value)} placeholder="Full Address in Nakonde" className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-xs font-black outline-none h-24" />
-               </div>
-               <button onClick={handleKYCSubmit} className="w-full bg-blue-700 text-white font-black py-5 rounded-[28px] text-[10px] uppercase italic tracking-widest shadow-xl">Activate Partner Node</button>
-               <button onClick={() => setShowKYCModal(false)} className="w-full text-[9px] font-black text-slate-400 uppercase">Back</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Mission Entry */}
       {selectedCategory && (
         <div className="fixed inset-0 z-[600] flex items-end sm:items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
            <div className="relative w-full max-w-[420px] bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl animate-zoom-in">
@@ -213,11 +175,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               <div className="space-y-6">
                 <div className="space-y-2">
                    <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic">Mission Protocol</label>
-                   <textarea 
-                    value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)}
-                    placeholder="Briefly describe your request..."
-                    className="w-full bg-slate-100 dark:bg-white/5 border dark:border-white/10 rounded-2xl p-5 text-sm font-medium h-32 outline-none focus:border-emerald-600"
-                   />
+                   <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Briefly describe your request..." className="w-full bg-slate-100 dark:bg-white/5 border dark:border-white/10 rounded-2xl p-5 text-sm h-32 outline-none" />
                 </div>
                 <button onClick={handleLaunchMission} className="w-full bg-emerald-600 text-white font-black py-5 rounded-[28px] text-[10px] uppercase italic tracking-widest shadow-2xl">Deploy Mission</button>
               </div>
@@ -225,9 +183,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         </div>
       )}
 
-      <header className="px-5 py-4 flex justify-between items-center glass-nav border-b dark:border-white/5 sticky top-0 z-[50] backdrop-blur-xl safe-pt">
+      <header className="px-5 py-4 flex justify-between items-center bg-white dark:bg-slate-900 border-b dark:border-white/5 sticky top-0 z-[50] backdrop-blur-xl safe-pt">
         <div className="flex items-center gap-3">
-          <div className="bg-emerald-700 w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center transform -rotate-6 border border-white/20">
+          <div className="bg-emerald-700 w-10 h-10 rounded-2xl flex items-center justify-center transform -rotate-6 shadow-xl">
             <i className="fas fa-link text-white text-base"></i>
           </div>
           <div className="flex flex-col">
@@ -239,13 +197,13 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
            <div className="text-right">
              <p className="text-[11px] font-black dark:text-white uppercase italic leading-none">ZMW {user.balance.toFixed(0)}</p>
              <button onClick={() => setShowDepositModal(true)} className="text-[7px] font-black text-emerald-600 uppercase mt-1 opacity-60 flex items-center gap-1 justify-end italic">
-                <i className="fa-solid fa-plus-circle"></i> Quick Topup
+                <i className="fa-solid fa-plus-circle"></i> Topup
              </button>
            </div>
            {user.role !== Role.CUSTOMER && (
-              <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20 active:rotate-180 transition-all duration-500"><i className="fa-solid fa-rotate"></i></button>
+              <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20"><i className="fa-solid fa-rotate"></i></button>
            )}
-           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"><i className="fa-solid fa-power-off text-xs"></i></button>
+           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400"><i className="fa-solid fa-power-off text-xs"></i></button>
         </div>
       </header>
 
@@ -255,17 +213,21 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
             <h1 className="text-3xl font-black text-secondary dark:text-white uppercase italic leading-tight tracking-tighter">
-                Welcome to Nakonde, <br/> 
-                <span className="text-emerald-600">{user.name.split(' ')[0]}!</span>
+                Nakonde Corridor <br/> 
+                <span className="text-emerald-600">Established.</span>
             </h1>
 
             <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl">
-               <Map center={mapCenter} markers={[{ loc: location, color: '#059669', label: 'My Node' }, { loc: mapCenter, color: '#1E40AF', label: 'Selected' }]} />
+               <Map 
+                center={mapCenter} 
+                onSaveNode={onSaveNode}
+                markers={[{ loc: location, color: '#059669', label: 'My Node' }, { loc: mapCenter, color: '#1E40AF', label: 'Selected' }]} 
+               />
                <div className="p-5 flex flex-col gap-4">
                   <div className="flex flex-col gap-3">
                     <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic px-1">Corridor Nodes</p>
                     <div className="flex overflow-x-auto gap-2 no-scrollbar pb-2">
-                      {SAVED_NODES.map(node => (
+                      {allSavedNodes.map(node => (
                         <button 
                           key={node.id} 
                           onClick={() => jumpToNode(node)}
@@ -278,20 +240,22 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleSearchNearby('lodges')} className="flex-1 py-4 rounded-2xl bg-blue-600/10 text-blue-500 text-[9px] font-black uppercase tracking-widest italic border border-blue-500/20 active:scale-95 transition-all">Nearby Lodges</button>
-                    <button onClick={() => handleSearchNearby('banks')} className="flex-1 py-4 rounded-2xl bg-emerald-600/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest italic border border-emerald-500/20 active:scale-95 transition-all">Banks & Forex</button>
+                    <button onClick={() => handleSearchNearby('lodges')} className="flex-1 py-4 rounded-2xl bg-blue-600/10 text-blue-500 text-[9px] font-black uppercase tracking-widest italic border border-blue-500/20">Nearby Lodges</button>
+                    <button onClick={() => handleSearchNearby('banks')} className="flex-1 py-4 rounded-2xl bg-emerald-600/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest italic border border-emerald-500/20">Banks & Forex</button>
                   </div>
                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pb-4">
               {CATEGORIES.map(cat => (
-                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] shadow-sm hover:border-emerald-600 transition-all text-left group">
-                  <div className="bg-emerald-50 dark:bg-emerald-500/10 w-14 h-14 rounded-2xl flex items-center justify-center text-emerald-700 dark:text-emerald-500 text-2xl group-hover:scale-110 transition-transform"><i className={cat.icon}></i></div>
-                  <div className="mt-4">
-                    <p className="text-[11px] font-black uppercase text-secondary dark:text-white italic leading-tight tracking-tight">{cat.name}</p>
-                    <p className="text-[7.5px] font-bold text-slate-400 uppercase tracking-widest mt-2">{cat.hint}</p>
-                  </div>
+                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] shadow-sm hover:border-emerald-500 transition-all group">
+                   <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                      <i className={`${cat.icon} text-xl`}></i>
+                   </div>
+                   <div className="text-left">
+                      <p className="text-[10px] font-black uppercase text-slate-400 mb-1 italic">{cat.name}</p>
+                      <p className="text-sm font-black text-secondary dark:text-white leading-tight italic uppercase tracking-tighter">ZMW {cat.basePrice}</p>
+                   </div>
                 </button>
               ))}
             </div>
@@ -300,62 +264,56 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic px-2">Corridor Missions</h3>
-            {activeBookings.length === 0 ? (
-              <div className="py-24 text-center opacity-30 flex flex-col items-center gap-6">
-                <i className="fa-solid fa-radar text-3xl animate-pulse"></i>
-                <p className="text-[10px] font-black uppercase italic tracking-widest">No Active Missions Found</p>
-              </div>
-            ) : (
-              activeBookings.map(b => (
-                <div key={b.id} className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-white/5 p-8 shadow-2xl overflow-hidden relative border-l-[6px] border-emerald-500">
-                   <div className="flex justify-between items-center mb-6">
-                      <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-500/10 px-4 py-1.5 rounded-full">{b.category}</span>
-                      <span className="text-[11px] font-black uppercase italic text-emerald-500 animate-pulse">{b.status}</span>
-                   </div>
-                   <p className="text-sm font-black text-slate-700 dark:text-slate-300 italic mb-6 leading-relaxed">"{b.description}"</p>
-                   <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-3xl border dark:border-white/5 shadow-inner">
-                      <div className="flex flex-col">
-                         <span className="text-[8px] font-black text-slate-400 uppercase italic">Escrow Lock</span>
-                         <span className="text-sm font-black dark:text-white">ZMW {b.price.toFixed(2)}</span>
+             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic ml-2">Active Protocol</h3>
+             {activeBookings.length === 0 && (
+               <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
+                  <i className="fa-solid fa-radar text-4xl animate-pulse"></i>
+                  <p className="text-[10px] font-black uppercase tracking-[0.4em]">No Active Missions</p>
+               </div>
+             )}
+             {activeBookings.map(b => (
+                <div key={b.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-xl">
+                   <div className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                         <div>
+                            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest italic">{b.category}</p>
+                            <h4 className="text-xl font-black text-secondary dark:text-white italic tracking-tighter">{b.id}</h4>
+                         </div>
+                         <span className="text-[8px] font-black bg-emerald-600/10 text-emerald-600 px-3 py-1 rounded-full uppercase italic tracking-widest">{b.status}</span>
                       </div>
-                      <i className="fa-solid fa-fingerprint text-emerald-600 text-xl opacity-50"></i>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">{b.description}</p>
                    </div>
                 </div>
-              ))
-            )}
+             ))}
           </div>
         )}
 
         {activeTab === 'account' && (
           <div className="animate-fade-in space-y-6">
-            <div className="bg-white dark:bg-slate-900 rounded-[45px] p-10 border dark:border-white/5 shadow-2xl text-center relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-emerald-600/10 to-transparent"></div>
-               <div className="w-28 h-28 mx-auto bg-emerald-700 rounded-full flex items-center justify-center text-white text-4xl font-black italic shadow-2xl mb-8 border-4 border-white dark:border-slate-800 overflow-hidden z-10 relative">
-                 {user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : user.name.charAt(0)}
-               </div>
-               <h2 className="text-3xl font-black text-secondary dark:text-white italic uppercase tracking-tighter leading-none">{user.name}</h2>
-               <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest italic mt-2">{user.phone}</p>
-               
-               {user.role === Role.CUSTOMER && (
-                 <div className="mt-12 p-8 bg-blue-600/10 rounded-[35px] border border-blue-600/20 text-left relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-600/5 rounded-full translate-x-10 -translate-y-10 group-hover:scale-150 transition-transform duration-700"></div>
-                    <h4 className="text-[12px] font-black text-blue-600 uppercase italic leading-none mb-3">Become a Partner</h4>
-                    <p className="text-[9.5px] font-bold text-slate-500 uppercase mb-6 leading-relaxed">Join the verified Swensi corridor network and earn from transport or clearing missions.</p>
-                    <button onClick={() => setShowKYCModal(true)} className="w-full bg-blue-700 text-white font-black py-4 rounded-2xl text-[9px] uppercase italic shadow-xl shadow-blue-600/20 active:scale-95 transition-all tracking-widest">Begin Upgrade</button>
-                 </div>
-               )}
-
-               <button onClick={logout} className="w-full text-red-500 font-black py-10 text-[9px] uppercase tracking-[0.4em] italic opacity-60 hover:opacity-100 transition-opacity">Deauthorize Terminal</button>
-            </div>
+             <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-slate-100 dark:border-white/5 shadow-xl text-center">
+                <div className="w-24 h-24 mx-auto bg-emerald-700 rounded-full flex items-center justify-center text-white text-3xl font-black italic shadow-2xl mb-6 overflow-hidden">
+                  {user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : user.name.charAt(0)}
+                </div>
+                <h2 className="text-2xl font-black text-secondary dark:text-white italic uppercase tracking-tighter leading-none">{user.name}</h2>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2 italic leading-none">{user.phone}</p>
+             </div>
           </div>
         )}
       </div>
 
-      <nav className="absolute bottom-6 left-8 right-8 h-20 glass-nav rounded-[35px] border border-white/20 flex justify-around items-center px-6 shadow-2xl z-50 backdrop-blur-2xl safe-pb">
-        <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center transition-all ${activeTab === 'home' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}><i className={`fa-solid ${activeTab === 'home' ? 'fa-house-chimney' : 'fa-house'} text-xl`}></i></button>
-        <button onClick={() => setActiveTab('active')} className={`flex-1 flex flex-col items-center transition-all ${activeTab === 'active' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}><i className="fa-solid fa-bolt-lightning text-xl"></i></button>
-        <button onClick={() => setActiveTab('account')} className={`flex-1 flex flex-col items-center transition-all ${activeTab === 'account' ? 'text-emerald-600 scale-110' : 'text-slate-400 opacity-60'}`}><i className="fa-solid fa-circle-user text-xl"></i></button>
+      <nav className="absolute bottom-6 left-6 right-6 h-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[32px] border border-white/10 flex justify-around items-center px-4 shadow-2xl z-50">
+        <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center ${activeTab === 'home' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}>
+          <i className="fa-solid fa-house text-lg"></i>
+          <span className="text-[8px] font-black uppercase mt-1.5 italic">Hub</span>
+        </button>
+        <button onClick={() => setActiveTab('active')} className={`flex-1 flex flex-col items-center ${activeTab === 'active' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}>
+          <i className="fa-solid fa-route text-lg"></i>
+          <span className="text-[8px] font-black uppercase mt-1.5 italic">Trips</span>
+        </button>
+        <button onClick={() => setActiveTab('account')} className={`flex-1 flex flex-col items-center ${activeTab === 'account' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}>
+          <i className="fa-solid fa-user text-lg"></i>
+          <span className="text-[8px] font-black uppercase mt-1.5 italic">Profile</span>
+        </button>
       </nav>
     </div>
   );

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Role, User, Booking, BookingStatus, Location, CouncilOrder } from './types';
+import { Role, User, Booking, BookingStatus, Location, CouncilOrder, SavedNode } from './types';
 import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS, CATEGORIES, PLATFORM_COMMISSION_RATE, SUBSCRIPTION_PLANS } from './constants';
 import Auth from './components/Auth';
 import CustomerDashboard from './components/CustomerDashboard';
@@ -41,7 +41,6 @@ const App: React.FC = () => {
   const [pendingPayment, setPendingPayment] = useState<{ amount: number; desc: string; onComplete: () => void } | null>(null);
   const [backendMessage, setBackendMessage] = useState<string>("Syncing with Nakonde Hub...");
 
-  // Sync with backend API (Branding request)
   useEffect(() => {
     fetch("https://swensi.onrender.com/api/hello")
       .then((res) => res.json())
@@ -94,10 +93,21 @@ const App: React.FC = () => {
     if (!user) return;
     const updatedUsers = allUsers.map(u => u.id === user.id ? { ...u, balance: u.balance + amount } : u);
     setAllUsers(updatedUsers);
-    setUser({ ...user, balance: user.balance + amount });
+    const updatedUser = { ...user, balance: user.balance + amount };
+    setUser(updatedUser);
     addNotification('DEPOSIT SUCCESS', `ZMW ${amount.toFixed(2)} added to Escrow.`, 'SUCCESS');
-    sendMockSMS(user.phone, `Swensi: ZMW ${amount.toFixed(2)} deposit confirmed. Balance: ZMW ${(user.balance + amount).toFixed(2)}.`);
+    sendMockSMS(user.phone, `Swensi: ZMW ${amount.toFixed(2)} deposit confirmed. Balance: ZMW ${updatedUser.balance.toFixed(2)}.`);
   }, [user, allUsers, addNotification, sendMockSMS]);
+
+  const handleSaveNode = useCallback((node: SavedNode) => {
+    if (!user) return;
+    const currentNodes = user.savedNodes || [];
+    const updatedNodes = [...currentNodes, node];
+    const updatedUser = { ...user, savedNodes: updatedNodes };
+    setUser(updatedUser);
+    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    addNotification('NODE SAVED', `${node.name} added to your corridor.`, 'SUCCESS');
+  }, [user, addNotification]);
 
   const handleLogin = (phone: string, lang: string) => {
     const existingUser = allUsers.find(u => u.phone === phone);
@@ -105,6 +115,12 @@ const App: React.FC = () => {
       setUser(existingUser);
       setLanguage(lang);
       localStorage.setItem('swensi-lang', lang);
+      // Auto-set view mode for management roles
+      if (existingUser.role !== Role.CUSTOMER) {
+        setViewMode('MANAGEMENT');
+      } else {
+        setViewMode('CUSTOMER');
+      }
       addNotification('ACCESS GRANTED', `Terminal linked to ${existingUser.name}`, 'SUCCESS');
     }
   };
@@ -114,33 +130,39 @@ const App: React.FC = () => {
       id: 'USR-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
       phone,
       name,
-      role: Role.CUSTOMER, // Always register as customer first
+      role: Role.CUSTOMER,
       isActive: true,
-      balance: 100, // Initial corridor credit
+      balance: 100, 
       memberSince: Date.now(),
       rating: 5.0,
       language: lang,
       trustScore: 90,
       isVerified: true,
       avatarUrl: avatar,
-      completedMissions: 0
+      completedMissions: 0,
+      savedNodes: []
     };
     
     setAllUsers(prev => [...prev, newUser]);
     setUser(newUser);
     setLanguage(lang);
+    setViewMode('CUSTOMER');
     localStorage.setItem('swensi-lang', lang);
     addNotification('NODE ESTABLISHED', `Welcome to the Hub, ${name}`, 'SUCCESS');
   };
 
   const upgradeToProvider = (kyc: { license: string, address: string, photo: string }) => {
     if (!user) return;
+    if (user.role === Role.ADMIN) {
+      alert("Admin accounts cannot hold Provider status.");
+      return;
+    }
     const updatedUser: User = {
       ...user,
       role: Role.PROVIDER,
       licenseNumber: kyc.license,
       homeAddress: kyc.address,
-      isVerified: false, // Pending admin approval
+      isVerified: false, 
       trustScore: 50,
       kycSubmittedAt: Date.now()
     };
@@ -180,12 +202,16 @@ const App: React.FC = () => {
 
         const newCouncilOrder: CouncilOrder = {
           id: councilOrderId,
-          bookingId: bookingId,
+          bookingId: bookingId, // Associated with the booking above
           customerPhone: user?.phone || '',
           levyAmount: price * 0.05,
           type: 'TRANSPORT_LEVY',
           status: 'ISSUED',
-          issuedAt: Date.now()
+          issuedAt: Date.now(),
+          metadata: {
+            category: newBooking.category,
+            description: newBooking.description
+          }
         };
 
         setBookings(prev => [newBooking, ...prev]);
@@ -195,7 +221,7 @@ const App: React.FC = () => {
         setUser(u => u ? { ...u, balance: newBalance } : null);
         setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance } : u));
         setPendingPayment(null);
-        addNotification('MISSION LOGGED', 'Escrow secured.', 'SUCCESS');
+        addNotification('MISSION LOGGED', 'Escrow secured and Council Levy issued.', 'SUCCESS');
       }
     });
   };
@@ -203,13 +229,14 @@ const App: React.FC = () => {
   const renderDashboard = () => {
     if (!user) return null;
 
+    // Both Admins and Providers can switch to CUSTOMER view to book services
     if (viewMode === 'CUSTOMER' || user.role === Role.CUSTOMER) {
       return (
         <CustomerDashboard 
           user={user} 
           logout={() => setUser(null)} 
           bookings={bookings.filter(b => b.customerId === user.id)} 
-          councilOrders={councilOrders} 
+          councilOrders={councilOrders.filter(co => co.customerPhone === user.phone)} 
           onAddBooking={addBooking} 
           location={currentLocation} 
           onConfirmCompletion={() => {}} 
@@ -228,6 +255,7 @@ const App: React.FC = () => {
           onToggleViewMode={() => setViewMode('MANAGEMENT')}
           onSOS={handleSOS}
           onDeposit={handleDeposit}
+          onSaveNode={handleSaveNode}
         />
       );
     }
