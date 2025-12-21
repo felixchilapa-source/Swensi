@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, BookingStatus, Location } from '../types';
 import Map from './Map';
@@ -108,9 +109,25 @@ const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings,
           <div className="space-y-4 animate-fade-in">
             <div className="bg-white dark:bg-slate-900 rounded-[35px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-lg">
                 <Map center={location} markers={[{ loc: location, color: '#7C3AED', label: 'Station' }]} />
-                <div className="p-4 flex gap-2">
-                    <button onClick={() => handleSearchNearby('restaurants')} className="flex-1 py-3 rounded-2xl bg-purple-600/10 text-purple-600 text-[9px] font-black uppercase tracking-widest italic border border-purple-600/20 active:scale-95 transition-all">Dining</button>
-                    <button onClick={() => handleSearchNearby('pharmacies')} className="flex-1 py-3 rounded-2xl bg-red-600/10 text-red-600 text-[9px] font-black uppercase tracking-widest italic border border-red-600/20 active:scale-95 transition-all">Pharmacy</button>
+                <div className="p-4 flex flex-col gap-4">
+                    <div className="flex gap-2">
+                        <button onClick={() => handleSearchNearby('restaurants')} className="flex-1 py-3 rounded-2xl bg-purple-600/10 text-purple-600 text-[9px] font-black uppercase tracking-widest italic border border-purple-600/20 active:scale-95 transition-all">Dining</button>
+                        <button onClick={() => handleSearchNearby('pharmacies')} className="flex-1 py-3 rounded-2xl bg-red-600/10 text-red-600 text-[9px] font-black uppercase tracking-widest italic border border-red-600/20 active:scale-95 transition-all">Pharmacy</button>
+                    </div>
+                    {/* Render grounding results as required by Google GenAI guidelines */}
+                    {nearbyResults.length > 0 && (
+                      <div className="mt-2 space-y-2 border-t border-slate-100 dark:border-white/5 pt-4">
+                        <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest px-1">Nearby Map Results</p>
+                        <div className="flex flex-wrap gap-2">
+                          {nearbyResults.map((res, i) => (
+                            <a key={i} href={res.uri} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black uppercase bg-purple-600/5 border border-purple-500/20 text-purple-700 dark:text-purple-400 px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-purple-600/10 transition-colors">
+                              <i className="fa-solid fa-arrow-up-right-from-square text-[7px]"></i> {res.title}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {isSearchingNearby && <p className="text-[8px] font-black uppercase text-purple-500 animate-pulse px-1">Querying Map Protocols...</p>}
                 </div>
             </div>
 

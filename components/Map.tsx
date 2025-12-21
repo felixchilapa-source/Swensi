@@ -4,7 +4,7 @@ import { Location, SavedNode } from '../types';
 
 interface MapProps {
   center: Location;
-  markers?: Array<{ loc: Location; color: string; label: string }>;
+  markers?: Array<{ loc: Location; color: string; label: string; isLive?: boolean }>;
   trackingHistory?: Location[];
   showRoute?: boolean;
   onSaveNode?: (node: SavedNode) => void;
@@ -14,6 +14,13 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedMarkerIdx, setSelectedMarkerIdx] = useState<number | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  // Simulation of Live movement
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 2000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -45,25 +52,38 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
         .y(d => yScale(d.lat))
         .curve(d3.curveBasis);
 
-      const proposedData: Location[] = [
+      const pathData: Location[] = [
         markers[0].loc,
         { lat: (markers[0].loc.lat + markers[1].loc.lat) / 2 + 0.003, lng: (markers[0].loc.lng + markers[1].loc.lng) / 2 - 0.003 },
         markers[1].loc
       ];
 
-      svg.append("path")
-        .datum(proposedData)
+      const path = svg.append("path")
+        .datum(pathData)
         .attr("fill", "none")
-        .attr("stroke", "#B87333")
+        .attr("stroke", "#3b82f6")
         .attr("stroke-width", 2)
-        .attr("stroke-dasharray", "8,5")
-        .attr("opacity", 0.5)
+        .attr("stroke-dasharray", "5,5")
+        .attr("opacity", 0.4)
         .attr("d", lineGenerator);
+
+      // Animate the dash offset for "flow" effect
+      path.append("animate")
+        .attr("attributeName", "stroke-dashoffset")
+        .attr("from", "100")
+        .attr("to", "0")
+        .attr("dur", "3s")
+        .attr("repeatCount", "indefinite");
     }
 
     // Interactive Markers
     markers.forEach((m, idx) => {
       const isSelected = selectedMarkerIdx === idx;
+      
+      // Jitter for live markers
+      const jitterLat = m.isLive ? Math.sin(tick * 0.5) * 0.0001 : 0;
+      const jitterLng = m.isLive ? Math.cos(tick * 0.5) * 0.0001 : 0;
+      
       const g = svg.append("g")
         .attr("class", "cursor-pointer")
         .on("click", (event) => {
@@ -72,17 +92,31 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
         });
       
       // Marker Glow
-      g.append("circle")
-        .attr("cx", xScale(m.loc.lng))
-        .attr("cy", yScale(m.loc.lat))
+      const glow = g.append("circle")
+        .attr("cx", xScale(m.loc.lng + jitterLng))
+        .attr("cy", yScale(m.loc.lat + jitterLat))
         .attr("r", isSelected ? 24 : 15)
         .attr("fill", m.color)
         .attr("opacity", isSelected ? 0.5 : 0.2);
 
+      if (m.isLive) {
+        glow.append("animate")
+          .attr("attributeName", "r")
+          .attr("values", "15;25;15")
+          .attr("dur", "2s")
+          .attr("repeatCount", "indefinite");
+        
+        glow.append("animate")
+          .attr("attributeName", "opacity")
+          .attr("values", "0.2;0.5;0.2")
+          .attr("dur", "2s")
+          .attr("repeatCount", "indefinite");
+      }
+
       // Core Marker
       g.append("circle")
-        .attr("cx", xScale(m.loc.lng))
-        .attr("cy", yScale(m.loc.lat))
+        .attr("cx", xScale(m.loc.lng + jitterLng))
+        .attr("cy", yScale(m.loc.lat + jitterLat))
         .attr("r", isSelected ? 10 : 7)
         .attr("fill", m.color)
         .attr("stroke", "#ffffff")
@@ -90,19 +124,19 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
 
       // Label
       g.append("text")
-        .attr("x", xScale(m.loc.lng))
-        .attr("y", yScale(m.loc.lat) - (isSelected ? 28 : 18))
+        .attr("x", xScale(m.loc.lng + jitterLng))
+        .attr("y", yScale(m.loc.lat + jitterLat) - (isSelected ? 28 : 18))
         .attr("text-anchor", "middle")
         .attr("font-size", isSelected ? "11px" : "8px")
         .attr("font-weight", "900")
         .attr("fill", "#ffffff")
         .attr("class", "uppercase italic")
-        .text(m.label);
+        .text(m.isLive ? `LIVE: ${m.label}` : m.label);
     });
 
     svg.on("click", () => setSelectedMarkerIdx(null));
 
-  }, [center, markers, trackingHistory, showRoute, selectedMarkerIdx]);
+  }, [center, markers, trackingHistory, showRoute, selectedMarkerIdx, tick]);
 
   const selectedMarker = selectedMarkerIdx !== null ? markers[selectedMarkerIdx] : null;
 

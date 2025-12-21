@@ -1,4 +1,3 @@
-
 export const COLORS = {
   PRIMARY: '#1E40AF',
   ACCENT: '#B87333',
@@ -11,7 +10,6 @@ export const COLORS = {
 };
 
 export const TRUSTED_COMMISSION_BONUS = 0.05;
-// Updated to 0.24% as requested
 export const PLATFORM_COMMISSION_RATE = 0.0024; 
 
 export interface Category {
@@ -27,7 +25,10 @@ export interface Category {
 
 export const CATEGORIES: Category[] = [
   { id: 'transport', name: 'Taxi & Bike', icon: 'fa-solid fa-car-side', requiresLicense: true, basePrice: 65, hint: "Fast movement in Nakonde" },
+  { id: 'trucking', name: 'Heavy Trucking', icon: 'fa-solid fa-truck-front', requiresLicense: true, basePrice: 1500, hint: "Cross-border cargo transport" },
   { id: 'customs', name: 'Customs Clearing', icon: 'fa-solid fa-file-contract', trustThreshold: 50, basePrice: 200, hint: "Help with border paperwork" },
+  { id: 'visa', name: 'Visa & Permits', icon: 'fa-solid fa-passport', basePrice: 150, hint: "Immigration & work permits" },
+  { id: 'forex', name: 'Bureau de Change', icon: 'fa-solid fa-money-bill-transfer', basePrice: 20, hint: "ZMW/TZS/USD exchange links" },
   { id: 'lodging', name: 'Lodges & Rooms', icon: 'fa-solid fa-bed', subscriptionFee: 250, basePrice: 350, hint: "Safe stays near the border" },
   { id: 'errands', name: 'Shopping/Errands', icon: 'fa-solid fa-cart-shopping', trustThreshold: 20, basePrice: 50, hint: "Get groceries or goods" },
   { id: 'trades', name: 'Skilled Workers', icon: 'fa-solid fa-wrench', basePrice: 150, hint: "Mechanics, plumbers, etc." },

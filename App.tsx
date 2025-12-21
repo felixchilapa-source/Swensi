@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Booking, BookingStatus, Location, CouncilOrder, SavedNode } from './types';
 import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS, CATEGORIES, PLATFORM_COMMISSION_RATE, SUBSCRIPTION_PLANS } from './constants';
@@ -55,7 +54,6 @@ const App: React.FC = () => {
     const now = Date.now();
     let hasChanges = false;
     const checkedUsers = allUsers.map(u => {
-      // If user was active more than 6 months ago and is currently active
       if (u.isActive && u.lastActive && (now - u.lastActive > SIX_MONTHS_MS)) {
         hasChanges = true;
         return { ...u, isActive: false };
@@ -67,7 +65,7 @@ const App: React.FC = () => {
       setAllUsers(checkedUsers);
       console.log("Swensi: Periodic maintenance complete. Inactive accounts suspended.");
     }
-  }, []); // Run once on startup
+  }, []); 
 
   useEffect(() => {
     localStorage.setItem('swensi-users-v3', JSON.stringify(allUsers));
@@ -134,50 +132,26 @@ const App: React.FC = () => {
     const existingUser = allUsers.find(u => u.phone === phone);
     if (existingUser) {
       if (!existingUser.isActive) {
-        addNotification('ACCESS DENIED', 'This terminal node has been suspended due to 6-month inactivity. Contact Admin.', 'ALERT');
+        addNotification('ACCESS DENIED', 'This terminal node has been suspended. Contact Admin.', 'ALERT');
         return;
       }
-      
       const updatedUser = { ...existingUser, lastActive: Date.now() };
       setUser(updatedUser);
       setAllUsers(prev => prev.map(u => u.id === existingUser.id ? updatedUser : u));
       setLanguage(lang);
       localStorage.setItem('swensi-lang', lang);
-      
-      if (updatedUser.role !== Role.CUSTOMER) {
-        setViewMode('MANAGEMENT');
-      } else {
-        setViewMode('CUSTOMER');
-      }
+      setViewMode(updatedUser.role !== Role.CUSTOMER ? 'MANAGEMENT' : 'CUSTOMER');
       addNotification('ACCESS GRANTED', `Terminal linked to ${updatedUser.name}`, 'SUCCESS');
     }
   };
 
   const handleRegister = (phone: string, name: string, avatar: string, lang: string) => {
-    // DEDUPLICATION CHECK
     const existingUser = allUsers.find(u => u.phone === phone);
-    if (existingUser) {
-      console.log("Swensi Hub: Duplicate phone detected. Routing to login flow.");
-      handleLogin(phone, lang);
-      return;
-    }
+    if (existingUser) { handleLogin(phone, lang); return; }
 
     const newUser: User = {
       id: 'USR-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
-      phone,
-      name,
-      role: Role.CUSTOMER,
-      isActive: true,
-      lastActive: Date.now(),
-      balance: 100, 
-      memberSince: Date.now(),
-      rating: 5.0,
-      language: lang,
-      trustScore: 90,
-      isVerified: true,
-      avatarUrl: avatar,
-      completedMissions: 0,
-      savedNodes: []
+      phone, name, role: Role.CUSTOMER, isActive: true, lastActive: Date.now(), balance: 100, memberSince: Date.now(), rating: 5.0, language: lang, trustScore: 90, isVerified: true, avatarUrl: avatar, completedMissions: 0, savedNodes: []
     };
     
     setAllUsers(prev => [...prev, newUser]);
@@ -190,19 +164,16 @@ const App: React.FC = () => {
 
   const upgradeToProvider = (kyc: { license: string, address: string, photo: string }) => {
     if (!user) return;
-    if (user.role === Role.ADMIN) {
-      alert("Admin accounts cannot hold Provider status.");
-      return;
-    }
-    const updatedUser: User = {
-      ...user,
-      role: Role.PROVIDER,
-      licenseNumber: kyc.license,
-      homeAddress: kyc.address,
+    const updatedUser: User = { 
+      ...user, 
+      role: Role.PROVIDER, 
+      licenseNumber: kyc.license, 
+      homeAddress: kyc.address, 
       isVerified: false, 
-      trustScore: 50,
-      kycSubmittedAt: Date.now(),
-      lastActive: Date.now()
+      trustScore: 50, 
+      kycSubmittedAt: Date.now(), 
+      lastActive: Date.now(),
+      avatarUrl: kyc.photo || user.avatarUrl
     };
     setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
     setUser(updatedUser);
@@ -246,10 +217,7 @@ const App: React.FC = () => {
           type: 'TRANSPORT_LEVY',
           status: 'ISSUED',
           issuedAt: Date.now(),
-          metadata: {
-            category: newBooking.category,
-            description: newBooking.description
-          }
+          metadata: { category: newBooking.category, description: newBooking.description }
         };
 
         setBookings(prev => [newBooking, ...prev]);
@@ -260,9 +228,18 @@ const App: React.FC = () => {
         setUser(updatedUser);
         setAllUsers(prev => prev.map(u => u.id === user?.id ? { ...u, balance: newBalance, lastActive: Date.now() } : u));
         setPendingPayment(null);
-        addNotification('MISSION LOGGED', 'Escrow secured and Council Levy issued.', 'SUCCESS');
+        addNotification('MISSION LOGGED', 'Escrow secured. Radar broadcasted to all providers.', 'SUCCESS');
+        
+        if (user?.role !== Role.PROVIDER) {
+          addNotification('NEW GIG RADAR', `A ${newBooking.category} mission is available.`, 'ALERT');
+        }
       }
     });
+  };
+
+  const handleUpdateStatus = (id: string, status: BookingStatus, providerId: string) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, status, providerId } : b));
+    addNotification('MISSION UPDATE', `Mission ${id} status: ${status}`, 'INFO');
   };
 
   const renderDashboard = () => {
@@ -303,10 +280,21 @@ const App: React.FC = () => {
       case Role.ADMIN:
         return (
           <AdminDashboard 
-            user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} councilOrders={councilOrders}
-            systemLogs={[]} onToggleBlock={() => {}} onDeleteUser={() => {}} 
+            user={user} 
+            logout={() => setUser(null)} 
+            bookings={bookings} 
+            allUsers={allUsers} 
+            councilOrders={councilOrders}
+            systemLogs={[]} 
+            onToggleBlock={(userId) => {
+              setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: !u.isActive, lastActive: Date.now() } : u));
+            }} 
+            onDeleteUser={(userId) => {
+              setAllUsers(prev => prev.filter(u => u.id !== userId));
+            }} 
             onToggleVerification={(userId) => {
               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: !u.isVerified, lastActive: Date.now() } : u));
+              addNotification('NODE AUTHORIZED', 'Service agent has been granted corridor access.', 'SUCCESS');
             }} 
             onUpdateUserRole={(userId, role) => {
               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role, lastActive: Date.now() } : u));
@@ -315,20 +303,46 @@ const App: React.FC = () => {
             onAddAdmin={(p) => setAdminNumbers(prev => [...prev, p])} 
             onRemoveAdmin={(p) => setAdminNumbers(prev => prev.filter(x => x !== p))} 
             onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-            isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={setLanguage} 
-            t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
+            isDarkMode={isDarkMode} 
+            onLanguageChange={setLanguage} 
+            sysDefaultLang={language} 
+            onUpdateSysDefaultLang={setLanguage} 
+            t={(k) => TRANSLATIONS[language]?.[k] || k} 
+            onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );
       case Role.PROVIDER:
         return (
           <ProviderDashboard 
-            user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} 
-            onUpdateStatus={() => {}} 
-            onConfirmCompletion={() => {}} 
+            user={user} 
+            logout={() => setUser(null)} 
+            bookings={bookings} 
+            allUsers={allUsers} 
+            onUpdateStatus={handleUpdateStatus} 
+            onConfirmCompletion={(id) => {
+              setBookings(prev => prev.map(b => b.id === id ? { ...b, status: BookingStatus.COMPLETED, isPaid: true } : b));
+              addNotification('MISSION COMPLETED', 'Protocol closed and funds released.', 'SUCCESS');
+            }} 
             onUpdateBooking={() => {}} 
-            onUpdateSubscription={() => {}} 
-            location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} 
-            onLanguageChange={setLanguage} onUpdateUser={() => {}} t={(k) => TRANSLATIONS[language]?.[k] || k} 
+            onUpdateSubscription={(plan) => {
+              const fee = plan === 'BASIC' ? SUBSCRIPTION_PLANS.BASIC : SUBSCRIPTION_PLANS.PREMIUM;
+              if (user.balance < fee) return alert("Insufficient balance for subscription.");
+              const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000);
+              const updated = { ...user, subscriptionExpiry: expiry, balance: user.balance - fee, isPremium: plan === 'PREMIUM' };
+              setUser(updated);
+              setAllUsers(prev => prev.map(u => u.id === user.id ? updated : u));
+              addNotification('SUBSCRIPTION ACTIVE', 'Your corridor access has been extended.', 'SUCCESS');
+            }} 
+            location={currentLocation} 
+            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+            isDarkMode={isDarkMode} 
+            onLanguageChange={setLanguage} 
+            onUpdateUser={(updates) => {
+              const updated = { ...user, ...updates, lastActive: Date.now() };
+              setUser(updated);
+              setAllUsers(prev => prev.map(u => u.id === user.id ? updated : u));
+            }} 
+            t={(k) => TRANSLATIONS[language]?.[k] || k} 
             onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );
@@ -353,16 +367,7 @@ const App: React.FC = () => {
       </div>
       
       {!user ? (
-        <Auth 
-          onLogin={handleLogin} 
-          onRegister={handleRegister} 
-          onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-          isDarkMode={isDarkMode} 
-          language={language} 
-          onLanguageChange={setLanguage} 
-          t={(k) => TRANSLATIONS[language]?.[k] || k} 
-          adminNumbers={adminNumbers} 
-          existingUsers={allUsers} 
+        <Auth onLogin={handleLogin} onRegister={handleRegister} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={(k) => TRANSLATIONS[language]?.[k] || k} adminNumbers={adminNumbers} existingUsers={allUsers} 
         />
       ) : renderDashboard()}
 
@@ -379,10 +384,6 @@ const App: React.FC = () => {
            </div>
         </div>
       )}
-      
-      <div className="fixed bottom-2 left-0 right-0 text-center pointer-events-none">
-        <span className="text-[7px] font-black text-slate-500 uppercase tracking-[0.4em] opacity-40">{backendMessage}</span>
-      </div>
     </div>
   );
 };
