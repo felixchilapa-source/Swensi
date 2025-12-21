@@ -42,6 +42,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [isHaggling, setIsHaggling] = useState(false);
   const [haggledPrice, setHaggledPrice] = useState<number>(0);
 
+  // Book for Other State
+  const [isForOther, setIsForOther] = useState(false);
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
+
   const [missionDesc, setMissionDesc] = useState('');
   const [mapCenter, setMapCenter] = useState<Location>(location);
   
@@ -97,13 +102,19 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       location: location,
       providerId: targetLodgeId,
       isShoppingOrder: selectedCategory.id === 'shop_for_me',
-      shoppingItems: finalItems
+      shoppingItems: finalItems,
+      recipientName: isForOther ? recipientName : undefined,
+      recipientPhone: isForOther ? recipientPhone : undefined
     });
     
+    // Reset states
     setSelectedCategory(null);
     setMissionDesc('');
     setShoppingItems([]);
     setIsHaggling(false);
+    setIsForOther(false);
+    setRecipientName('');
+    setRecipientPhone('');
     setActiveTab('active');
   };
 
@@ -165,21 +176,21 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         )}
 
         {selectedCategory && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl animate-fade-in">
-            <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-8 shadow-2xl animate-zoom-in overflow-hidden flex flex-col max-h-[85vh] space-y-6">
+          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-950/95 backdrop-blur-md animate-fade-in overflow-y-auto">
+            <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-8 shadow-2xl animate-zoom-in my-auto space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-2xl font-black italic uppercase leading-none">{selectedCategory.name}</h3>
-                <button onClick={() => { setSelectedCategory(null); setIsHaggling(false); }} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400"><i className="fa-solid fa-xmark"></i></button>
+                <button onClick={() => { setSelectedCategory(null); setIsHaggling(false); setIsForOther(false); }} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400"><i className="fa-solid fa-xmark"></i></button>
               </div>
 
               <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-[32px] space-y-4">
                  <div className="flex justify-between items-center">
-                    <p className="text-[10px] font-black text-slate-400 uppercase italic">Base Rate</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase italic">Standard Rate</p>
                     <p className="text-sm font-black italic">ZMW {selectedCategory.basePrice}</p>
                  </div>
                  
                  <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-white/5">
-                    <label className="text-[10px] font-black text-emerald-600 uppercase italic">Offer Lower Price?</label>
+                    <label className="text-[10px] font-black text-emerald-600 uppercase italic">Negotiate Price?</label>
                     <button 
                       onClick={() => setIsHaggling(!isHaggling)}
                       className={`w-12 h-6 rounded-full relative transition-all ${isHaggling ? 'bg-emerald-600' : 'bg-slate-300'}`}
@@ -195,17 +206,50 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         value={haggledPrice}
                         onChange={(e) => setHaggledPrice(Number(e.target.value))}
                         className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl text-xl font-black italic border-none outline-none text-emerald-600"
-                        placeholder="My Offer..."
+                        placeholder="Offer Amount"
                       />
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center">Lowest offers may be rejected by partners.</p>
+                   </div>
+                 )}
+
+                 <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-white/5">
+                    <label className="text-[10px] font-black text-blue-600 uppercase italic">Booking for someone else?</label>
+                    <button 
+                      onClick={() => setIsForOther(!isForOther)}
+                      className={`w-12 h-6 rounded-full relative transition-all ${isForOther ? 'bg-blue-600' : 'bg-slate-300'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isForOther ? 'right-1' : 'left-1'}`}></div>
+                    </button>
+                 </div>
+
+                 {isForOther && (
+                   <div className="pt-4 space-y-3 animate-slide-up">
+                      <div className="space-y-2">
+                         <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic ml-2">Recipient Name</label>
+                         <input 
+                           value={recipientName}
+                           onChange={(e) => setRecipientName(e.target.value)}
+                           className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl text-xs font-black italic border-none outline-none text-slate-900 dark:text-white"
+                           placeholder="e.g. Runner or Relative"
+                         />
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic ml-2">Recipient Phone</label>
+                         <input 
+                           type="tel"
+                           value={recipientPhone}
+                           onChange={(e) => setRecipientPhone(e.target.value)}
+                           className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl text-xs font-black italic border-none outline-none text-slate-900 dark:text-white"
+                           placeholder="09XXXXXXXX"
+                         />
+                      </div>
                    </div>
                  )}
               </div>
 
-              <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Mission Details..." className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[24px] p-5 text-sm font-black h-32 focus:ring-2 ring-emerald-600 outline-none" />
+              <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Specific Mission Notes..." className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[24px] p-5 text-sm font-black h-28 focus:ring-2 ring-emerald-600 outline-none" />
               
               <button onClick={() => handleLaunchMission()} className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest">
-                {isHaggling ? 'Launch with Offer' : 'Launch Protocol'}
+                Launch Mission Protocol
               </button>
             </div>
           </div>
@@ -213,7 +257,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in pb-10">
-             {activeBookings.length === 0 && <div className="py-20 text-center opacity-20 italic">No Missions in Progress</div>}
+             {activeBookings.length === 0 && <div className="py-20 text-center opacity-20 italic">No Active Corridor Ops</div>}
              {activeBookings.map(b => (
                 <div key={b.id} className={`bg-white dark:bg-slate-900 rounded-[40px] border overflow-hidden shadow-xl p-6 space-y-4 ${b.status === BookingStatus.NEGOTIATING ? 'border-amber-500/30' : 'border-slate-100 dark:border-white/5'}`}>
                    <div className="flex justify-between items-start">
@@ -225,7 +269,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       </div>
                       <div className="text-right">
                          <p className="text-lg font-black italic text-emerald-600">ZMW {b.negotiatedPrice || b.price}</p>
-                         {b.negotiatedPrice && <p className="text-[8px] font-bold text-slate-400 uppercase italic line-through">ZMW {b.price}</p>}
+                         {b.recipientName && <span className="text-[7px] font-black text-blue-500 uppercase tracking-widest block mt-1">Guest Mission</span>}
                       </div>
                    </div>
 
@@ -239,8 +283,15 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                      </div>
                    )}
 
+                   {b.recipientName && (
+                     <div className="p-3 bg-blue-600/5 border border-blue-600/10 rounded-2xl">
+                        <p className="text-[8px] font-black text-blue-500 uppercase italic mb-1 tracking-widest">Recipient Contact</p>
+                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{b.recipientName} • {b.recipientPhone}</p>
+                     </div>
+                   )}
+
                    <p className="text-[11px] text-slate-500 italic leading-relaxed">"{b.description}"</p>
-                   <button onClick={() => onCancelBooking(b.id)} className="w-full py-3 bg-red-600/5 text-red-600 border border-red-600/20 rounded-2xl text-[9px] font-black uppercase italic tracking-widest">Cancel Mission</button>
+                   <button onClick={() => onCancelBooking(b.id)} className="w-full py-3 bg-red-600/5 text-red-600 border border-red-600/20 rounded-2xl text-[9px] font-black uppercase italic tracking-widest">Abort Mission</button>
                 </div>
              ))}
           </div>

@@ -95,9 +95,16 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                       </div>
                       <div className="text-right">
                          <p className={`text-xl font-black italic ${isLeadHaggling ? 'text-amber-600' : 'text-emerald-600'}`}>ZMW {lead.negotiatedPrice || lead.price}</p>
-                         {isLeadHaggling && <p className="text-[8px] font-black text-slate-400 uppercase italic leading-none">Customer's Offer</p>}
+                         {lead.recipientName && <span className="text-[7px] font-black text-blue-500 uppercase tracking-widest italic leading-none block mt-1">Guest Order</span>}
                       </div>
                    </div>
+
+                   {lead.recipientName && (
+                     <div className="p-3 bg-blue-600/5 rounded-2xl border border-blue-600/10">
+                        <p className="text-[7px] font-black text-blue-500 uppercase tracking-widest italic mb-1">Target Contact</p>
+                        <p className="text-[11px] font-black text-slate-900 dark:text-white uppercase italic">{lead.recipientName} ({lead.recipientPhone})</p>
+                     </div>
+                   )}
 
                    <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 italic">"{lead.description}"</p>
 
@@ -121,7 +128,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                      </div>
                    ) : isLeadHaggling && !isMyTurn ? (
                      <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl text-center">
-                        <p className="text-[9px] font-black text-slate-400 uppercase italic animate-pulse">Waiting for Customer Response...</p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase italic animate-pulse">Waiting for Response...</p>
                      </div>
                    ) : (
                      <button onClick={() => onUpdateStatus(lead.id, BookingStatus.ACCEPTED, user.id)} className="w-full bg-blue-600 text-white font-black py-5 rounded-[24px] text-[10px] uppercase italic tracking-widest">Accept Mission</button>
@@ -136,12 +143,26 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
         {activeTab === 'active' && (
            <div className="space-y-6 animate-fade-in">
               {activeJobs.map(job => (
-                <div key={job.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-xl p-6">
-                   <div className="flex justify-between items-center mb-6">
+                <div key={job.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-xl p-6 space-y-4">
+                   <div className="flex justify-between items-center">
                       <h4 className="text-base font-black italic uppercase">{job.category} • {job.id}</h4>
                       <span className="text-[8px] font-black bg-blue-600/10 text-blue-600 px-3 py-1 rounded-full uppercase italic">{job.status}</span>
                    </div>
-                   <button onClick={() => onConfirmCompletion(job.id)} className="w-full bg-emerald-600 text-white font-black py-5 rounded-2xl text-[10px] uppercase italic">Finalize Mission</button>
+
+                   {job.recipientName && (
+                     <div className="p-4 bg-blue-600/5 rounded-3xl border border-blue-600/10 flex justify-between items-center">
+                        <div>
+                           <p className="text-[7px] font-black text-blue-500 uppercase italic mb-1 tracking-widest">Mission Recipient</p>
+                           <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{job.recipientName}</p>
+                           <p className="text-[9px] font-bold text-slate-500">{job.recipientPhone}</p>
+                        </div>
+                        <a href={`tel:${job.recipientPhone}`} className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
+                           <i className="fa-solid fa-phone-flip text-xs"></i>
+                        </a>
+                     </div>
+                   )}
+
+                   <button onClick={() => onConfirmCompletion(job.id)} className="w-full bg-emerald-600 text-white font-black py-5 rounded-2xl text-[10px] uppercase italic">Close Mission</button>
                 </div>
               ))}
               {activeJobs.length === 0 && <div className="py-20 text-center opacity-30 italic text-[10px] uppercase tracking-[0.4em]">No Live Ops</div>}
