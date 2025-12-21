@@ -9,6 +9,7 @@ export enum Role {
 
 export enum BookingStatus {
   PENDING = 'PENDING',
+  NEGOTIATING = 'NEGOTIATING',
   ACCEPTED = 'ACCEPTED',
   SO_TICKING = 'SO_TICKING',
   GOODS_IN_TRANSIT = 'GOODS_IN_TRANSIT',
@@ -80,6 +81,7 @@ export interface User {
   role: Role;
   name: string;
   isActive: boolean;
+  isOnline?: boolean;
   lastActive: number;
   location?: Location;
   balance: number; 
@@ -100,7 +102,12 @@ export interface User {
   onTimeRate?: number;
   completedMissions?: number;
   isPremium?: boolean;
-  availableRooms?: number; // Added for Hospitality inventory management
+  availableRooms?: number;
+  
+  // Smart Switch Settings
+  autoOnlineStartTime?: string; // HH:mm
+  autoOnlineEndTime?: string;   // HH:mm
+  onlineTriggerAmount?: number; // ZMW threshold to force online
 }
 
 export interface Booking {
@@ -132,4 +139,9 @@ export interface Booking {
   recipientPhone?: string;
   customerTrustSnapshot?: number;
   providerTrustSnapshot?: number;
+  
+  // Negotiation Fields
+  negotiatedPrice?: number;
+  lastOfferBy?: Role.CUSTOMER | Role.PROVIDER;
+  negotiationHistory?: Array<{ price: number, by: Role.CUSTOMER | Role.PROVIDER, timestamp: number }>;
 }
