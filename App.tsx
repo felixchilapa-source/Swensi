@@ -274,8 +274,14 @@ const App: React.FC = () => {
       case Role.ADMIN:
         return (
           <AdminDashboard 
-            user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} councilOrders={councilOrders}
-            systemLogs={[]} onToggleBlock={() => {}} onDeleteUser={() => {}} 
+            user={user} 
+            logout={() => setUser(null)} 
+            bookings={bookings} 
+            allUsers={allUsers} 
+            councilOrders={councilOrders}
+            systemLogs={[]} 
+            onToggleBlock={() => {}} 
+            onDeleteUser={() => {}} 
             onToggleVerification={(userId) => {
               setAllUsers(prev => prev.map(u => {
                 if (u.id === userId) {
@@ -286,9 +292,27 @@ const App: React.FC = () => {
                 return u;
               }));
             }} 
-            adminNumbers={adminNumbers} onAddAdmin={() => {}} onRemoveAdmin={() => {}} onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-            isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={() => {}} 
-            t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
+            onUpdateUserRole={(userId, role) => {
+               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
+            }}
+            adminNumbers={adminNumbers} 
+            onAddAdmin={(phone) => {
+              if (adminNumbers.includes(phone)) return;
+              setAdminNumbers(prev => [...prev, phone]);
+              addNotification('ADMIN ADDED', `Node ${phone} granted command access.`, 'SUCCESS');
+            }} 
+            onRemoveAdmin={(phone) => {
+              if (phone === SUPER_ADMIN) return alert("Super Admin cannot be removed.");
+              setAdminNumbers(prev => prev.filter(p => p !== phone));
+              addNotification('ADMIN REMOVED', `Node ${phone} revoked.`, 'WARNING');
+            }} 
+            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+            isDarkMode={isDarkMode} 
+            onLanguageChange={setLanguage} 
+            sysDefaultLang={language} 
+            onUpdateSysDefaultLang={(l) => setLanguage(l)} 
+            t={(k) => TRANSLATIONS[language]?.[k] || k} 
+            onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );
       case Role.PROVIDER:

@@ -32,18 +32,17 @@ interface NavItem {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-  user, logout, allUsers, bookings, councilOrders, onToggleVerification, adminNumbers, t, onToggleViewMode
+  user, logout, allUsers, bookings, councilOrders, onToggleVerification, adminNumbers, onAddAdmin, onRemoveAdmin, t, onToggleViewMode
 }) => {
   const [view, setView] = useState<'stats' | 'registry' | 'council' | 'security'>('stats');
+  const [newAdminPhone, setNewAdminPhone] = useState('');
   
   const stats = useMemo(() => {
-    // Total Commissions from Trades (10% slice)
+    // Total Commissions from Trades (PLATFORM_COMMISSION_RATE)
     const commissions = bookings.filter(b => b.isPaid).reduce((acc, b) => acc + b.commission, 0);
     
-    // Total Subscriptions (Calculated based on balance movements of Super Admin)
-    // For this mockup, we assume Super Admin balance = Starting + (Commissions + Subscriptions)
-    // We'll calculate it by looking at users who have subscription expiry dates
-    const subscriptions = allUsers.filter(u => u.role === Role.PROVIDER && u.subscriptionExpiry).length * 100;
+    // Total Subscriptions (ZMW 10 or 20 per provider)
+    const subscriptions = allUsers.filter(u => u.role === Role.PROVIDER && u.subscriptionExpiry).length * 10;
     
     const councilTreasury = councilOrders.reduce((acc, co) => acc + co.levyAmount, 0);
     
@@ -56,6 +55,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     { id: 'council', icon: 'fa-building-columns' },
     { id: 'security', icon: 'fa-shield-halved' }
   ];
+
+  const handleAddAdmin = () => {
+    if (newAdminPhone.length < 9) return alert("Enter valid phone");
+    onAddAdmin(newAdminPhone);
+    setNewAdminPhone('');
+  };
 
   return (
     <div className="flex flex-col h-full bg-slate-950 text-white no-scrollbar relative overflow-hidden">
@@ -107,6 +112,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
              </div>
           </div>
+        )}
+
+        {view === 'security' && (
+           <div className="space-y-6 animate-fade-in">
+              <div className="bg-white/5 p-6 rounded-[32px] border border-white/10">
+                 <h3 className="text-xs font-black uppercase tracking-widest mb-4 italic">Authorize New Admin</h3>
+                 <div className="flex gap-2">
+                    <input 
+                      type="tel" 
+                      value={newAdminPhone} 
+                      onChange={(e) => setNewAdminPhone(e.target.value)}
+                      placeholder="09XXXXXXXX"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 text-xs font-bold outline-none focus:border-red-500" 
+                    />
+                    <button onClick={handleAddAdmin} className="bg-red-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest">Add</button>
+                 </div>
+              </div>
+
+              <div className="space-y-3">
+                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic px-2">Authorized Command Nodes</p>
+                 {adminNumbers.map(admin => (
+                    <div key={admin} className="bg-white/5 p-4 rounded-2xl border border-white/5 flex justify-between items-center">
+                       <div className="flex items-center gap-3">
+                          <i className="fa-solid fa-fingerprint text-red-500"></i>
+                          <span className="text-[11px] font-black italic">{admin} {admin === SUPER_ADMIN && <span className="text-[7px] bg-red-600/20 text-red-500 px-2 rounded-full">SUPER</span>}</span>
+                       </div>
+                       {admin !== SUPER_ADMIN && (
+                          <button onClick={() => onRemoveAdmin(admin)} className="text-slate-500 hover:text-red-500 transition-colors"><i className="fa-solid fa-trash-can text-xs"></i></button>
+                       )}
+                    </div>
+                 ))}
+              </div>
+           </div>
         )}
 
         {view === 'council' && (
