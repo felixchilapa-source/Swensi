@@ -100,6 +100,7 @@ export interface User {
   onTimeRate?: number;
   completedMissions?: number;
   isPremium?: boolean;
+  availableRooms?: number; // Added for Hospitality inventory management
 }
 
 export interface Booking {

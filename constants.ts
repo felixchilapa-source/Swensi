@@ -1,3 +1,4 @@
+
 export const COLORS = {
   PRIMARY: '#1E40AF',
   ACCENT: '#B87333',
@@ -30,7 +31,8 @@ export const CATEGORIES: Category[] = [
   { id: 'visa', name: 'Visa & Permits', icon: 'fa-solid fa-passport', basePrice: 150, hint: "Immigration & work permits" },
   { id: 'forex', name: 'Bureau de Change', icon: 'fa-solid fa-money-bill-transfer', basePrice: 20, hint: "ZMW/TZS/USD exchange links" },
   { id: 'lodging', name: 'Lodges & Rooms', icon: 'fa-solid fa-bed', subscriptionFee: 250, basePrice: 350, hint: "Safe stays near the border" },
-  { id: 'errands', name: 'Shopping/Errands', icon: 'fa-solid fa-cart-shopping', trustThreshold: 20, basePrice: 50, hint: "Get groceries or goods" },
+  { id: 'shop_for_me', name: 'Shop For Me', icon: 'fa-solid fa-basket-shopping', trustThreshold: 80, basePrice: 100, hint: "Procurement by Trusted Agents" },
+  { id: 'errands', name: 'Small Errands', icon: 'fa-solid fa-cart-shopping', trustThreshold: 20, basePrice: 50, hint: "Basic delivery or pickups" },
   { id: 'trades', name: 'Skilled Workers', icon: 'fa-solid fa-wrench', basePrice: 150, hint: "Mechanics, plumbers, etc." },
 ];
 

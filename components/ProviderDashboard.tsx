@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, BookingStatus, Role, Location } from '../types';
-import { PAYMENT_NUMBERS, SUBSCRIPTION_PLANS, LANGUAGES } from '../constants';
+import { PAYMENT_NUMBERS, SUBSCRIPTION_PLANS, LANGUAGES, CATEGORIES } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 
@@ -37,8 +37,16 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
 
   const pendingLeads = useMemo(() => {
     if (!isOnline || !isAuthorized || !isSubscribed) return [];
-    return bookings.filter(b => b.status === BookingStatus.PENDING);
-  }, [bookings, isOnline, isAuthorized, isSubscribed]);
+    return bookings.filter(b => {
+      if (b.status !== BookingStatus.PENDING) return false;
+      
+      const category = CATEGORIES.find(c => c.id === b.category);
+      if (category && category.trustThreshold) {
+        return user.trustScore >= category.trustThreshold;
+      }
+      return true;
+    });
+  }, [bookings, isOnline, isAuthorized, isSubscribed, user.trustScore]);
 
   const activeJobs = useMemo(() => bookings.filter(b => b.providerId === user.id && b.status !== BookingStatus.COMPLETED), [bookings, user.id]);
 
@@ -50,7 +58,10 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
              <div className="bg-blue-600 w-11 h-11 rounded-[18px] shadow-lg flex items-center justify-center transform rotate-2">
                <i className="fas fa-satellite text-white text-lg"></i>
              </div>
-             <h2 className="text-xl font-bold italic tracking-tighter uppercase leading-none">Swensi</h2>
+             <div>
+               <h2 className="text-xl font-bold italic tracking-tighter uppercase leading-none">Swensi</h2>
+               <p className="text-[7px] font-black text-blue-500 uppercase tracking-widest mt-1">Trust Score: {user.trustScore}</p>
+             </div>
           </div>
           <div className="flex items-center gap-3">
              <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-emerald-600/10 text-emerald-500 flex items-center justify-center border border-emerald-600/20"><i className="fa-solid fa-rotate"></i></button>
@@ -75,7 +86,10 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
               <div key={lead.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-xl p-6">
                  <div className="flex justify-between items-start mb-6">
                     <div>
-                       <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest italic">{lead.category}</p>
+                       <div className="flex items-center gap-2">
+                          <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest italic">{lead.category}</p>
+                          {lead.isShoppingOrder && <span className="text-[7px] bg-amber-500/20 text-amber-600 px-2 py-0.5 rounded-full font-black uppercase">Trusted Ops</span>}
+                       </div>
                        <h4 className="text-lg font-black text-slate-900 dark:text-white italic tracking-tighter mt-1">{lead.id}</h4>
                     </div>
                     <p className="text-xl font-black text-emerald-600 italic">ZMW {lead.price}</p>
@@ -84,7 +98,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                  <button onClick={() => onUpdateStatus(lead.id, BookingStatus.ACCEPTED, user.id)} className="w-full bg-blue-600 text-white font-black py-5 rounded-[24px] text-[10px] uppercase italic tracking-widest">Accept Mission</button>
               </div>
             ))}
-            {isOnline && pendingLeads.length === 0 && <div className="py-20 text-center opacity-30 italic text-[10px] uppercase tracking-[0.3em]">No Gigs Nearby</div>}
+            {isOnline && pendingLeads.length === 0 && <div className="py-20 text-center opacity-30 italic text-[10px] uppercase tracking-[0.3em]">Scanning Gigs with Trust {user.trustScore}+</div>}
           </div>
         )}
 
@@ -96,6 +110,21 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                       <h4 className="text-base font-black italic text-slate-900 dark:text-white uppercase">{job.category} • {job.id}</h4>
                       <span className="text-[8px] font-black bg-blue-600/10 text-blue-600 px-3 py-1 rounded-full uppercase italic">{job.status}</span>
                    </div>
+                   
+                   {job.isShoppingOrder && job.shoppingItems && (
+                     <div className="mb-6 space-y-3">
+                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Shopping Checklist</p>
+                       <div className="bg-slate-50 dark:bg-white/5 rounded-3xl p-4 border border-slate-100 dark:border-white/10">
+                          {job.shoppingItems.map(item => (
+                            <div key={item.id} className="flex items-center gap-3 py-2 border-b last:border-none border-slate-200 dark:border-white/5">
+                               <i className="fa-solid fa-circle-check text-emerald-500"></i>
+                               <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{item.name}</span>
+                            </div>
+                          ))}
+                       </div>
+                     </div>
+                   )}
+
                    <div className="grid grid-cols-1 gap-2">
                       <button onClick={() => onConfirmCompletion(job.id)} className="w-full bg-emerald-600 text-white font-black py-5 rounded-2xl text-[10px] uppercase italic">Close Mission</button>
                    </div>

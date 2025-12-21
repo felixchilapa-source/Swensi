@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode, Feedback } from '../types';
+import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode, Feedback, ShoppingItem } from '../types';
 import { CATEGORIES, Category, PAYMENT_NUMBERS, LANGUAGES } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
@@ -11,6 +11,7 @@ interface CustomerDashboardProps {
   logout: () => void;
   bookings: Booking[];
   councilOrders: CouncilOrder[];
+  allUsers?: User[]; 
   onAddBooking: (data: Partial<Booking>) => void;
   location: Location;
   onSendFeedback: (f: Partial<Feedback>) => void;
@@ -27,7 +28,7 @@ interface CustomerDashboardProps {
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, onAddBooking, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange 
+  user, logout, bookings, allUsers = [], onAddBooking, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange 
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -36,22 +37,49 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [comment, setComment] = useState('');
   const [missionDesc, setMissionDesc] = useState('');
   const [mapCenter, setMapCenter] = useState<Location>(location);
-  const [destinationNode, setDestinationNode] = useState<SavedNode | null>(null);
+  
+  // Shopping list builder
+  const [shoppingItems, setShoppingItems] = useState<string[]>([]);
+  const [newItem, setNewItem] = useState('');
+
+  const availableLodges = useMemo(() => 
+    allUsers.filter(u => u.role === Role.LODGE && (u.availableRooms || 0) > 0),
+  [allUsers]);
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings]);
 
-  const handleLaunchMission = () => {
-    if (!selectedCategory) return;
-    onAddBooking({ category: selectedCategory.id, description: missionDesc, price: selectedCategory.basePrice, location: location, destination: destinationNode?.loc });
-    setSelectedCategory(null);
-    setMissionDesc('');
-    setActiveTab('active');
+  const handleAddItem = () => {
+    if (newItem.trim()) {
+      setShoppingItems([...shoppingItems, newItem.trim()]);
+      setNewItem('');
+    }
   };
 
-  const handleFeedbackSubmit = () => {
-    onSendFeedback({ rating, comment });
-    setShowFeedbackModal(false);
-    setComment('');
+  const handleLaunchMission = (targetLodgeId?: string) => {
+    if (!selectedCategory) return;
+    
+    let finalDesc = missionDesc;
+    let finalItems: ShoppingItem[] = [];
+
+    if (selectedCategory.id === 'shop_for_me') {
+      finalDesc = `Shopping Mission: ${shoppingItems.join(', ')}. ${missionDesc}`;
+      finalItems = shoppingItems.map(name => ({ id: Math.random().toString(36).substr(2, 5), name, isAvailable: true }));
+    }
+
+    onAddBooking({ 
+      category: selectedCategory.id, 
+      description: finalDesc, 
+      price: selectedCategory.basePrice, 
+      location: location,
+      providerId: targetLodgeId,
+      isShoppingOrder: selectedCategory.id === 'shop_for_me',
+      shoppingItems: finalItems
+    });
+    
+    setSelectedCategory(null);
+    setMissionDesc('');
+    setShoppingItems([]);
+    setActiveTab('active');
   };
 
   return (
@@ -82,7 +110,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       <div className="flex-1 overflow-y-auto pb-32 px-5 pt-6 space-y-10 no-scrollbar">
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
-            <h1 className="text-3xl font-black text-secondary dark:text-white uppercase italic tracking-tighter">Nakonde Hub</h1>
+            <div className="flex justify-between items-end">
+              <h1 className="text-3xl font-black text-secondary dark:text-white uppercase italic tracking-tighter">Nakonde Hub</h1>
+              <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest italic animate-pulse">Live Signal</span>
+            </div>
 
             <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl">
                <Map center={mapCenter} onSaveNode={onSaveNode} markers={[{ loc: location, color: '#059669', label: 'My Node' }]} />
@@ -90,7 +121,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
             <div className="grid grid-cols-2 gap-4 pb-4">
               {CATEGORIES.map(cat => (
-                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] shadow-sm group">
+                <button key={cat.id} onClick={() => setSelectedCategory(cat)} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] shadow-sm group hover:border-emerald-500/50 transition-all">
                    <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">
                       <i className={`${cat.icon} text-xl`}></i>
                    </div>
@@ -104,37 +135,81 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           </div>
         )}
 
-        {/* Feedback Modal */}
-        {showFeedbackModal && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
-            <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-10 shadow-2xl animate-zoom-in">
-              <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white mb-6">Service Buzz</h3>
-              <div className="flex gap-2 justify-center mb-8">
-                 {[1,2,3,4,5].map(s => (
-                   <button key={s} onClick={() => setRating(s)} className={`w-10 h-10 rounded-full flex items-center justify-center text-xl transition-all ${rating >= s ? 'text-amber-500 bg-amber-500/10' : 'text-slate-300'}`}>
-                     <i className="fa-solid fa-star"></i>
-                   </button>
-                 ))}
-              </div>
-              <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Tell us how we did..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white outline-none focus:border-emerald-600 h-32 mb-6" />
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => setShowFeedbackModal(false)} className="py-5 text-slate-400 font-black text-[10px] uppercase italic">Close</button>
-                <button onClick={handleFeedbackSubmit} className="py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase italic shadow-2xl">Broadcast</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Mission Launcher Modal */}
         {selectedCategory && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-xl">
-            <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-10 animate-zoom-in">
-              <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white mb-2">{selectedCategory.name}</h3>
-              <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Instructions..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white h-32 mt-4" />
-              <div className="grid grid-cols-2 gap-3 pt-4">
-                <button onClick={() => setSelectedCategory(null)} className="py-5 text-slate-400 font-black text-[10px] uppercase italic">Abort</button>
-                <button onClick={handleLaunchMission} className="py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic">Launch Mission</button>
+          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl animate-fade-in">
+            <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-8 shadow-2xl animate-zoom-in overflow-hidden flex flex-col max-h-[85vh]">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white leading-none">{selectedCategory.name}</h3>
+                  <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest mt-2">{selectedCategory.hint}</p>
+                </div>
+                <button onClick={() => setSelectedCategory(null)} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400"><i className="fa-solid fa-xmark"></i></button>
               </div>
+
+              {selectedCategory.id === 'shop_for_me' && (
+                <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar mb-6">
+                   <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-3xl border border-slate-100 dark:border-white/10">
+                      <p className="text-[10px] font-black text-slate-500 uppercase italic mb-3">Shopping List Builder</p>
+                      <div className="flex gap-2 mb-4">
+                        <input 
+                          value={newItem} 
+                          onChange={(e) => setNewItem(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAddItem()}
+                          placeholder="Add item..." 
+                          className="flex-1 bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-3 text-xs outline-none" 
+                        />
+                        <button onClick={handleAddItem} className="w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center"><i className="fa-solid fa-plus"></i></button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {shoppingItems.map((item, idx) => (
+                          <div key={idx} className="bg-emerald-600/10 text-emerald-600 border border-emerald-600/20 px-3 py-1.5 rounded-full text-[10px] font-black flex items-center gap-2">
+                            {item}
+                            <button onClick={() => setShoppingItems(shoppingItems.filter((_, i) => i !== idx))}><i className="fa-solid fa-xmark"></i></button>
+                          </div>
+                        ))}
+                      </div>
+                   </div>
+                   <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Specific instructions for the trusted agent..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white h-24 focus:border-emerald-600 outline-none" />
+                   <button 
+                    disabled={shoppingItems.length === 0}
+                    onClick={() => handleLaunchMission()} 
+                    className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest disabled:opacity-40"
+                   >
+                     Launch Trusted Mission
+                   </button>
+                </div>
+              )}
+
+              {selectedCategory.id === 'lodging' && (
+                <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar mb-6">
+                  <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest italic ml-2 mb-4">Available Vacancies</p>
+                  {availableLodges.map(lodge => (
+                      <button 
+                        key={lodge.id} 
+                        onClick={() => handleLaunchMission(lodge.id)}
+                        className="w-full bg-slate-50 dark:bg-white/5 p-5 rounded-[28px] border border-slate-100 dark:border-white/5 flex items-center justify-between group active:scale-95 transition-all"
+                      >
+                         <div className="flex items-center gap-4">
+                           <div className="w-12 h-12 rounded-2xl bg-purple-600/10 text-purple-600 flex items-center justify-center text-xl">
+                             <i className="fa-solid fa-bed"></i>
+                           </div>
+                           <div className="text-left">
+                             <p className="text-xs font-black uppercase text-slate-900 dark:text-white italic leading-none">{lodge.name}</p>
+                             <p className="text-[8px] font-black uppercase text-purple-600 mt-2 tracking-widest">{lodge.availableRooms} Rooms Open</p>
+                           </div>
+                         </div>
+                         <i className="fa-solid fa-chevron-right text-slate-300 group-hover:text-purple-600"></i>
+                      </button>
+                  ))}
+                </div>
+              )}
+
+              {selectedCategory.id !== 'shop_for_me' && selectedCategory.id !== 'lodging' && (
+                <div className="space-y-6">
+                  <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Mission Directives..." className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[24px] p-5 text-sm font-black text-slate-900 dark:text-white h-32 focus:border-emerald-600 outline-none" />
+                  <button onClick={() => handleLaunchMission()} className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest">Launch Protocol</button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -149,6 +224,15 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       <span className="text-[8px] font-black bg-emerald-600/10 text-emerald-600 px-3 py-1 rounded-full uppercase italic">{b.status}</span>
                    </div>
                    <p className="text-[11px] text-slate-500 dark:text-slate-400 italic leading-relaxed">{b.description}</p>
+                   {b.isShoppingOrder && b.shoppingItems && (
+                     <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex flex-wrap gap-2">
+                       {b.shoppingItems.map(item => (
+                         <span key={item.id} className="bg-slate-100 dark:bg-white/5 text-slate-500 text-[9px] px-3 py-1 rounded-full font-bold">
+                           <i className="fa-solid fa-check mr-2 opacity-30"></i>{item.name}
+                         </span>
+                       ))}
+                     </div>
+                   )}
                 </div>
              ))}
           </div>

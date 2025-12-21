@@ -219,6 +219,7 @@ const App: React.FC = () => {
           logout={() => setUser(null)} 
           bookings={bookings.filter(b => b.customerId === user.id)} 
           councilOrders={councilOrders.filter(co => co.customerPhone === user.phone)} 
+          allUsers={allUsers} // Added for discovery
           onAddBooking={addBooking} 
           location={currentLocation} 
           onSendFeedback={handleSendFeedback}
@@ -273,6 +274,26 @@ const App: React.FC = () => {
             t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
           />
         );
+      case Role.LODGE: // Added specific route for Lodge Dashboard
+        return (
+          <LodgeDashboard 
+            user={user} 
+            logout={() => setUser(null)} 
+            bookings={bookings.filter(b => b.providerId === user.id || b.lodgeId === user.id)} 
+            onUpdateBooking={(id, updates) => {
+              setBookings(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+            }}
+            onUpdateUser={(updates) => {
+              const updated = { ...user, ...updates, lastActive: Date.now() };
+              setUser(updated);
+              setAllUsers(prev => prev.map(u => u.id === user.id ? updated : u));
+            }}
+            onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
+            isDarkMode={isDarkMode} 
+            onLanguageChange={setLanguage} 
+            t={(k) => TRANSLATIONS[language]?.[k] || k} 
+          />
+        );
       case Role.PROVIDER:
         return (
           <ProviderDashboard 
@@ -297,6 +318,7 @@ const App: React.FC = () => {
 
   return (
     <div className={`app-container ${isDarkMode ? 'dark' : ''} safe-pb`}>
+      {/* Notifications and Overlays */}
       <div className="fixed top-6 left-6 right-6 z-[2000] pointer-events-none flex flex-col gap-3">
          {notifications.map(n => (
            <div key={n.id} className={`p-4 rounded-[24px] shadow-2xl backdrop-blur-xl border border-white/10 ${n.type === 'SMS' ? 'bg-blue-600/90' : (n.type === 'ALERT' ? 'bg-red-600/95' : 'bg-slate-900/95')} text-white animate-slide-up pointer-events-auto`}>
