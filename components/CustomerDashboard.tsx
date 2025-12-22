@@ -1,10 +1,11 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode, Feedback, ShoppingItem } from '../types';
-import { CATEGORIES, Category, PAYMENT_NUMBERS, LANGUAGES, COLORS } from '../constants';
+import { CATEGORIES, Category, PAYMENT_NUMBERS, LANGUAGES, COLORS, TRANSPORT_RATE_PER_KM } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 import AIAssistant from './AIAssistant';
+import TradeFeed from './TradeFeed';
 
 interface CustomerDashboardProps {
   user: User;
@@ -41,10 +42,16 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [kycLicense, setKycLicense] = useState('');
   const [kycAddress, setKycAddress] = useState('');
   const [kycCategory, setKycCategory] = useState<string>(CATEGORIES[0].id);
+  const [kycLicenseFile, setKycLicenseFile] = useState('');
+  const [kycPhotoFile, setKycPhotoFile] = useState('');
   
   const [isHaggling, setIsHaggling] = useState(false);
   const [haggledPrice, setHaggledPrice] = useState<number>(0);
   const [counterInputs, setCounterInputs] = useState<{[key:string]: number}>({});
+
+  // Transport Specifics
+  const [tripDistance, setTripDistance] = useState<number>(0);
+  const [tripDestination, setTripDestination] = useState('');
 
   const [isForOther, setIsForOther] = useState(false);
   const [recipientName, setRecipientName] = useState('');
@@ -94,23 +101,53 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     return { mapMarkers: markers, mapMissions: missions };
   }, [allUsers, activeBookings, location, user.id]);
 
+  useEffect(() => {
+    if (selectedCategory?.pricingModel === 'DISTANCE') {
+      const price = selectedCategory.basePrice + (tripDistance * TRANSPORT_RATE_PER_KM);
+      setHaggledPrice(price);
+    }
+  }, [tripDistance, selectedCategory]);
+
   const handleLaunchMission = () => {
     if (!selectedCategory) return;
     
     let finalDesc = missionDesc;
     let finalItems: ShoppingItem[] = [];
+    let initialPrice = selectedCategory.basePrice;
+    let isNegotiated = false;
 
     if (selectedCategory.id === 'shop_for_me') {
       finalDesc = `Shopping Mission: ${shoppingItems.join(', ')}. ${missionDesc}`;
       finalItems = shoppingItems.map(name => ({ id: Math.random().toString(36).substr(2, 5), name, isAvailable: true }));
     }
 
+    if (selectedCategory.pricingModel === 'DISTANCE') {
+      if (tripDistance <= 0 || !tripDestination) {
+        alert('Please enter a valid distance and destination');
+        return;
+      }
+      initialPrice = selectedCategory.basePrice + (tripDistance * TRANSPORT_RATE_PER_KM);
+      finalDesc = `Trip to ${tripDestination} (${tripDistance}km). ${missionDesc}`;
+    }
+
+    if (selectedCategory.pricingModel === 'QUOTE') {
+      initialPrice = 0;
+      isNegotiated = true; // Force negotiation mode for quotes
+      if (!missionDesc.trim()) {
+        alert('Please describe your request so providers can send a quote.');
+        return;
+      }
+    } else {
+      isNegotiated = isHaggling;
+    }
+
     onAddBooking({ 
       category: selectedCategory.id, 
       description: finalDesc, 
-      price: selectedCategory.basePrice, 
-      negotiatedPrice: isHaggling ? haggledPrice : undefined,
+      price: initialPrice, 
+      negotiatedPrice: isNegotiated ? (selectedCategory.pricingModel === 'QUOTE' ? 0 : haggledPrice || initialPrice) : undefined,
       location: location,
+      destination: selectedCategory.pricingModel === 'DISTANCE' ? { lat: location.lat + 0.01, lng: location.lng + 0.01, address: tripDestination } : undefined,
       isShoppingOrder: selectedCategory.id === 'shop_for_me',
       shoppingItems: finalItems,
       recipientName: isForOther ? recipientName : undefined,
@@ -121,18 +158,37 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     setMissionDesc('');
     setShoppingItems([]);
     setIsHaggling(false);
+    setTripDistance(0);
+    setTripDestination('');
     setIsForOther(false);
     setRecipientName('');
     setRecipientPhone('');
     setActiveTab('active');
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (s: string) => void) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const reader = new FileReader();
+          reader.onloadend = () => setter(reader.result as string);
+          reader.readAsDataURL(file);
+      }
+  };
+
   const handleSubmitKyc = () => {
-    if (!kycLicense || !kycAddress) return alert('License and Address are mandatory for Partner status.');
+    const isTransport = ['transport', 'trucking'].includes(kycCategory);
+
+    if (!kycLicense || !kycAddress) return alert('License/ID Number and Address are mandatory.');
+
+    if (isTransport) {
+        if (!kycLicenseFile) return alert('For transport services, you must attach a photo of your Driving License.');
+        if (!kycPhotoFile && !user.avatarUrl) return alert('A profile picture is mandatory for transport providers.');
+    }
+
     onBecomeProvider({ 
       license: kycLicense, 
       address: kycAddress, 
-      photo: user.avatarUrl || '',
+      photo: kycPhotoFile || user.avatarUrl || '', 
       categories: [kycCategory] 
     });
     setShowKycForm(false);
@@ -223,6 +279,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                </div>
             </div>
 
+            {/* Trade News Feed */}
+            <TradeFeed />
+
             {/* Serving Banner */}
             <div className="bg-emerald-500 rounded-[24px] p-5 flex items-center gap-4 text-white shadow-xl shadow-emerald-500/20">
                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
@@ -266,30 +325,85 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-8 shadow-2xl animate-zoom-in my-auto space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-2xl font-black italic uppercase leading-none">{selectedCategory.name}</h3>
-                <button onClick={() => { setSelectedCategory(null); setIsHaggling(false); setIsForOther(false); }} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400"><i className="fa-solid fa-xmark"></i></button>
+                <button onClick={() => { setSelectedCategory(null); setIsHaggling(false); setIsForOther(false); setTripDistance(0); setTripDestination(''); }} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400"><i className="fa-solid fa-xmark"></i></button>
               </div>
 
               <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-[32px] space-y-4">
-                 <div className="flex justify-between items-center">
-                    <p className="text-[10px] font-black text-slate-400 uppercase italic">Standard Rate</p>
-                    <p className="text-sm font-black italic">ZMW {selectedCategory.basePrice}</p>
-                 </div>
                  
-                 <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-white/5">
-                    <label className="text-[10px] font-black text-emerald-600 uppercase italic">Negotiate Price?</label>
-                    <button onClick={() => setIsHaggling(!isHaggling)} className={`w-12 h-6 rounded-full relative transition-all ${isHaggling ? 'bg-emerald-600' : 'bg-slate-300'}`}>
-                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isHaggling ? 'right-1' : 'left-1'}`}></div>
-                    </button>
-                 </div>
-
-                 {isHaggling && (
-                   <div className="pt-4 space-y-3 animate-slide-up">
-                      <input type="number" value={haggledPrice} onChange={(e) => setHaggledPrice(Number(e.target.value))} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl text-xl font-black italic border-none outline-none text-emerald-600" placeholder="Offer Amount" />
+                 {/* PRICING DISPLAY LOGIC */}
+                 {selectedCategory.pricingModel === 'QUOTE' ? (
+                   <div className="text-center py-2">
+                      <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                         <i className="fa-solid fa-file-invoice-dollar text-xl"></i>
+                      </div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase italic">On-Demand Pricing</p>
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mt-1">Providers will send you a quote based on your description.</p>
                    </div>
+                 ) : (
+                   <>
+                      <div className="flex justify-between items-center">
+                          <p className="text-[10px] font-black text-slate-400 uppercase italic">
+                             {selectedCategory.pricingModel === 'DISTANCE' ? 'Estimated Total' : 'Standard Rate'}
+                          </p>
+                          <p className="text-sm font-black italic">ZMW {selectedCategory.pricingModel === 'DISTANCE' ? haggledPrice.toFixed(0) : selectedCategory.basePrice}</p>
+                      </div>
+
+                      {selectedCategory.pricingModel === 'DISTANCE' && (
+                        <div className="space-y-3 pt-2">
+                           <div>
+                              <label className="text-[9px] font-black text-slate-400 uppercase italic">Destination</label>
+                              <input 
+                                value={tripDestination} 
+                                onChange={e => setTripDestination(e.target.value)} 
+                                placeholder="e.g. Mwenzo or Tunduma Border"
+                                className="w-full bg-white dark:bg-slate-800 rounded-xl px-3 py-2 text-xs font-bold border-none outline-none mt-1"
+                              />
+                           </div>
+                           <div>
+                              <label className="text-[9px] font-black text-slate-400 uppercase italic">Est. Distance (KM)</label>
+                              <input 
+                                type="number"
+                                value={tripDistance || ''} 
+                                onChange={e => setTripDistance(Number(e.target.value))} 
+                                placeholder="0"
+                                className="w-full bg-white dark:bg-slate-800 rounded-xl px-3 py-2 text-xs font-bold border-none outline-none mt-1"
+                              />
+                              <p className="text-[8px] text-slate-400 mt-1 text-right">Rate: ZMW {TRANSPORT_RATE_PER_KM}/km</p>
+                           </div>
+                        </div>
+                      )}
+                      
+                      {selectedCategory.pricingModel === 'FIXED' && (
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-white/5">
+                            <label className="text-[10px] font-black text-emerald-600 uppercase italic">Negotiate Price?</label>
+                            <button onClick={() => setIsHaggling(!isHaggling)} className={`w-12 h-6 rounded-full relative transition-all ${isHaggling ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isHaggling ? 'right-1' : 'left-1'}`}></div>
+                            </button>
+                        </div>
+                      )}
+
+                      {(isHaggling && selectedCategory.pricingModel !== 'DISTANCE') && (
+                        <div className="pt-4 space-y-3 animate-slide-up">
+                            <input type="number" value={haggledPrice} onChange={(e) => setHaggledPrice(Number(e.target.value))} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl text-xl font-black italic border-none outline-none text-emerald-600" placeholder="Offer Amount" />
+                        </div>
+                      )}
+                   </>
                  )}
               </div>
-              <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Specific Mission Notes..." className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[24px] p-5 text-sm font-black h-28 focus:ring-2 ring-emerald-600 outline-none" />
-              <button onClick={() => handleLaunchMission()} className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest">Launch Mission Protocol</button>
+              
+              <textarea 
+                value={missionDesc} 
+                onChange={(e) => setMissionDesc(e.target.value)} 
+                placeholder={selectedCategory.pricingModel === 'QUOTE' ? "Describe exactly what you need so providers can give you a fair price..." : "Specific Mission Notes..."} 
+                className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[24px] p-5 text-sm font-black h-28 focus:ring-2 ring-emerald-600 outline-none" 
+              />
+              
+              <button 
+                onClick={() => handleLaunchMission()} 
+                className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest"
+              >
+                {selectedCategory.pricingModel === 'QUOTE' ? 'Request Price Quote' : 'Launch Mission Protocol'}
+              </button>
             </div>
           </div>
         )}
@@ -310,7 +424,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                           <h4 className="text-xl font-black italic">{b.id}</h4>
                           <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full mt-2 inline-block ${isNegotiating ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-600/10 text-emerald-600'}`}>{b.status}</span>
                         </div>
-                        <p className={`text-lg font-black italic ${isNegotiating ? 'text-amber-500' : 'text-emerald-600'}`}>ZMW {displayPrice}</p>
+                        {displayPrice > 0 ? (
+                           <p className={`text-lg font-black italic ${isNegotiating ? 'text-amber-500' : 'text-emerald-600'}`}>ZMW {displayPrice}</p>
+                        ) : (
+                           <p className="text-xs font-black italic text-slate-400 uppercase">Quote Requested</p>
+                        )}
                      </div>
                      <p className="text-[11px] text-slate-500 italic leading-relaxed">"{b.description}"</p>
                      
@@ -319,7 +437,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                        <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-3xl space-y-3">
                           {isProviderTurn && hasProvider ? (
                             <div className="space-y-3 animate-slide-up">
-                              <p className="text-[10px] font-black uppercase text-blue-500 italic">Provider Counter Offer: ZMW {displayPrice}</p>
+                              <p className="text-[10px] font-black uppercase text-blue-500 italic">Provider Quote: ZMW {displayPrice}</p>
                               <div className="grid grid-cols-2 gap-2">
                                 <button onClick={() => onAcceptNegotiation(b.id)} className="py-3 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase italic">Accept {displayPrice}</button>
                                 <button onClick={() => onRejectNegotiation(b.id)} className="py-3 bg-red-600 text-white rounded-xl text-[9px] font-black uppercase italic">Reject</button>
@@ -342,7 +460,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                           ) : (
                              <div className="text-center py-2 animate-pulse">
                                 <p className="text-[10px] font-black uppercase text-amber-500 italic">
-                                  {hasProvider ? 'Waiting for Provider Response...' : 'Broadcasting Offer to Partners...'}
+                                  {hasProvider ? 'Waiting for Provider Response...' : 'Broadcasting Request to Partners...'}
                                 </p>
                              </div>
                           )}
@@ -415,6 +533,36 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                           ))}
                         </select>
                      </div>
+
+                     {['transport', 'trucking'].includes(kycCategory) && (
+                        <>
+                           <div>
+                              <label className="text-[8px] font-black text-slate-400 uppercase italic ml-2">Driving License Photo (Mandatory)</label>
+                              <div className="relative">
+                                 <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={(e) => handleFileChange(e, setKycLicenseFile)} 
+                                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-3 rounded-xl text-xs font-black italic" 
+                                 />
+                                 {kycLicenseFile && <i className="fa-solid fa-check text-emerald-500 absolute right-3 top-3.5"></i>}
+                              </div>
+                           </div>
+                           <div>
+                              <label className="text-[8px] font-black text-slate-400 uppercase italic ml-2">Profile Picture (Mandatory)</label>
+                              <div className="relative">
+                                 <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={(e) => handleFileChange(e, setKycPhotoFile)} 
+                                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-3 rounded-xl text-xs font-black italic" 
+                                 />
+                                 {(kycPhotoFile || user.avatarUrl) && <i className="fa-solid fa-check text-emerald-500 absolute right-3 top-3.5"></i>}
+                              </div>
+                           </div>
+                        </>
+                     )}
+
                      <div>
                         <label className="text-[8px] font-black text-slate-400 uppercase italic ml-2">Nakonde Home Address / Landmark</label>
                         <input value={kycAddress} onChange={e => setKycAddress(e.target.value)} className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 rounded-xl text-xs font-black italic" placeholder="e.g. Near Market Station" />

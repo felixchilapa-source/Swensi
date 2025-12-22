@@ -12,6 +12,9 @@ export const COLORS = {
 
 export const TRUSTED_COMMISSION_BONUS = 0.05;
 export const PLATFORM_COMMISSION_RATE = 0.0024; // 0.24% commission
+export const TRANSPORT_RATE_PER_KM = 12; // ZMW per KM
+
+export type PricingModel = 'FIXED' | 'DISTANCE' | 'QUOTE';
 
 export interface Category {
   id: string;
@@ -22,18 +25,19 @@ export interface Category {
   hint: string;
   trustThreshold?: number;
   subscriptionFee?: number;
-  color?: string; // Added for UI styling
+  color?: string;
+  pricingModel: PricingModel;
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'beauty', name: 'Beauty', icon: 'fa-solid fa-scissors', basePrice: 50, hint: "Salons, barbers, and beauty services", color: 'text-pink-500' },
-  { id: 'labor', name: 'Casual Labor', icon: 'fa-solid fa-person-digging', basePrice: 80, hint: "General labor and assistance services", color: 'text-amber-500' },
-  { id: 'trades', name: 'Skilled Trades', icon: 'fa-solid fa-wrench', basePrice: 150, hint: "Plumbers, carpenters, mechanics, and other skilled professionals", color: 'text-slate-500' },
-  { id: 'transport', name: 'Transport', icon: 'fa-solid fa-taxi', requiresLicense: true, basePrice: 65, hint: "Taxi services, bikers, and other transportation", color: 'text-yellow-500' },
-  { id: 'trucking', name: 'Heavy Trucking', icon: 'fa-solid fa-truck-front', requiresLicense: true, basePrice: 1500, hint: "Cross-border cargo transport", color: 'text-blue-600' },
-  { id: 'customs', name: 'Customs Clearing', icon: 'fa-solid fa-file-contract', trustThreshold: 50, basePrice: 200, hint: "Help with border paperwork", color: 'text-emerald-600' },
-  { id: 'lodging', name: 'Lodges & Rooms', icon: 'fa-solid fa-bed', subscriptionFee: 250, basePrice: 350, hint: "Safe stays near the border", color: 'text-purple-600' },
-  { id: 'shop_for_me', name: 'Shop For Me', icon: 'fa-solid fa-basket-shopping', trustThreshold: 80, basePrice: 100, hint: "Procurement by Trusted Agents", color: 'text-orange-500' },
+  { id: 'beauty', name: 'Beauty', icon: 'fa-solid fa-scissors', basePrice: 0, hint: "Salons, barbers, and beauty services", color: 'text-pink-500', pricingModel: 'QUOTE' },
+  { id: 'labor', name: 'Casual Labor', icon: 'fa-solid fa-person-digging', basePrice: 0, hint: "General labor and assistance services", color: 'text-amber-500', pricingModel: 'QUOTE' },
+  { id: 'trades', name: 'Skilled Trades', icon: 'fa-solid fa-wrench', basePrice: 150, hint: "Plumbers, carpenters, mechanics, and other skilled professionals", color: 'text-slate-500', pricingModel: 'QUOTE' },
+  { id: 'transport', name: 'Transport', icon: 'fa-solid fa-taxi', requiresLicense: true, basePrice: 30, hint: "Taxi services, bikers, and other transportation", color: 'text-yellow-500', pricingModel: 'DISTANCE' },
+  { id: 'trucking', name: 'Heavy Trucking', icon: 'fa-solid fa-truck-front', requiresLicense: true, basePrice: 500, hint: "Cross-border cargo transport", color: 'text-blue-600', pricingModel: 'DISTANCE' },
+  { id: 'customs', name: 'Customs Clearing', icon: 'fa-solid fa-file-contract', trustThreshold: 50, basePrice: 0, hint: "Help with border paperwork", color: 'text-emerald-600', pricingModel: 'QUOTE' },
+  { id: 'lodging', name: 'Lodges & Rooms', icon: 'fa-solid fa-bed', subscriptionFee: 250, basePrice: 0, hint: "Safe stays near the border", color: 'text-purple-600', pricingModel: 'QUOTE' },
+  { id: 'shop_for_me', name: 'Shop For Me', icon: 'fa-solid fa-basket-shopping', trustThreshold: 80, basePrice: 100, hint: "Procurement by Trusted Agents", color: 'text-orange-500', pricingModel: 'FIXED' },
 ];
 
 export const SUPER_ADMIN = '0961179384';
@@ -42,7 +46,7 @@ export const VERIFIED_ADMINS = ['0961179384', '0965722947'];
 export const PAYMENT_NUMBERS = {
   MTN: '0961179384',
   Airtel: '0973310250',
-  Zamtel: '0954318848', // Updated from user prompt
+  Zamtel: '0954318848',
 };
 
 export const SUBSCRIPTION_PLANS = {

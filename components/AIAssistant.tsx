@@ -30,62 +30,93 @@ const AIAssistant: React.FC = () => {
     setMessages(prev => [...prev, { role: 'user', text: userText }]);
     setLoading(true);
 
+    let lat = -9.3283; 
+    let lng = 32.7569;
+
     try {
+      if (!process.env.API_KEY) throw new Error("API Key Missing");
+
       // Get current location if possible for grounding
-      let lat = -9.3283; 
-      let lng = 32.7569;
-      
       try {
         const pos = await new Promise<GeolocationPosition>((res, rej) => {
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 3000 });
         });
-        lat = pos.coords.latitude;
-        lng = pos.coords.longitude;
+        if (pos.coords.latitude && pos.coords.longitude) {
+           lat = pos.coords.latitude;
+           lng = pos.coords.longitude;
+        }
       } catch (e) {
         console.warn("Geolocation failed, using default Nakonde coordinates");
       }
 
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: userText,
-        config: {
-          systemInstruction: `You are Swensi AI, a helpful Zambian trade assistant for the Nakonde border town. 
-          Use Google Maps grounding to find real locations, lodges, and shops when asked.
-          Respond in a friendly "Zambian" style (Mwapoleni, Zikomo). 
-          Keep answers short (under 60 words).`,
-          tools: [{ googleMaps: {} }],
-          toolConfig: {
-            retrievalConfig: {
-              latLng: {
-                latitude: lat,
-                longitude: lng
+      
+      // Attempt 1: Try Gemini 2.5 with Google Maps Grounding
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: userText,
+          config: {
+            systemInstruction: `You are Swensi, a super-helpful local guide for Nakonde, Zambia. 
+            Your goal is to help traders, drivers, and visitors navigate the border town.
+            
+            Use the Google Maps tool to find real places (lodges, forex bureaus, shops).
+            If you cannot find a map location, DO NOT say "I cannot access map protocols". Instead, provide general helpful advice based on your knowledge of Nakonde.
+            
+            Personality: Friendly, Zambian English (use "Mwapoleni", "Bwanji", "Zikomo").
+            Keep answers short (under 60 words).`,
+            tools: [{ googleMaps: {} }],
+            toolConfig: {
+              retrievalConfig: {
+                latLng: {
+                  latitude: lat,
+                  longitude: lng
+                }
               }
             }
-          }
-        },
-      });
-
-      const botText = response.text || "I'm checking the corridor maps, hold on...";
-      
-      // Extract grounding links
-      const links: GroundingLink[] = [];
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (chunks) {
-        chunks.forEach((chunk: any) => {
-          if (chunk.maps) {
-            links.push({
-              title: chunk.maps.title || "View on Maps",
-              uri: chunk.maps.uri
-            });
-          }
+          },
         });
+
+        const botText = response.text || "I found some info for you.";
+        
+        // Extract grounding links
+        const links: GroundingLink[] = [];
+        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+        if (chunks) {
+          chunks.forEach((chunk: any) => {
+            if (chunk.maps) {
+              links.push({
+                title: chunk.maps.title || "View on Maps",
+                uri: chunk.maps.uri
+              });
+            }
+          });
+        }
+
+        setMessages(prev => [...prev, { role: 'bot', text: botText, links }]);
+        
+      } catch (mapError) {
+         console.warn("Maps grounding failed, falling back to text model", mapError);
+         
+         // Attempt 2: Fallback to Gemini 3 Flash (Text only)
+         const fallbackResponse = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: userText,
+            config: {
+                systemInstruction: `You are Swensi, a helpful local guide for Nakonde, Zambia.
+                Respond in a friendly "Zambian" style (Mwapoleni, Zikomo).
+                Currently, live map data is offline, so provide general advice about Nakonde trade, transport, and services based on your knowledge.
+                Never mention "protocols" or technical errors. Just help the user.
+                Keep answers short (under 60 words).`
+            }
+         });
+         
+         setMessages(prev => [...prev, { role: 'bot', text: fallbackResponse.text || "I'm having a bit of trouble connecting to the network, but I'm here to help!" }]);
       }
 
-      setMessages(prev => [...prev, { role: 'bot', text: botText, links }]);
     } catch (err) {
-      console.error(err);
-      setMessages(prev => [...prev, { role: 'bot', text: "Sorry, I'm having trouble accessing the map protocols. Please check your data signal." }]);
+      console.error("Critical AI Error:", err);
+      setMessages(prev => [...prev, { role: 'bot', text: "Eish! The network is a bit slow right now. Let's try that again." }]);
     } finally {
       setLoading(false);
     }
@@ -105,7 +136,7 @@ const AIAssistant: React.FC = () => {
           <div className="p-4 bg-emerald-600 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
               <i className="fa-solid fa-map-location-dot"></i>
-              <span className="text-[10px] font-black uppercase tracking-widest italic">Swensi Map Assistant</span>
+              <span className="text-[10px] font-black uppercase tracking-widest italic">Swensi Assistant</span>
             </div>
             <div className="flex gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
@@ -159,7 +190,7 @@ const AIAssistant: React.FC = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="e.g. Find lodges near the border..."
+              placeholder="Ask about lodges, borders, or clearing..."
               className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs outline-none focus:ring-1 ring-emerald-500"
             />
             <button 
