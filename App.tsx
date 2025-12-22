@@ -68,6 +68,22 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
+  // Connection Check
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const res = await fetch('/api/hello');
+        if (res.ok) {
+          addNotification('SYSTEM ONLINE', 'Backend Uplink Established', 'SUCCESS');
+        }
+      } catch (e) {
+        // Silent failure in dev if proxy not set yet
+        console.log("Backend link pending...");
+      }
+    };
+    checkBackend();
+  }, []);
+
   useEffect(() => {
     const trackingInterval = setInterval(() => {
       setAllUsers(prev => prev.map(u => {

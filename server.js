@@ -1,3 +1,4 @@
+
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,6 +10,9 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const apiKey = process.env.API_KEY;
 
+// Enable JSON parsing for API requests
+app.use(express.json());
+
 // Health check route for Render
 app.get('/healthz', (req, res) => {
   res.status(200).send('OK');
@@ -16,7 +20,8 @@ app.get('/healthz', (req, res) => {
 
 // Example backend API route
 app.get('/api/hello', (req, res) => {
-  res.json({ message: 'Hello from backend!' });
+  console.log('API Hit: Frontend successfully connected to Backend');
+  res.json({ message: 'Swensi Backend Online', timestamp: Date.now() });
 });
 
 // Environment config injection for the client
