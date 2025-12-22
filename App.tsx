@@ -134,7 +134,7 @@ const App: React.FC = () => {
       oscillator.frequency.setValueAtTime(500, ctx.currentTime); 
       oscillator.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.5);
       
-      gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
 
       oscillator.connect(gainNode);
@@ -143,22 +143,22 @@ const App: React.FC = () => {
       oscillator.start();
       oscillator.stop(ctx.currentTime + 0.5);
       
-      // Loop for a few seconds
+      // Beep loop
       let count = 0;
       const interval = setInterval(() => {
-        if (count > 5) { clearInterval(interval); return; }
+        if (count > 4) { clearInterval(interval); return; }
         const osc = ctx.createOscillator();
         const gn = ctx.createGain();
         osc.type = 'square';
-        osc.frequency.setValueAtTime(800, ctx.currentTime);
-        gn.gain.setValueAtTime(0.2, ctx.currentTime);
-        gn.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gn.gain.setValueAtTime(0.1, ctx.currentTime);
+        gn.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
         osc.connect(gn);
         gn.connect(ctx.destination);
         osc.start();
-        osc.stop(ctx.currentTime + 0.2);
+        osc.stop(ctx.currentTime + 0.1);
         count++;
-      }, 800);
+      }, 600);
 
     } catch (e) {
       console.error("Audio play failed", e);
@@ -504,6 +504,20 @@ const App: React.FC = () => {
               setAllUsers(prev => prev.map(usr => usr.id === user.id ? updated : usr));
             }} t={(k) => TRANSLATIONS[language]?.[k] || k} 
             onToggleViewMode={() => setViewMode('CUSTOMER')}
+          />
+        );
+      case Role.LODGE:
+        return (
+          <LodgeDashboard 
+             user={user} logout={() => setUser(null)} bookings={bookings.filter(b => b.category === 'lodging')} 
+             onUpdateBooking={handleUpdateBooking} 
+             onUpdateUser={(u) => {
+                const updated = { ...user, ...u };
+                setUser(updated);
+                setAllUsers(prev => prev.map(usr => usr.id === user.id ? updated : usr));
+             }}
+             onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} t={(k) => TRANSLATIONS[language]?.[k] || k}
+             location={currentLocation}
           />
         );
       default: return null;

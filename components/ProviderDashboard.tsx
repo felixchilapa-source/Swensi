@@ -309,7 +309,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
         )}
       </div>
 
-      <nav className="absolute bottom-6 left-6 right-6 h-20 glass-nav rounded-[32px] border border-white/10 flex justify-around items-center px-4 shadow-2xl z-50">
+      <nav className="fixed bottom-6 left-6 right-6 h-20 glass-nav rounded-[32px] border border-white/10 flex justify-around items-center px-4 shadow-2xl z-50">
         <button onClick={() => setActiveTab('leads')} className={`flex-1 flex flex-col items-center transition-all ${activeTab === 'leads' ? 'text-blue-500 scale-110' : 'text-slate-400'}`}><i className="fa-solid fa-satellite text-lg"></i><span className="text-[7px] font-black uppercase mt-1">Leads</span></button>
         <button onClick={() => setActiveTab('active')} className={`flex-1 flex flex-col items-center transition-all ${activeTab === 'active' ? 'text-blue-500 scale-110' : 'text-slate-400'}`}><i className="fa-solid fa-route text-lg"></i><span className="text-[7px] font-black uppercase mt-1">Gigs</span></button>
         <button onClick={() => setActiveTab('account')} className={`flex-1 flex flex-col items-center transition-all ${activeTab === 'account' ? 'text-blue-500 scale-110' : 'text-slate-400'}`}><i className="fa-solid fa-fingerprint text-lg"></i><span className="text-[7px] font-black uppercase mt-1">Node</span></button>

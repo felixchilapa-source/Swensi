@@ -95,7 +95,7 @@ const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings,
         <button onClick={logout} className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/10"><i className="fa-solid fa-power-off text-xs"></i></button>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-32 px-4 pt-6 space-y-6 no-scrollbar">
+      <div className="flex-1 overflow-y-auto pb-40 px-4 pt-6 space-y-6 no-scrollbar">
         {/* INVENTORY CONTROL PANEL */}
         <div className="bg-white dark:bg-slate-900 rounded-[35px] p-6 shadow-xl border border-purple-500/20">
           <div className="flex justify-between items-center mb-6">
@@ -171,7 +171,7 @@ const LodgeDashboard: React.FC<LodgeDashboardProps> = ({ user, logout, bookings,
         )}
       </div>
 
-      <nav className="absolute bottom-6 left-6 right-6 h-20 glass-nav rounded-[32px] border border-white/10 flex justify-around items-center px-4 shadow-2xl z-50">
+      <nav className="fixed bottom-6 left-6 right-6 h-20 glass-nav rounded-[32px] border border-white/10 flex justify-around items-center px-4 shadow-2xl z-50">
         <button onClick={() => setActiveTab('requests')} className={`flex-1 flex flex-col items-center ${activeTab === 'requests' ? 'text-purple-600 scale-110' : 'text-slate-400'}`}>
           <i className="fa-solid fa-bell-concierge text-lg"></i>
           <span className="text-[8px] font-black uppercase mt-1.5 italic">Queue</span>
