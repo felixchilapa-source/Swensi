@@ -24,7 +24,7 @@ interface CustomerDashboardProps {
   onToggleTheme: () => void;
   isDarkMode: boolean;
   onLanguageChange: (lang: string) => void;
-  onBecomeProvider: (kyc: { license: string, address: string, photo: string, categories: string[] }) => void;
+  onBecomeProvider: (kyc: { license: string, address: string, photo: string, licenseUrl: string, categories: string[] }) => void;
   onUpdateUser: (updates: Partial<User>) => void;
   t: (key: string) => string;
   onToggleViewMode?: () => void;
@@ -321,7 +321,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     onBecomeProvider({ 
       license: kycLicense, 
       address: kycAddress, 
-      photo: kycPhotoFile || user.avatarUrl || '', 
+      photo: kycPhotoFile || user.avatarUrl || '',
+      licenseUrl: kycLicenseFile, 
       categories: [kycCategory] 
     });
     setShowKycForm(false);

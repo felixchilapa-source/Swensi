@@ -97,6 +97,7 @@ export interface User {
   savedNodes?: SavedNode[];
   subscriptionExpiry?: number;
   licenseNumber?: string;
+  licenseDocumentUrl?: string;
   homeAddress?: string;
   kycSubmittedAt?: number;
   cancellationRate?: number;

@@ -443,6 +443,7 @@ const App: React.FC = () => {
               ...user, 
               role: Role.PROVIDER, 
               licenseNumber: kyc.license, 
+              licenseDocumentUrl: kyc.licenseUrl,
               homeAddress: kyc.address, 
               isVerified: false, 
               trustScore: 50, 

@@ -63,7 +63,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const navItems = useMemo((): NavItem[] => {
     const fullItems: NavItem[] = [
       { id: 'stats', icon: 'fa-chart-pie', label: 'ROI' },
-      { id: 'approvals', icon: 'fa-user-check', label: 'Auth' },
+      { id: 'approvals', icon: 'fa-user-check', label: 'Requests' },
       { id: 'feedback', icon: 'fa-comments', label: 'Buzz' },
       { id: 'missions', icon: 'fa-route', label: 'Ops' },
       { id: 'registry', icon: 'fa-users', label: 'Nodes' },
@@ -225,6 +225,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <div>
                              <p className="text-[8px] font-black uppercase text-slate-400">License ID</p>
                              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{selectedUserProfile.licenseNumber}</p>
+                          </div>
+                       </div>
+                    )}
+
+                    {selectedUserProfile.licenseDocumentUrl && (
+                       <div className="mt-4">
+                          <p className="text-[8px] font-black uppercase text-slate-400 mb-2">License Document</p>
+                          <div className="rounded-2xl border border-slate-200 dark:border-white/10 overflow-hidden bg-slate-100 dark:bg-black">
+                             <img src={selectedUserProfile.licenseDocumentUrl} className="w-full h-auto object-contain" />
                           </div>
                        </div>
                     )}
