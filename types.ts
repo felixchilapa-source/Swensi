@@ -104,6 +104,7 @@ export interface User {
   completedMissions?: number;
   isPremium?: boolean;
   availableRooms?: number;
+  serviceCategories?: string[];
   
   // Smart Switch Settings
   autoOnlineStartTime?: string; // HH:mm

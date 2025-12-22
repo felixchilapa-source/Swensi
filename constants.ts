@@ -11,7 +11,7 @@ export const COLORS = {
 };
 
 export const TRUSTED_COMMISSION_BONUS = 0.05;
-export const PLATFORM_COMMISSION_RATE = 0.0024; 
+export const PLATFORM_COMMISSION_RATE = 0.0024; // 0.24% commission
 
 export interface Category {
   id: string;
@@ -42,12 +42,12 @@ export const VERIFIED_ADMINS = ['0961179384', '0965722947'];
 export const PAYMENT_NUMBERS = {
   MTN: '0961179384',
   Airtel: '0973310250',
-  Zamtel: '0970312655',
+  Zamtel: '0954318848', // Updated from user prompt
 };
 
 export const SUBSCRIPTION_PLANS = {
-  BASIC: 10,
-  PREMIUM: 20
+  BASIC: { name: 'Basic Plan', price: 10, features: ['Standard Visibility', 'Basic Analytics'] },
+  PREMIUM: { name: 'Premium Plan', price: 20, features: ['Featured Listing', 'Priority Placement', 'Trusted Badge'] }
 };
 
 export const LANGUAGES = [

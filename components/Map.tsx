@@ -1,22 +1,23 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { Location, SavedNode } from '../types';
 
 interface MapProps {
   center: Location;
-  markers?: Array<{ loc: Location; color: string; label: string; isLive?: boolean }>;
+  markers?: Array<{ loc: Location; color: string; label: string; isLive?: boolean; id?: string }>;
+  activeMissions?: Array<{ from: Location; to: Location; id: string }>;
   trackingHistory?: Location[];
   showRoute?: boolean;
   onSaveNode?: (node: SavedNode) => void;
 }
 
-const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], showRoute = true, onSaveNode }) => {
+const Map: React.FC<MapProps> = ({ center, markers = [], activeMissions = [], trackingHistory = [], showRoute = true, onSaveNode }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedMarkerIdx, setSelectedMarkerIdx] = useState<number | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [tick, setTick] = useState(0);
 
-  // Simulation of Live movement
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 2000);
     return () => clearInterval(timer);
@@ -36,53 +37,74 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
       .attr("height", height)
       .attr("fill", "#0F172A");
 
-    // Grid lines for high-tech look
+    // Dynamic Grid (subtle parallax-ish grid)
+    const gridG = svg.append("g").attr("opacity", 0.05);
     for (let i = 0; i < 20; i++) {
-      svg.append("line").attr("x1", i * 30).attr("y1", 0).attr("x2", i * 30).attr("y2", height).attr("stroke", "#ffffff").attr("stroke-width", 0.5).attr("opacity", 0.05);
-      svg.append("line").attr("x1", 0).attr("y1", i * 30).attr("x2", width).attr("y2", i * 30).attr("stroke", "#ffffff").attr("stroke-width", 0.5).attr("opacity", 0.05);
+      gridG.append("line").attr("x1", i * 30).attr("y1", 0).attr("x2", i * 30).attr("y2", height).attr("stroke", "#ffffff").attr("stroke-width", 0.5);
+      gridG.append("line").attr("x1", 0).attr("y1", i * 30).attr("x2", width).attr("y2", i * 30).attr("stroke", "#ffffff").attr("stroke-width", 0.5);
     }
 
     const xScale = d3.scaleLinear().domain([center.lng - 0.04, center.lng + 0.04]).range([0, width]);
     const yScale = d3.scaleLinear().domain([center.lat - 0.04, center.lat + 0.04]).range([height, 0]);
 
-    // Route Rendering
-    if (showRoute && markers.length >= 2) {
+    // Active Mission Vectors (Connections between customer and provider)
+    activeMissions.forEach(mission => {
+      const x1 = xScale(mission.from.lng);
+      const y1 = yScale(mission.from.lat);
+      const x2 = xScale(mission.to.lng);
+      const y2 = yScale(mission.to.lat);
+
+      // Gradient for mission line
+      const gradId = `grad-${mission.id}`;
+      const defs = svg.append("defs");
+      const linearGradient = defs.append("linearGradient")
+          .attr("id", gradId)
+          .attr("x1", x1)
+          .attr("y1", y1)
+          .attr("x2", x2)
+          .attr("y2", y2)
+          .attr("gradientUnits", "userSpaceOnUse");
+
+      linearGradient.append("stop").attr("offset", "0%").attr("stop-color", "#3b82f6");
+      linearGradient.append("stop").attr("offset", "100%").attr("stop-color", "#06b6d4");
+
+      const line = svg.append("line")
+        .attr("x1", x1)
+        .attr("y1", y1)
+        .attr("x2", x2)
+        .attr("y2", y2)
+        .attr("stroke", `url(#${gradId})`)
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "4,4")
+        .attr("opacity", 0.6);
+
+      line.append("animate")
+        .attr("attributeName", "stroke-dashoffset")
+        .attr("from", "20")
+        .attr("to", "0")
+        .attr("dur", "1s")
+        .attr("repeatCount", "indefinite");
+    });
+
+    // Standard Route Rendering (History)
+    if (showRoute && trackingHistory.length > 1) {
       const lineGenerator = d3.line<Location>()
         .x(d => xScale(d.lng))
         .y(d => yScale(d.lat))
         .curve(d3.curveBasis);
 
-      const pathData: Location[] = [
-        markers[0].loc,
-        { lat: (markers[0].loc.lat + markers[1].loc.lat) / 2 + 0.003, lng: (markers[0].loc.lng + markers[1].loc.lng) / 2 - 0.003 },
-        markers[1].loc
-      ];
-
-      const path = svg.append("path")
-        .datum(pathData)
+      svg.append("path")
+        .datum(trackingHistory)
         .attr("fill", "none")
-        .attr("stroke", "#3b82f6")
-        .attr("stroke-width", 2)
-        .attr("stroke-dasharray", "5,5")
-        .attr("opacity", 0.4)
+        .attr("stroke", "#ffffff")
+        .attr("stroke-width", 1)
+        .attr("opacity", 0.2)
         .attr("d", lineGenerator);
-
-      // Animate the dash offset for "flow" effect
-      path.append("animate")
-        .attr("attributeName", "stroke-dashoffset")
-        .attr("from", "100")
-        .attr("to", "0")
-        .attr("dur", "3s")
-        .attr("repeatCount", "indefinite");
     }
 
     // Interactive Markers
     markers.forEach((m, idx) => {
       const isSelected = selectedMarkerIdx === idx;
-      
-      // Jitter for live markers
-      const jitterLat = m.isLive ? Math.sin(tick * 0.5) * 0.0001 : 0;
-      const jitterLng = m.isLive ? Math.cos(tick * 0.5) * 0.0001 : 0;
       
       const g = svg.append("g")
         .attr("class", "cursor-pointer")
@@ -91,10 +113,13 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
           setSelectedMarkerIdx(idx);
         });
       
+      const markerX = xScale(m.loc.lng);
+      const markerY = yScale(m.loc.lat);
+
       // Marker Glow
       const glow = g.append("circle")
-        .attr("cx", xScale(m.loc.lng + jitterLng))
-        .attr("cy", yScale(m.loc.lat + jitterLat))
+        .attr("cx", markerX)
+        .attr("cy", markerY)
         .attr("r", isSelected ? 24 : 15)
         .attr("fill", m.color)
         .attr("opacity", isSelected ? 0.5 : 0.2);
@@ -102,41 +127,46 @@ const Map: React.FC<MapProps> = ({ center, markers = [], trackingHistory = [], s
       if (m.isLive) {
         glow.append("animate")
           .attr("attributeName", "r")
-          .attr("values", "15;25;15")
-          .attr("dur", "2s")
-          .attr("repeatCount", "indefinite");
-        
-        glow.append("animate")
-          .attr("attributeName", "opacity")
-          .attr("values", "0.2;0.5;0.2")
+          .attr("values", `${isSelected ? 24 : 15};${isSelected ? 35 : 22};${isSelected ? 24 : 15}`)
           .attr("dur", "2s")
           .attr("repeatCount", "indefinite");
       }
 
       // Core Marker
       g.append("circle")
-        .attr("cx", xScale(m.loc.lng + jitterLng))
-        .attr("cy", yScale(m.loc.lat + jitterLat))
-        .attr("r", isSelected ? 10 : 7)
+        .attr("cx", markerX)
+        .attr("cy", markerY)
+        .attr("r", isSelected ? 10 : 6)
         .attr("fill", m.color)
         .attr("stroke", "#ffffff")
-        .attr("stroke-width", isSelected ? 4 : 2);
+        .attr("stroke-width", isSelected ? 3 : 1.5);
+
+      // Status indicator for Live Agents
+      if (m.isLive) {
+        g.append("circle")
+          .attr("cx", markerX + 4)
+          .attr("cy", markerY - 4)
+          .attr("r", 2.5)
+          .attr("fill", "#10b981")
+          .attr("stroke", "#0F172A")
+          .attr("stroke-width", 0.5);
+      }
 
       // Label
       g.append("text")
-        .attr("x", xScale(m.loc.lng + jitterLng))
-        .attr("y", yScale(m.loc.lat + jitterLat) - (isSelected ? 28 : 18))
+        .attr("x", markerX)
+        .attr("y", markerY - (isSelected ? 28 : 16))
         .attr("text-anchor", "middle")
-        .attr("font-size", isSelected ? "11px" : "8px")
+        .attr("font-size", isSelected ? "10px" : "7px")
         .attr("font-weight", "900")
         .attr("fill", "#ffffff")
-        .attr("class", "uppercase italic")
-        .text(m.isLive ? `LIVE: ${m.label}` : m.label);
+        .attr("class", "uppercase italic tracking-tighter")
+        .text(m.label);
     });
 
     svg.on("click", () => setSelectedMarkerIdx(null));
 
-  }, [center, markers, trackingHistory, showRoute, selectedMarkerIdx, tick]);
+  }, [center, markers, activeMissions, trackingHistory, showRoute, selectedMarkerIdx, tick]);
 
   const selectedMarker = selectedMarkerIdx !== null ? markers[selectedMarkerIdx] : null;
 

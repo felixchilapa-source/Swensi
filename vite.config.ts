@@ -10,11 +10,9 @@ export default defineConfig({
     emptyOutDir: true,
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
-      external: ['@google/genai'],
+      // Removed externalization of '@google/genai' to let Vite bundle it
       output: {
-        globals: {
-          '@google/genai': 'GoogleGenAI'
-        },
+        // Removed globals configuration for '@google/genai'
         manualChunks: {
           vendor: ['react', 'react-dom', 'd3'],
         },

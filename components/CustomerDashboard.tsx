@@ -16,12 +16,13 @@ interface CustomerDashboardProps {
   onCancelBooking: (id: string) => void;
   onAcceptNegotiation: (id: string) => void;
   onCounterNegotiation: (id: string, price: number) => void;
+  onRejectNegotiation: (id: string) => void;
   location: Location;
   onSendFeedback: (f: Partial<Feedback>) => void;
   onToggleTheme: () => void;
   isDarkMode: boolean;
   onLanguageChange: (lang: string) => void;
-  onBecomeProvider: (kyc: { license: string, address: string, photo: string }) => void;
+  onBecomeProvider: (kyc: { license: string, address: string, photo: string, categories: string[] }) => void;
   onUpdateUser: (updates: Partial<User>) => void;
   t: (key: string) => string;
   onToggleViewMode?: () => void;
@@ -31,18 +32,20 @@ interface CustomerDashboardProps {
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, allUsers = [], onAddBooking, onCancelBooking, onAcceptNegotiation, onCounterNegotiation, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange 
+  user, logout, bookings, allUsers = [], onAddBooking, onCancelBooking, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange 
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showKycForm, setShowKycForm] = useState(false);
   
-  // Haggling State
+  const [kycLicense, setKycLicense] = useState('');
+  const [kycAddress, setKycAddress] = useState('');
+  const [kycCategory, setKycCategory] = useState<string>(CATEGORIES[0].id);
+  
   const [isHaggling, setIsHaggling] = useState(false);
   const [haggledPrice, setHaggledPrice] = useState<number>(0);
+  const [counterInputs, setCounterInputs] = useState<{[key:string]: number}>({});
 
-  // Book for Other State
   const [isForOther, setIsForOther] = useState(false);
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
@@ -50,40 +53,48 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [missionDesc, setMissionDesc] = useState('');
   const [mapCenter, setMapCenter] = useState<Location>(location);
   
-  // Shopping list builder
   const [shoppingItems, setShoppingItems] = useState<string[]>([]);
-  const [newItem, setNewItem] = useState('');
-
-  const nearbyMarkers = useMemo(() => {
-    return allUsers
-      .filter(u => u.id !== user.id && u.location && u.isActive)
-      .map(u => {
-        let color = '#94a3b8'; 
-        let label = u.name;
-
-        if (u.role === Role.LODGE) {
-          color = COLORS.HOSPITALITY;
-          label = `Lodge: ${u.name}`;
-        } else if (u.role === Role.SHOP_OWNER) {
-          color = COLORS.WARNING;
-          label = `Shop: ${u.name}`;
-        } else if (u.role === Role.PROVIDER) {
-          color = COLORS.PRIMARY;
-          label = `Agent: ${u.name}`;
-        }
-
-        return {
-          loc: u.location!,
-          color,
-          label,
-          isLive: u.lastActive > Date.now() - 600000 
-        };
-      });
-  }, [allUsers, user.id]);
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== BookingStatus.COMPLETED && b.status !== BookingStatus.CANCELLED), [bookings]);
 
-  const handleLaunchMission = (targetLodgeId?: string) => {
+  const { mapMarkers, mapMissions } = useMemo(() => {
+    const markers: Array<{ loc: Location; color: string; label: string; isLive?: boolean; id?: string }> = [
+      { loc: location, color: '#059669', label: 'Me', isLive: true, id: user.id }
+    ];
+    const missions: Array<{ from: Location; to: Location; id: string }> = [];
+
+    activeBookings.forEach(b => {
+      if (b.providerId) {
+        const provider = allUsers.find(u => u.id === b.providerId);
+        if (provider && provider.location) {
+          markers.push({
+            loc: provider.location,
+            color: '#3b82f6',
+            label: `Agent: ${provider.name}`,
+            isLive: true,
+            id: provider.id
+          });
+          if ([BookingStatus.ACCEPTED, BookingStatus.ON_TRIP].includes(b.status)) {
+            missions.push({ from: location, to: provider.location, id: b.id });
+          }
+        }
+      }
+    });
+
+    allUsers.forEach(u => {
+      if (u.id !== user.id && u.location && !markers.some(m => m.id === u.id)) {
+        if (u.role === Role.LODGE) {
+          markers.push({ loc: u.location, color: COLORS.HOSPITALITY, label: u.name });
+        } else if (u.role === Role.SHOP_OWNER) {
+          markers.push({ loc: u.location, color: COLORS.WARNING, label: u.name });
+        }
+      }
+    });
+
+    return { mapMarkers: markers, mapMissions: missions };
+  }, [allUsers, activeBookings, location, user.id]);
+
+  const handleLaunchMission = () => {
     if (!selectedCategory) return;
     
     let finalDesc = missionDesc;
@@ -100,14 +111,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       price: selectedCategory.basePrice, 
       negotiatedPrice: isHaggling ? haggledPrice : undefined,
       location: location,
-      providerId: targetLodgeId,
       isShoppingOrder: selectedCategory.id === 'shop_for_me',
       shoppingItems: finalItems,
       recipientName: isForOther ? recipientName : undefined,
       recipientPhone: isForOther ? recipientPhone : undefined
     });
     
-    // Reset states
     setSelectedCategory(null);
     setMissionDesc('');
     setShoppingItems([]);
@@ -116,6 +125,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     setRecipientName('');
     setRecipientPhone('');
     setActiveTab('active');
+  };
+
+  const handleSubmitKyc = () => {
+    if (!kycLicense || !kycAddress) return alert('License and Address are mandatory for Partner status.');
+    onBecomeProvider({ 
+      license: kycLicense, 
+      address: kycAddress, 
+      photo: user.avatarUrl || '',
+      categories: [kycCategory] 
+    });
+    setShowKycForm(false);
   };
 
   return (
@@ -150,13 +170,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             </div>
 
             <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl relative">
-               <Map 
-                  center={mapCenter} 
-                  markers={[
-                    { loc: location, color: '#059669', label: 'My Terminal', isLive: true },
-                    ...nearbyMarkers
-                  ]} 
-               />
+               <Map center={mapCenter} markers={mapMarkers} activeMissions={mapMissions} />
             </div>
 
             <div className="grid grid-cols-2 gap-4 pb-4">
@@ -191,66 +205,19 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                  
                  <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-white/5">
                     <label className="text-[10px] font-black text-emerald-600 uppercase italic">Negotiate Price?</label>
-                    <button 
-                      onClick={() => setIsHaggling(!isHaggling)}
-                      className={`w-12 h-6 rounded-full relative transition-all ${isHaggling ? 'bg-emerald-600' : 'bg-slate-300'}`}
-                    >
+                    <button onClick={() => setIsHaggling(!isHaggling)} className={`w-12 h-6 rounded-full relative transition-all ${isHaggling ? 'bg-emerald-600' : 'bg-slate-300'}`}>
                       <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isHaggling ? 'right-1' : 'left-1'}`}></div>
                     </button>
                  </div>
 
                  {isHaggling && (
                    <div className="pt-4 space-y-3 animate-slide-up">
-                      <input 
-                        type="number"
-                        value={haggledPrice}
-                        onChange={(e) => setHaggledPrice(Number(e.target.value))}
-                        className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl text-xl font-black italic border-none outline-none text-emerald-600"
-                        placeholder="Offer Amount"
-                      />
-                   </div>
-                 )}
-
-                 <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-white/5">
-                    <label className="text-[10px] font-black text-blue-600 uppercase italic">Booking for someone else?</label>
-                    <button 
-                      onClick={() => setIsForOther(!isForOther)}
-                      className={`w-12 h-6 rounded-full relative transition-all ${isForOther ? 'bg-blue-600' : 'bg-slate-300'}`}
-                    >
-                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isForOther ? 'right-1' : 'left-1'}`}></div>
-                    </button>
-                 </div>
-
-                 {isForOther && (
-                   <div className="pt-4 space-y-3 animate-slide-up">
-                      <div className="space-y-2">
-                         <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic ml-2">Recipient Name</label>
-                         <input 
-                           value={recipientName}
-                           onChange={(e) => setRecipientName(e.target.value)}
-                           className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl text-xs font-black italic border-none outline-none text-slate-900 dark:text-white"
-                           placeholder="e.g. Runner or Relative"
-                         />
-                      </div>
-                      <div className="space-y-2">
-                         <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic ml-2">Recipient Phone</label>
-                         <input 
-                           type="tel"
-                           value={recipientPhone}
-                           onChange={(e) => setRecipientPhone(e.target.value)}
-                           className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl text-xs font-black italic border-none outline-none text-slate-900 dark:text-white"
-                           placeholder="09XXXXXXXX"
-                         />
-                      </div>
+                      <input type="number" value={haggledPrice} onChange={(e) => setHaggledPrice(Number(e.target.value))} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl text-xl font-black italic border-none outline-none text-emerald-600" placeholder="Offer Amount" />
                    </div>
                  )}
               </div>
-
               <textarea value={missionDesc} onChange={(e) => setMissionDesc(e.target.value)} placeholder="Specific Mission Notes..." className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[24px] p-5 text-sm font-black h-28 focus:ring-2 ring-emerald-600 outline-none" />
-              
-              <button onClick={() => handleLaunchMission()} className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest">
-                Launch Mission Protocol
-              </button>
+              <button onClick={() => handleLaunchMission()} className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest">Launch Mission Protocol</button>
             </div>
           </div>
         )}
@@ -258,42 +225,134 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in pb-10">
              {activeBookings.length === 0 && <div className="py-20 text-center opacity-20 italic">No Active Corridor Ops</div>}
-             {activeBookings.map(b => (
-                <div key={b.id} className={`bg-white dark:bg-slate-900 rounded-[40px] border overflow-hidden shadow-xl p-6 space-y-4 ${b.status === BookingStatus.NEGOTIATING ? 'border-amber-500/30' : 'border-slate-100 dark:border-white/5'}`}>
-                   <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="text-xl font-black italic">{b.id}</h4>
-                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full mt-2 inline-block ${b.status === BookingStatus.NEGOTIATING ? 'bg-amber-500/10 text-amber-600' : 'bg-emerald-600/10 text-emerald-600'}`}>
-                          {b.status}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                         <p className="text-lg font-black italic text-emerald-600">ZMW {b.negotiatedPrice || b.price}</p>
-                         {b.recipientName && <span className="text-[7px] font-black text-blue-500 uppercase tracking-widest block mt-1">Guest Mission</span>}
-                      </div>
-                   </div>
+             {activeBookings.map(b => {
+                const isNegotiating = b.status === BookingStatus.NEGOTIATING;
+                const isProviderTurn = b.lastOfferBy === Role.PROVIDER;
+                const hasProvider = !!b.providerId;
+                const displayPrice = b.negotiatedPrice || b.price;
 
-                   {b.status === BookingStatus.NEGOTIATING && b.lastOfferBy === Role.PROVIDER && (
-                     <div className="bg-amber-500/5 p-4 rounded-3xl border border-amber-500/20 space-y-3">
-                        <p className="text-[9px] font-black text-amber-600 uppercase italic tracking-widest">Counter-Offer Received!</p>
-                        <div className="flex gap-2">
-                           <button onClick={() => onAcceptNegotiation(b.id)} className="flex-1 py-3 bg-amber-500 text-white text-[9px] font-black uppercase rounded-xl italic">Accept ZMW {b.negotiatedPrice}</button>
-                           <button onClick={() => onCancelBooking(b.id)} className="flex-1 py-3 bg-white/5 text-red-500 border border-red-500/20 text-[9px] font-black uppercase rounded-xl italic">Reject</button>
+                return (
+                  <div key={b.id} className={`bg-white dark:bg-slate-900 rounded-[40px] border overflow-hidden shadow-xl p-6 space-y-4 ${isNegotiating ? 'border-amber-500/50' : 'border-slate-100 dark:border-white/5'}`}>
+                     <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="text-xl font-black italic">{b.id}</h4>
+                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full mt-2 inline-block ${isNegotiating ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-600/10 text-emerald-600'}`}>{b.status}</span>
                         </div>
+                        <p className={`text-lg font-black italic ${isNegotiating ? 'text-amber-500' : 'text-emerald-600'}`}>ZMW {displayPrice}</p>
                      </div>
-                   )}
+                     <p className="text-[11px] text-slate-500 italic leading-relaxed">"{b.description}"</p>
+                     
+                     {/* Negotiation UI for Customer */}
+                     {isNegotiating && (
+                       <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-3xl space-y-3">
+                          {isProviderTurn && hasProvider ? (
+                            <div className="space-y-3 animate-slide-up">
+                              <p className="text-[10px] font-black uppercase text-blue-500 italic">Provider Counter Offer: ZMW {displayPrice}</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button onClick={() => onAcceptNegotiation(b.id)} className="py-3 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase italic">Accept {displayPrice}</button>
+                                <button onClick={() => onRejectNegotiation(b.id)} className="py-3 bg-red-600 text-white rounded-xl text-[9px] font-black uppercase italic">Reject</button>
+                              </div>
+                              <div className="flex gap-2">
+                                <input 
+                                  type="number" 
+                                  placeholder="Counter..."
+                                  className="w-20 px-3 py-2 rounded-xl text-xs font-black bg-white dark:bg-slate-900 border-none outline-none"
+                                  onChange={(e) => setCounterInputs({...counterInputs, [b.id]: Number(e.target.value)})}
+                                />
+                                <button 
+                                  onClick={() => counterInputs[b.id] && onCounterNegotiation(b.id, counterInputs[b.id])}
+                                  className="flex-1 bg-amber-500 text-white rounded-xl text-[9px] font-black uppercase italic"
+                                >
+                                  Counter
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                             <div className="text-center py-2 animate-pulse">
+                                <p className="text-[10px] font-black uppercase text-amber-500 italic">
+                                  {hasProvider ? 'Waiting for Provider Response...' : 'Broadcasting Offer to Partners...'}
+                                </p>
+                             </div>
+                          )}
+                       </div>
+                     )}
 
-                   {b.recipientName && (
-                     <div className="p-3 bg-blue-600/5 border border-blue-600/10 rounded-2xl">
-                        <p className="text-[8px] font-black text-blue-500 uppercase italic mb-1 tracking-widest">Recipient Contact</p>
-                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{b.recipientName} • {b.recipientPhone}</p>
-                     </div>
-                   )}
+                     {!isNegotiating && (
+                       <button onClick={() => onCancelBooking(b.id)} className="w-full py-3 bg-red-600/5 text-red-600 border border-red-600/20 rounded-2xl text-[9px] font-black uppercase italic">Abort Mission</button>
+                     )}
+                  </div>
+                );
+             })}
+          </div>
+        )}
 
-                   <p className="text-[11px] text-slate-500 italic leading-relaxed">"{b.description}"</p>
-                   <button onClick={() => onCancelBooking(b.id)} className="w-full py-3 bg-red-600/5 text-red-600 border border-red-600/20 rounded-2xl text-[9px] font-black uppercase italic tracking-widest">Abort Mission</button>
+        {activeTab === 'account' && (
+          <div className="animate-fade-in space-y-8 pb-20">
+             <div className="bg-slate-900 rounded-[40px] p-8 border border-white/5 shadow-2xl">
+                <div className="flex items-center gap-6 mb-8">
+                   <div className="w-20 h-20 rounded-[28px] bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+                      {user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : <i className="fa-solid fa-user text-3xl text-slate-700"></i>}
+                   </div>
+                   <div>
+                      <h3 className="text-2xl font-black italic uppercase text-white leading-none">{user.name}</h3>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-2">{user.phone}</p>
+                   </div>
                 </div>
-             ))}
+
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-white/5 p-6 rounded-[30px] border border-white/5">
+                      <p className="text-[8px] font-black text-slate-500 uppercase italic mb-1">My Wallet</p>
+                      <p className="text-xl font-black text-white italic tracking-tighter">ZMW {user.balance.toFixed(2)}</p>
+                   </div>
+                   <div className="bg-white/5 p-6 rounded-[30px] border border-white/5">
+                      <p className="text-[8px] font-black text-slate-500 uppercase italic mb-1">Trust Score</p>
+                      <p className="text-xl font-black text-emerald-500 italic tracking-tighter">{user.trustScore}%</p>
+                   </div>
+                </div>
+             </div>
+
+             {!showKycForm ? (
+               <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] border border-slate-100 dark:border-white/5 shadow-xl text-center space-y-4">
+                  <div className="w-14 h-14 bg-blue-600/10 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                     <i className="fa-solid fa-id-card text-2xl"></i>
+                  </div>
+                  <h3 className="text-base font-black italic uppercase">Become a Service Partner</h3>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold leading-relaxed px-4">Start earning by providing transport, customs, or trade services in the Nakonde corridor.</p>
+                  <button onClick={() => setShowKycForm(true)} className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl text-[9px] uppercase italic tracking-widest shadow-xl">Apply for Partner Terminal</button>
+               </div>
+             ) : (
+               <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] border-2 border-blue-600 shadow-2xl space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-black italic uppercase">Partner KYC</h3>
+                    <button onClick={() => setShowKycForm(false)} className="text-slate-400"><i className="fa-solid fa-xmark"></i></button>
+                  </div>
+                  <div className="space-y-4">
+                     <div>
+                        <label className="text-[8px] font-black text-slate-400 uppercase italic ml-2">License / ID Number</label>
+                        <input value={kycLicense} onChange={e => setKycLicense(e.target.value)} className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 rounded-xl text-xs font-black italic" placeholder="e.g. NRC-XXXXX-X" />
+                     </div>
+                     <div>
+                        <label className="text-[8px] font-black text-slate-400 uppercase italic ml-2">Service Category</label>
+                        <select 
+                          value={kycCategory} 
+                          onChange={e => setKycCategory(e.target.value)} 
+                          className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 rounded-xl text-xs font-black italic appearance-none outline-none text-slate-800 dark:text-white"
+                        >
+                          {CATEGORIES.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                          ))}
+                        </select>
+                     </div>
+                     <div>
+                        <label className="text-[8px] font-black text-slate-400 uppercase italic ml-2">Nakonde Home Address / Landmark</label>
+                        <input value={kycAddress} onChange={e => setKycAddress(e.target.value)} className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 rounded-xl text-xs font-black italic" placeholder="e.g. Near Market Station" />
+                     </div>
+                     <button onClick={handleSubmitKyc} className="w-full py-4 bg-blue-600 text-white font-black rounded-xl text-[9px] uppercase italic">Submit Verification</button>
+                  </div>
+               </div>
+             )}
+
+             <button onClick={logout} className="w-full py-4 bg-red-600/5 text-red-600 rounded-2xl text-[9px] font-black uppercase italic border border-red-600/10">Sign Out</button>
           </div>
         )}
       </div>

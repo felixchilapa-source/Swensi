@@ -20,7 +20,11 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<'MANAGEMENT' | 'CUSTOMER'>('CUSTOMER');
   const [allUsers, setAllUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('swensi-users-v3');
-    return saved ? JSON.parse(saved) : [];
+    const users: User[] = saved ? JSON.parse(saved) : [];
+    return users.map(u => ({
+      ...u,
+      location: u.location || { lat: -9.3283 + (Math.random() - 0.5) * 0.01, lng: 32.7569 + (Math.random() - 0.5) * 0.01 }
+    }));
   });
   const [bookings, setBookings] = useState<Booking[]>(() => {
     const saved = localStorage.getItem('swensi-bookings-v3');
@@ -55,24 +59,32 @@ const App: React.FC = () => {
   }, [isDarkMode]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      const currentHHmm = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      
+    const trackingInterval = setInterval(() => {
       setAllUsers(prev => prev.map(u => {
-        if (u.role === Role.PROVIDER && u.autoOnlineStartTime && u.autoOnlineEndTime) {
-          const isWorkingHours = currentHHmm >= u.autoOnlineStartTime && currentHHmm <= u.autoOnlineEndTime;
-          if (isWorkingHours && !u.isOnline) {
-            return { ...u, isOnline: true, lastActive: Date.now() };
-          } else if (!isWorkingHours && u.isOnline && u.autoOnlineStartTime !== "") {
-            return { ...u, isOnline: false, lastActive: Date.now() };
+        if (u.role === Role.PROVIDER && u.isOnline && u.location) {
+          const activeBooking = bookings.find(b => b.providerId === u.id && [BookingStatus.ACCEPTED, BookingStatus.ON_TRIP].includes(b.status));
+          let deltaLat = (Math.random() - 0.5) * 0.0002;
+          let deltaLng = (Math.random() - 0.5) * 0.0002;
+          if (activeBooking) {
+            deltaLat = (activeBooking.location.lat - u.location.lat) * 0.05;
+            deltaLng = (activeBooking.location.lng - u.location.lng) * 0.05;
           }
+          const updated = {
+            ...u,
+            location: {
+              lat: u.location.lat + deltaLat,
+              lng: u.location.lng + deltaLng
+            },
+            lastActive: Date.now()
+          };
+          if (user && u.id === user.id) setUser(updated);
+          return updated;
         }
         return u;
       }));
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    }, 5000);
+    return () => clearInterval(trackingInterval);
+  }, [bookings, user?.id]);
 
   const addNotification = useCallback((title: string, message: string, type: 'INFO' | 'ALERT' | 'SUCCESS' | 'SMS' = 'INFO') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -80,32 +92,63 @@ const App: React.FC = () => {
     setTimeout(() => { setNotifications(prev => prev.filter(n => n.id !== id)); }, 5000);
   }, []);
 
-  const handleCancelBooking = useCallback((bookingId: string) => {
-    setBookings(prev => prev.map(b => {
-      if (b.id === bookingId) {
-        const refundAmount = b.negotiatedPrice || b.price;
-        setAllUsers(users => users.map(u => {
-          if (u.id === b.customerId) {
-            const updated = { ...u, balance: u.balance + refundAmount };
-            if (user && u.id === user.id) setUser(updated);
-            return updated;
-          }
-          return u;
-        }));
-        return { ...b, status: BookingStatus.CANCELLED };
-      }
-      return b;
-    }));
-    addNotification('MISSION ABORTED', 'Booking cancelled. Funds returned to wallet.', 'ALERT');
+  const handleUpdateSubscription = useCallback((plan: 'BASIC' | 'PREMIUM') => {
+    if (!user || user.role !== Role.PROVIDER) {
+      addNotification('ACCESS DENIED', 'Subscriptions are reserved for Service Partners.', 'ALERT');
+      return;
+    }
+    
+    const planDetails = SUBSCRIPTION_PLANS[plan];
+    if (user.balance < planDetails.price) {
+      addNotification('INSUFFICIENT FUNDS', `Subscription for ${planDetails.name} requires ZMW ${planDetails.price}`, 'ALERT');
+      return;
+    }
+
+    const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
+    const updatedUser = { 
+      ...user, 
+      balance: user.balance - planDetails.price,
+      isPremium: plan === 'PREMIUM',
+      subscriptionExpiry: expiry
+    };
+
+    setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    setUser(updatedUser);
+    addNotification('PLAN ACTIVATED', `${planDetails.name} is now live on your terminal node.`, 'SUCCESS');
   }, [user, addNotification]);
 
-  const handleNegotiateBooking = useCallback((bookingId: string, newPrice: number, by: Role.CUSTOMER | Role.PROVIDER) => {
+  const handleCancelBooking = useCallback((bookingId: string) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking || booking.status === BookingStatus.CANCELLED) return;
+
+    const refundAmount = booking.negotiatedPrice || booking.price;
+
+    setAllUsers(prevUsers => prevUsers.map(u => {
+      if (u.id === booking.customerId) {
+        return { ...u, balance: u.balance + refundAmount };
+      }
+      return u;
+    }));
+
+    if (user && user.id === booking.customerId) {
+      setUser(prev => prev ? { ...prev, balance: prev.balance + refundAmount } : null);
+    }
+
+    setBookings(prev => prev.map(b => 
+      b.id === bookingId ? { ...b, status: BookingStatus.CANCELLED } : b
+    ));
+
+    addNotification('MISSION ABORTED', 'Booking cancelled. Funds returned to wallet.', 'ALERT');
+  }, [bookings, user, addNotification]);
+
+  const handleNegotiateBooking = useCallback((bookingId: string, newPrice: number, by: Role.CUSTOMER | Role.PROVIDER, providerId?: string) => {
     setBookings(prev => prev.map(b => {
       if (b.id === bookingId) {
-        // Validation for customer: do they have enough balance for the NEW price?
+        // Validation: Ensure customer has funds if provider is asking for more
         if (by === Role.PROVIDER) {
           const cust = allUsers.find(u => u.id === b.customerId);
-          if (cust && cust.balance < (newPrice - (b.negotiatedPrice || b.price))) {
+          const currentPrice = b.negotiatedPrice || b.price;
+          if (cust && newPrice > currentPrice && cust.balance < (newPrice - currentPrice)) {
              addNotification('NEGOTIATION ERROR', 'Customer has insufficient funds for this counter-offer.', 'ALERT');
              return b;
           }
@@ -117,23 +160,51 @@ const App: React.FC = () => {
           negotiatedPrice: newPrice, 
           lastOfferBy: by, 
           status: BookingStatus.NEGOTIATING,
+          providerId: providerId || b.providerId, // Lock provider if this is a bid
           negotiationHistory: [...history, { price: newPrice, by, timestamp: Date.now() }] 
         };
       }
       return b;
     }));
-    addNotification('BAZAAR UPDATE', `New offer of ZMW ${newPrice} proposed.`, 'INFO');
   }, [allUsers, addNotification]);
+
+  const handleRejectNegotiation = useCallback((bookingId: string, by: Role.CUSTOMER | Role.PROVIDER) => {
+    setBookings(prev => prev.map(b => {
+      if (b.id === bookingId) {
+        // If Customer rejects Provider's offer, reset to PENDING and clear providerId so others can bid
+        if (by === Role.CUSTOMER) {
+          return {
+            ...b,
+            status: BookingStatus.PENDING,
+            providerId: undefined, // Unlock booking
+            negotiatedPrice: undefined,
+            lastOfferBy: undefined
+          };
+        }
+        // If Provider rejects (drops negotiation), reset to PENDING
+        if (by === Role.PROVIDER) {
+           return {
+            ...b,
+            status: BookingStatus.PENDING,
+            providerId: undefined,
+            negotiatedPrice: undefined,
+            lastOfferBy: undefined
+          };
+        }
+      }
+      return b;
+    }));
+    addNotification('NEGOTIATION ENDED', 'Offer rejected. Booking returned to open pool.', 'INFO');
+  }, [addNotification]);
 
   const handleAcceptNegotiation = useCallback((bookingId: string, by: Role.CUSTOMER | Role.PROVIDER, providerId?: string) => {
     setBookings(prev => prev.map(b => {
       if (b.id === bookingId) {
         const agreedPrice = b.negotiatedPrice || b.price;
         const originalPrice = b.price;
-        
-        // Handle financial adjustment if the agreed price differs from what was initially deducted
         const difference = agreedPrice - originalPrice;
         
+        // Adjust customer balance if final price is different from initial deposit
         setAllUsers(users => users.map(u => {
           if (u.id === b.customerId) {
             const updated = { ...u, balance: u.balance - difference };
@@ -147,7 +218,7 @@ const App: React.FC = () => {
           ...b, 
           status: BookingStatus.ACCEPTED, 
           providerId: providerId || b.providerId, 
-          commission: agreedPrice * 0.1 
+          commission: agreedPrice * PLATFORM_COMMISSION_RATE 
         };
       }
       return b;
@@ -155,7 +226,6 @@ const App: React.FC = () => {
     addNotification('HANDSHAKE AGREED', 'Negotiation successful. Mission commencing.', 'SUCCESS');
   }, [user, addNotification]);
 
-  // Fix: Added handleSOS to handle emergency alerts
   const handleSOS = useCallback(() => {
     addNotification('SOS ALERT', 'Emergency signal sent to nearby responders and admins.', 'ALERT');
   }, [addNotification]);
@@ -176,7 +246,7 @@ const App: React.FC = () => {
       status: data.negotiatedPrice ? BookingStatus.NEGOTIATING : BookingStatus.PENDING,
       createdAt: Date.now(),
       trackingHistory: [currentLocation],
-      commission: initialPrice * 0.1,
+      commission: initialPrice * PLATFORM_COMMISSION_RATE,
       isPaid: true,
       category: data.category || 'general',
       description: data.description || '',
@@ -200,7 +270,13 @@ const App: React.FC = () => {
         addNotification('ACCESS DENIED', 'This terminal node has been suspended.', 'ALERT');
         return;
       }
-      const updatedUser = { ...existingUser, lastActive: Date.now() };
+      
+      let role = existingUser.role;
+      if (VERIFIED_ADMINS.includes(phone) && role === Role.CUSTOMER) {
+        role = Role.ADMIN;
+      }
+
+      const updatedUser = { ...existingUser, role, lastActive: Date.now() };
       setUser(updatedUser);
       setAllUsers(prev => prev.map(u => u.id === existingUser.id ? updatedUser : u));
       setLanguage(lang);
@@ -214,15 +290,19 @@ const App: React.FC = () => {
     const existingUser = allUsers.find(u => u.phone === phone);
     if (existingUser) { handleLogin(phone, lang); return; }
 
+    const isAdmin = VERIFIED_ADMINS.includes(phone);
+
     const newUser: User = {
       id: 'USR-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
-      phone, name, role: Role.CUSTOMER, isActive: true, lastActive: Date.now(), balance: 500, memberSince: Date.now(), rating: 5.0, language: lang, trustScore: 90, isVerified: true, avatarUrl: avatar, completedMissions: 0, savedNodes: []
+      phone, name, 
+      role: isAdmin ? Role.ADMIN : Role.CUSTOMER, 
+      isActive: true, lastActive: Date.now(), balance: 500, memberSince: Date.now(), rating: 5.0, language: lang, trustScore: 90, isVerified: true, avatarUrl: avatar, completedMissions: 0, savedNodes: []
     };
     
     setAllUsers(prev => [...prev, newUser]);
     setUser(newUser);
     setLanguage(lang);
-    setViewMode('CUSTOMER');
+    setViewMode(isAdmin ? 'MANAGEMENT' : 'CUSTOMER');
     localStorage.setItem('swensi-lang', lang);
     addNotification('NODE ESTABLISHED', `Welcome to the Hub, ${name}`, 'SUCCESS');
   };
@@ -247,6 +327,7 @@ const App: React.FC = () => {
           onCancelBooking={handleCancelBooking}
           onAcceptNegotiation={(id) => handleAcceptNegotiation(id, Role.CUSTOMER)}
           onCounterNegotiation={(id, price) => handleNegotiateBooking(id, price, Role.CUSTOMER)}
+          onRejectNegotiation={(id) => handleRejectNegotiation(id, Role.CUSTOMER)}
           onBecomeProvider={(kyc) => {
             const updatedUser: User = { 
               ...user, 
@@ -257,11 +338,12 @@ const App: React.FC = () => {
               trustScore: 50, 
               kycSubmittedAt: Date.now(), 
               lastActive: Date.now(), 
-              avatarUrl: kyc.photo || user.avatarUrl 
+              avatarUrl: kyc.photo || user.avatarUrl,
+              serviceCategories: kyc.categories
             };
             setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
             setUser(updatedUser);
-            addNotification('UPGRADE SUBMITTED', 'Your Partner application is pending review.', 'INFO');
+            addNotification('UPGRADE SUBMITTED', 'Partner application pending review. Subscription required for leads.', 'INFO');
           }} 
           onUpdateUser={(updates) => {
              const updated = { ...user, ...updates, lastActive: Date.now() };
@@ -287,7 +369,6 @@ const App: React.FC = () => {
             onDeleteUser={() => {}} 
             onToggleVerification={(userId) => {
               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: !u.isVerified, lastActive: Date.now() } : u));
-              addNotification('NODE AUTHORIZED', 'Partner access granted.', 'SUCCESS');
             }} 
             onUpdateUserRole={(userId, role) => {
               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role, lastActive: Date.now() } : u));
@@ -304,16 +385,17 @@ const App: React.FC = () => {
             user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} 
             onUpdateStatus={(id, status, pId) => {
               setBookings(prev => prev.map(b => b.id === id ? { ...b, status, providerId: pId } : b));
-              addNotification('MISSION ACCEPTED', 'You have taken on a new operation.', 'SUCCESS');
             }} 
             onAcceptNegotiation={(id) => handleAcceptNegotiation(id, Role.PROVIDER, user.id)}
-            onCounterNegotiation={(id, price) => handleNegotiateBooking(id, price, Role.PROVIDER)}
+            onCounterNegotiation={(id, price) => handleNegotiateBooking(id, price, Role.PROVIDER, user.id)}
+            onRejectNegotiation={(id) => handleRejectNegotiation(id, Role.PROVIDER)}
             onConfirmCompletion={(id) => {
               setBookings(prev => prev.map(b => b.id === id ? { ...b, status: BookingStatus.COMPLETED } : b));
               addNotification('MISSION SUCCESS', 'Operation finalized.', 'SUCCESS');
             }} 
-            onUpdateBooking={() => {}} onUpdateSubscription={() => {}} 
-            location={currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} 
+            onUpdateBooking={() => {}} 
+            onUpdateSubscription={handleUpdateSubscription} 
+            location={user.location || currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} 
             onLanguageChange={setLanguage} onUpdateUser={(u) => {
               const updated = { ...user, ...u, lastActive: Date.now() };
               setUser(updated);
