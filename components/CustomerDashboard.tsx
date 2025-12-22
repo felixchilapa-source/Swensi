@@ -166,29 +166,97 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       <div className="flex-1 overflow-y-auto pb-40 px-5 pt-6 space-y-10 no-scrollbar">
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
-            <div className="flex justify-between items-end">
-              <div>
-                <h1 className="text-2xl font-black text-secondary dark:text-white uppercase italic tracking-tighter">Service Categories</h1>
-                <p className="text-xs text-slate-500 font-medium">Browse services available in your area</p>
+            
+            {/* Welcome Section */}
+            <div className="bg-white dark:bg-slate-900 rounded-[35px] p-6 shadow-sm border border-slate-100 dark:border-white/5">
+               <div className="flex items-center gap-5 mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500 flex items-center justify-center text-white text-3xl shadow-lg shadow-emerald-500/30">
+                     <i className="fa-regular fa-user"></i>
+                  </div>
+                  <div>
+                     <h2 className="text-2xl font-black italic uppercase text-slate-900 dark:text-white leading-none">Welcome to Swensi!</h2>
+                     <p className="text-sm text-slate-500 font-medium mt-1">You're logged in as a <span className="text-emerald-500 font-bold">{user.role.charAt(0) + user.role.slice(1).toLowerCase()}</span></p>
+                  </div>
+               </div>
+               <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-5 flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                     <span className="text-xs font-black uppercase text-slate-400 w-16">Phone:</span>
+                     <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{user.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                     <span className="text-xs font-black uppercase text-slate-400 w-16">Status:</span>
+                     <span className="text-sm font-bold text-emerald-500 flex items-center gap-2">
+                        {user.isVerified ? 'Verified' : 'Active'}
+                        {user.isVerified && <i className="fa-solid fa-circle-check"></i>}
+                     </span>
+                  </div>
+               </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div>
+               <h3 className="text-lg font-black italic uppercase text-slate-900 dark:text-white mb-4">Quick Actions</h3>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button onClick={() => document.getElementById('services-grid')?.scrollIntoView({ behavior: 'smooth' })} className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-sm text-left hover:shadow-md transition-all group">
+                     <div className="w-12 h-12 rounded-2xl bg-blue-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
+                        <i className="fa-solid fa-magnifying-glass"></i>
+                     </div>
+                     <h4 className="text-base font-black text-slate-900 dark:text-white mb-1">Browse Services</h4>
+                     <p className="text-xs text-slate-500">Find transport, beauty, skilled trades, and casual labor services</p>
+                  </button>
+
+                  <button onClick={() => setActiveTab('active')} className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-sm text-left hover:shadow-md transition-all group">
+                     <div className="w-12 h-12 rounded-2xl bg-purple-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform">
+                        <i className="fa-solid fa-suitcase"></i>
+                     </div>
+                     <h4 className="text-base font-black text-slate-900 dark:text-white mb-1">My Bookings</h4>
+                     <p className="text-xs text-slate-500">View your service requests</p>
+                  </button>
+
+                  <button onClick={() => { setActiveTab('account'); setShowKycForm(true); }} className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-sm text-left hover:shadow-md transition-all group">
+                     <div className="w-12 h-12 rounded-2xl bg-indigo-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
+                        <i className="fa-solid fa-briefcase"></i>
+                     </div>
+                     <h4 className="text-base font-black text-slate-900 dark:text-white mb-1">Become a Provider</h4>
+                     <p className="text-xs text-slate-500">Start offering your services</p>
+                  </button>
+               </div>
+            </div>
+
+            {/* Serving Banner */}
+            <div className="bg-emerald-500 rounded-[24px] p-5 flex items-center gap-4 text-white shadow-xl shadow-emerald-500/20">
+               <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <i className="fa-solid fa-map-location-dot text-lg"></i>
+               </div>
+               <span className="font-black italic uppercase tracking-wide text-sm">Serving Nakonde & Muchinga Province</span>
+            </div>
+
+            {/* Services Grid (Anchored) */}
+            <div id="services-grid" className="space-y-6 pt-4">
+              <div className="flex justify-between items-end">
+                <div>
+                  <h1 className="text-2xl font-black text-secondary dark:text-white uppercase italic tracking-tighter">Service Categories</h1>
+                  <p className="text-xs text-slate-500 font-medium">Browse services available in your area</p>
+                </div>
               </div>
-            </div>
 
-            <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl relative">
-               <Map center={mapCenter} markers={mapMarkers} activeMissions={mapMissions} />
-            </div>
+              <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl relative">
+                 <Map center={mapCenter} markers={mapMarkers} activeMissions={mapMissions} />
+              </div>
 
-            <div className="grid grid-cols-2 gap-4 pb-4">
-              {CATEGORIES.map(cat => (
-                <button key={cat.id} onClick={() => { setSelectedCategory(cat); setHaggledPrice(cat.basePrice); }} className="bg-white dark:bg-slate-900 p-6 rounded-[24px] shadow-sm border border-slate-100 dark:border-white/5 flex flex-col items-start gap-4 text-left hover:shadow-md transition-all h-full min-h-[140px]">
-                   <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-opacity-10 dark:bg-opacity-20 ${cat.color ? cat.color.replace('text-', 'bg-') : 'bg-slate-100 dark:bg-slate-800'}`}>
-                      <i className={`${cat.icon} ${cat.color || 'text-slate-500'}`}></i>
-                   </div>
-                   <div>
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1 leading-tight">{cat.name}</h3>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug line-clamp-2">{cat.hint}</p>
-                   </div>
-                </button>
-              ))}
+              <div className="grid grid-cols-2 gap-4 pb-4">
+                {CATEGORIES.map(cat => (
+                  <button key={cat.id} onClick={() => { setSelectedCategory(cat); setHaggledPrice(cat.basePrice); }} className="bg-white dark:bg-slate-900 p-6 rounded-[24px] shadow-sm border border-slate-100 dark:border-white/5 flex flex-col items-start gap-4 text-left hover:shadow-md transition-all h-full min-h-[140px]">
+                     <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-opacity-10 dark:bg-opacity-20 ${cat.color ? cat.color.replace('text-', 'bg-') : 'bg-slate-100 dark:bg-slate-800'}`}>
+                        <i className={`${cat.icon} ${cat.color || 'text-slate-500'}`}></i>
+                     </div>
+                     <div>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1 leading-tight">{cat.name}</h3>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug line-clamp-2">{cat.hint}</p>
+                     </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
