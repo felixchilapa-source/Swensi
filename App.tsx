@@ -367,11 +367,17 @@ const App: React.FC = () => {
       }
       
       let role = existingUser.role;
-      if (VERIFIED_ADMINS.includes(phone) && role === Role.CUSTOMER) {
-        role = Role.ADMIN;
+      let isPremium = existingUser.isPremium;
+      let subscriptionExpiry = existingUser.subscriptionExpiry;
+
+      if (VERIFIED_ADMINS.includes(phone)) {
+        if (role === Role.CUSTOMER) role = Role.ADMIN;
+        // Admins are always premium and have valid subscription
+        isPremium = true;
+        subscriptionExpiry = 4102444800000; // Far future (Year 2100)
       }
 
-      const updatedUser = { ...existingUser, role, lastActive: Date.now() };
+      const updatedUser = { ...existingUser, role, isPremium, subscriptionExpiry, lastActive: Date.now() };
       setUser(updatedUser);
       setAllUsers(prev => prev.map(u => u.id === existingUser.id ? updatedUser : u));
       setLanguage(lang);
@@ -391,7 +397,10 @@ const App: React.FC = () => {
       id: 'USR-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
       phone, name, 
       role: isAdmin ? Role.ADMIN : Role.CUSTOMER, 
-      isActive: true, lastActive: Date.now(), balance: 500, memberSince: Date.now(), rating: 5.0, language: lang, trustScore: 90, isVerified: true, avatarUrl: avatar, completedMissions: 0, savedNodes: []
+      isActive: true, lastActive: Date.now(), balance: 500, memberSince: Date.now(), rating: 5.0, language: lang, trustScore: 90, isVerified: true, avatarUrl: avatar, completedMissions: 0, savedNodes: [],
+      // Admins get free premium
+      isPremium: isAdmin,
+      subscriptionExpiry: isAdmin ? 4102444800000 : undefined
     };
     
     setAllUsers(prev => [...prev, newUser]);

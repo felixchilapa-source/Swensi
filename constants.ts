@@ -22,18 +22,18 @@ export interface Category {
   hint: string;
   trustThreshold?: number;
   subscriptionFee?: number;
+  color?: string; // Added for UI styling
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'transport', name: 'Taxi & Bike', icon: 'fa-solid fa-car-side', requiresLicense: true, basePrice: 65, hint: "Fast movement in Nakonde" },
-  { id: 'trucking', name: 'Heavy Trucking', icon: 'fa-solid fa-truck-front', requiresLicense: true, basePrice: 1500, hint: "Cross-border cargo transport" },
-  { id: 'customs', name: 'Customs Clearing', icon: 'fa-solid fa-file-contract', trustThreshold: 50, basePrice: 200, hint: "Help with border paperwork" },
-  { id: 'visa', name: 'Visa & Permits', icon: 'fa-solid fa-passport', basePrice: 150, hint: "Immigration & work permits" },
-  { id: 'forex', name: 'Bureau de Change', icon: 'fa-solid fa-money-bill-transfer', basePrice: 20, hint: "ZMW/TZS/USD exchange links" },
-  { id: 'lodging', name: 'Lodges & Rooms', icon: 'fa-solid fa-bed', subscriptionFee: 250, basePrice: 350, hint: "Safe stays near the border" },
-  { id: 'shop_for_me', name: 'Shop For Me', icon: 'fa-solid fa-basket-shopping', trustThreshold: 80, basePrice: 100, hint: "Procurement by Trusted Agents" },
-  { id: 'errands', name: 'Small Errands', icon: 'fa-solid fa-cart-shopping', trustThreshold: 20, basePrice: 50, hint: "Basic delivery or pickups" },
-  { id: 'trades', name: 'Skilled Workers', icon: 'fa-solid fa-wrench', basePrice: 150, hint: "Mechanics, plumbers, etc." },
+  { id: 'beauty', name: 'Beauty', icon: 'fa-solid fa-scissors', basePrice: 50, hint: "Salons, barbers, and beauty services", color: 'text-pink-500' },
+  { id: 'labor', name: 'Casual Labor', icon: 'fa-solid fa-person-digging', basePrice: 80, hint: "General labor and assistance services", color: 'text-amber-500' },
+  { id: 'trades', name: 'Skilled Trades', icon: 'fa-solid fa-wrench', basePrice: 150, hint: "Plumbers, carpenters, mechanics, and other skilled professionals", color: 'text-slate-500' },
+  { id: 'transport', name: 'Transport', icon: 'fa-solid fa-taxi', requiresLicense: true, basePrice: 65, hint: "Taxi services, bikers, and other transportation", color: 'text-yellow-500' },
+  { id: 'trucking', name: 'Heavy Trucking', icon: 'fa-solid fa-truck-front', requiresLicense: true, basePrice: 1500, hint: "Cross-border cargo transport", color: 'text-blue-600' },
+  { id: 'customs', name: 'Customs Clearing', icon: 'fa-solid fa-file-contract', trustThreshold: 50, basePrice: 200, hint: "Help with border paperwork", color: 'text-emerald-600' },
+  { id: 'lodging', name: 'Lodges & Rooms', icon: 'fa-solid fa-bed', subscriptionFee: 250, basePrice: 350, hint: "Safe stays near the border", color: 'text-purple-600' },
+  { id: 'shop_for_me', name: 'Shop For Me', icon: 'fa-solid fa-basket-shopping', trustThreshold: 80, basePrice: 100, hint: "Procurement by Trusted Agents", color: 'text-orange-500' },
 ];
 
 export const SUPER_ADMIN = '0961179384';

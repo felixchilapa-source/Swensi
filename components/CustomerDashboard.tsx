@@ -167,7 +167,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
             <div className="flex justify-between items-end">
-              <h1 className="text-3xl font-black text-secondary dark:text-white uppercase italic tracking-tighter">Nakonde Hub</h1>
+              <div>
+                <h1 className="text-2xl font-black text-secondary dark:text-white uppercase italic tracking-tighter">Service Categories</h1>
+                <p className="text-xs text-slate-500 font-medium">Browse services available in your area</p>
+              </div>
             </div>
 
             <div className="bg-slate-900 rounded-[35px] border border-white/5 overflow-hidden shadow-2xl relative">
@@ -176,13 +179,13 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
             <div className="grid grid-cols-2 gap-4 pb-4">
               {CATEGORIES.map(cat => (
-                <button key={cat.id} onClick={() => { setSelectedCategory(cat); setHaggledPrice(cat.basePrice); }} className="bg-white dark:bg-slate-900 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 flex flex-col items-start justify-between min-h-[170px] shadow-sm group hover:border-emerald-500/50 transition-all">
-                   <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                      <i className={`${cat.icon} text-xl`}></i>
+                <button key={cat.id} onClick={() => { setSelectedCategory(cat); setHaggledPrice(cat.basePrice); }} className="bg-white dark:bg-slate-900 p-6 rounded-[24px] shadow-sm border border-slate-100 dark:border-white/5 flex flex-col items-start gap-4 text-left hover:shadow-md transition-all h-full min-h-[140px]">
+                   <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-opacity-10 dark:bg-opacity-20 ${cat.color ? cat.color.replace('text-', 'bg-') : 'bg-slate-100 dark:bg-slate-800'}`}>
+                      <i className={`${cat.icon} ${cat.color || 'text-slate-500'}`}></i>
                    </div>
-                   <div className="text-left">
-                      <p className="text-[10px] font-black uppercase text-slate-400 mb-1 italic">{cat.name}</p>
-                      <p className="text-sm font-black text-secondary dark:text-white italic tracking-tighter">ZMW {cat.basePrice}</p>
+                   <div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1 leading-tight">{cat.name}</h3>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug line-clamp-2">{cat.hint}</p>
                    </div>
                 </button>
               ))}
