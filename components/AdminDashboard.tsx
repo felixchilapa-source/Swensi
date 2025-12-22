@@ -31,7 +31,7 @@ interface AdminDashboardProps {
   onAddLog: (action: string, targetId?: string, severity?: 'INFO' | 'WARNING' | 'CRITICAL') => void;
 }
 
-type AdminView = 'stats' | 'missions' | 'approvals' | 'feedback' | 'registry' | 'security';
+type AdminView = 'stats' | 'missions' | 'requests' | 'feedback' | 'registry' | 'security';
 
 interface NavItem {
   id: AdminView;
@@ -43,7 +43,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   user, logout, allUsers, bookings, councilOrders, feedbacks, systemLogs, onToggleVerification, onMarkFeedbackRead, onToggleBlock, onUpdateUserRole, t, onToggleViewMode, onUpdateBooking, onAddLog 
 }) => {
   const isWorkflow = user.role === Role.WORKFLOW;
-  const [view, setView] = useState<AdminView>(isWorkflow ? 'approvals' : 'stats');
+  const [view, setView] = useState<AdminView>(isWorkflow ? 'requests' : 'stats');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Reassign Modal State
@@ -63,7 +63,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const navItems = useMemo((): NavItem[] => {
     const fullItems: NavItem[] = [
       { id: 'stats', icon: 'fa-chart-pie', label: 'ROI' },
-      { id: 'approvals', icon: 'fa-user-check', label: 'Requests' },
+      { id: 'requests', icon: 'fa-user-check', label: 'Requests' },
       { id: 'feedback', icon: 'fa-comments', label: 'Buzz' },
       { id: 'missions', icon: 'fa-route', label: 'Ops' },
       { id: 'registry', icon: 'fa-users', label: 'Nodes' },
@@ -71,7 +71,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ];
     
     if (isWorkflow) {
-      return fullItems.filter(item => ['approvals', 'registry', 'security'].includes(item.id));
+      return fullItems.filter(item => ['requests', 'registry', 'security'].includes(item.id));
     }
     return fullItems;
   }, [isWorkflow]);
@@ -121,6 +121,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
      }
   };
 
+  const handleRejectApplication = (user: User) => {
+      onUpdateUserRole(user.id, Role.CUSTOMER);
+      onAddLog(`Rejected provider application for ${user.name}`, user.id, 'INFO');
+      // Also unverify just in case
+      if (user.isVerified) onToggleVerification(user.id);
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white relative overflow-hidden transition-colors duration-300">
       <header className="px-5 py-6 border-b border-slate-200 dark:border-white/5 flex justify-between items-center bg-white/80 dark:bg-slate-950/90 backdrop-blur-xl z-50 safe-pt shadow-sm dark:shadow-none">
@@ -134,7 +141,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-emerald-600/10 text-emerald-600 dark:text-emerald-500 flex items-center justify-center border border-emerald-600/20 active:scale-95 transition-all"><i className="fa-solid fa-cart-plus"></i></button>
+          {!isWorkflow && (
+            <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-emerald-600/10 text-emerald-600 dark:text-emerald-500 flex items-center justify-center border border-emerald-600/20 active:scale-95 transition-all"><i className="fa-solid fa-cart-plus"></i></button>
+          )}
           <button onClick={logout} className="w-9 h-9 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center border border-red-500/20 active:scale-95 transition-all"><i className="fa-solid fa-power-off text-xs"></i></button>
         </div>
       </header>
@@ -155,7 +164,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                     <div>
                        <h3 className="text-lg font-black italic uppercase text-slate-900 dark:text-white leading-none">{selectedUserProfile.name}</h3>
-                       <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mt-1">{selectedUserProfile.role}</p>
+                       <div className="mt-2">
+                         {/* Role Selector */}
+                         <select 
+                            value={selectedUserProfile.role}
+                            onChange={(e) => {
+                                const newRole = e.target.value as Role;
+                                onUpdateUserRole(selectedUserProfile.id, newRole);
+                                setSelectedUserProfile({...selectedUserProfile, role: newRole});
+                                onAddLog(`Role changed for ${selectedUserProfile.name} to ${newRole}`, selectedUserProfile.id, 'CRITICAL');
+                            }}
+                            className="bg-blue-600/10 text-blue-600 dark:text-blue-400 border-none rounded-lg px-2 py-1 text-[9px] font-black uppercase outline-none cursor-pointer"
+                         >
+                            {Object.values(Role).map(r => (
+                                <option key={r} value={r}>{r}</option>
+                            ))}
+                         </select>
+                       </div>
                     </div>
                  </div>
                  <button onClick={() => setSelectedUserProfile(null)} className="w-10 h-10 rounded-full bg-slate-200 dark:bg-white/10 flex items-center justify-center text-slate-500 hover:text-red-500 transition-colors">
@@ -247,12 +272,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     >
                        {selectedUserProfile.isActive ? 'Block Account' : 'Unblock Account'}
                     </button>
-                    <button 
-                       onClick={() => { onToggleVerification(selectedUserProfile.id); onAddLog(`Toggled Verification: ${selectedUserProfile.name}`, selectedUserProfile.id, 'INFO'); setSelectedUserProfile(prev => prev ? {...prev, isVerified: !prev.isVerified} : null); }}
-                       className={`py-4 rounded-2xl font-black text-[10px] uppercase italic ${selectedUserProfile.isVerified ? 'bg-slate-100 dark:bg-white/10 text-slate-500' : 'bg-blue-600 text-white shadow-lg'}`}
-                    >
-                       {selectedUserProfile.isVerified ? 'Revoke Verify' : 'Approve KYC'}
-                    </button>
+                    {selectedUserProfile.role === Role.PROVIDER && (
+                      <button 
+                         onClick={() => { onToggleVerification(selectedUserProfile.id); onAddLog(`Toggled Verification: ${selectedUserProfile.name}`, selectedUserProfile.id, 'INFO'); setSelectedUserProfile(prev => prev ? {...prev, isVerified: !prev.isVerified} : null); }}
+                         className={`py-4 rounded-2xl font-black text-[10px] uppercase italic ${selectedUserProfile.isVerified ? 'bg-slate-100 dark:bg-white/10 text-slate-500' : 'bg-blue-600 text-white shadow-lg'}`}
+                      >
+                         {selectedUserProfile.isVerified ? 'Revoke Verify' : 'Approve KYC'}
+                      </button>
+                    )}
                  </div>
               </div>
            </div>
@@ -291,7 +318,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button key={v.id} onClick={() => setView(v.id)}
               className={`flex-1 min-w-[60px] py-3 rounded-xl text-[7px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-1 relative ${view === v.id ? (isWorkflow ? 'bg-amber-600' : 'bg-red-600') + ' text-white shadow-xl' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5'}`}>
               <i className={`fa-solid ${v.icon} text-[10px]`}></i> {v.label}
-              {v.id === 'approvals' && stats.pendingApprovals > 0 && (
+              {v.id === 'requests' && stats.pendingApprovals > 0 && (
                 <span className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse border border-white dark:border-slate-900"></span>
               )}
             </button>
@@ -326,7 +353,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {view === 'approvals' && (
+        {view === 'requests' && (
           <div className="space-y-6 animate-fade-in">
              <div className="px-2">
                 <h3 className="text-xl font-black italic uppercase tracking-tighter">Partner Admission</h3>
@@ -348,7 +375,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <button onClick={() => { onToggleBlock(p.id); onAddLog(`Blocked/Unblocked ${p.name}`, p.id, 'WARNING'); }} className="py-4 bg-red-500/10 text-red-500 rounded-2xl text-[9px] font-black uppercase italic hover:bg-red-500/20 transition-colors">Block</button>
+                        <button onClick={() => handleRejectApplication(p)} className="py-4 bg-red-500/10 text-red-500 rounded-2xl text-[9px] font-black uppercase italic hover:bg-red-500/20 transition-colors">Reject</button>
                         <button onClick={() => { onToggleVerification(p.id); onAddLog(`Verified provider ${p.name}`, p.id, 'INFO'); }} className={`py-4 ${isWorkflow ? 'bg-amber-600' : 'bg-emerald-600'} text-white rounded-2xl text-[9px] font-black uppercase italic shadow-lg active:scale-95 transition-all`}>Authorize</button>
                       </div>
                    </div>
@@ -378,11 +405,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <div>
                              <p className="text-xs font-black italic text-slate-900 dark:text-white uppercase">{u.name}</p>
                              <p className="text-[8px] font-bold text-slate-500 uppercase mt-1 tracking-widest">{u.phone}</p>
-                             {u.role === Role.PROVIDER && <p className="text-[7px] text-slate-500 uppercase">{u.serviceCategories?.[0]}</p>}
+                             <p className="text-[7px] text-slate-400 font-bold uppercase">{u.role}</p>
                           </div>
                        </div>
                        <button onClick={() => setSelectedUserProfile(u)} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/20 transition-colors">
-                          <i className="fa-solid fa-eye text-xs"></i>
+                          <i className="fa-solid fa-pen-to-square text-xs"></i>
                        </button>
                      </div>
                      
@@ -390,13 +417,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button onClick={() => { onToggleBlock(u.id); onAddLog(`Toggled block for ${u.name}`, u.id, 'WARNING'); }} className={`flex-1 py-2 rounded-xl text-[7px] font-black uppercase italic ${u.isActive ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                            {u.isActive ? 'Block' : 'Unblock'}
                         </button>
-                        {!isWorkflow && (
-                          <button onClick={() => { 
-                             const newRole = u.role === Role.ADMIN ? Role.CUSTOMER : Role.ADMIN;
-                             onUpdateUserRole(u.id, newRole); 
-                             onAddLog(`Changed role of ${u.name} to ${newRole}`, u.id, 'CRITICAL');
-                          }} className="flex-1 py-2 bg-blue-500/10 text-blue-500 rounded-xl text-[7px] font-black uppercase italic">Toggle Role</button>
-                        )}
+                        {/* Inline Role Dropdown */}
+                        <select 
+                           value={u.role}
+                           onChange={(e) => {
+                             onUpdateUserRole(u.id, e.target.value as Role);
+                             onAddLog(`Role changed for ${u.name} to ${e.target.value}`, u.id, 'CRITICAL');
+                           }}
+                           className="flex-1 bg-blue-500/10 text-blue-500 rounded-xl text-[7px] font-black uppercase italic outline-none px-2 cursor-pointer"
+                        >
+                           {Object.values(Role).map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
                      </div>
                   </div>
                 ))}
