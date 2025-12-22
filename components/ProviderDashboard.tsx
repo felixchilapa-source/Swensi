@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { User, Booking, BookingStatus, Role, Location } from '../types';
-import { PAYMENT_NUMBERS, SUBSCRIPTION_PLANS, LANGUAGES, CATEGORIES, PLATFORM_COMMISSION_RATE } from '../constants';
+import { PAYMENT_NUMBERS, SUBSCRIPTION_PLANS, LANGUAGES, CATEGORIES, PLATFORM_COMMISSION_RATE, VERIFIED_ADMINS } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 
@@ -35,7 +35,12 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
   
   const isOnline = user.isOnline !== false; 
   const isAuthorized = user.isVerified;
-  const isSubscribed = useMemo(() => user.subscriptionExpiry ? user.subscriptionExpiry > Date.now() : false, [user.subscriptionExpiry]);
+  
+  const isSubscribed = useMemo(() => {
+    // Free access for admins
+    if (VERIFIED_ADMINS.includes(user.phone)) return true;
+    return user.subscriptionExpiry ? user.subscriptionExpiry > Date.now() : false;
+  }, [user.subscriptionExpiry, user.phone]);
 
   const pendingLeads = useMemo(() => {
     if (!isOnline || !isAuthorized || !isSubscribed) return [];

@@ -372,9 +372,7 @@ const App: React.FC = () => {
 
       if (VERIFIED_ADMINS.includes(phone)) {
         if (role === Role.CUSTOMER) role = Role.ADMIN;
-        // Admins are always premium and have valid subscription
-        isPremium = true;
-        subscriptionExpiry = 4102444800000; // Far future (Year 2100)
+        // Admins don't need a formal subscription object, access is free via logic check
       }
 
       const updatedUser = { ...existingUser, role, isPremium, subscriptionExpiry, lastActive: Date.now() };
@@ -398,9 +396,9 @@ const App: React.FC = () => {
       phone, name, 
       role: isAdmin ? Role.ADMIN : Role.CUSTOMER, 
       isActive: true, lastActive: Date.now(), balance: 500, memberSince: Date.now(), rating: 5.0, language: lang, trustScore: 90, isVerified: true, avatarUrl: avatar, completedMissions: 0, savedNodes: [],
-      // Admins get free premium
-      isPremium: isAdmin,
-      subscriptionExpiry: isAdmin ? 4102444800000 : undefined
+      // Admins: No subscription property needed
+      isPremium: false,
+      subscriptionExpiry: undefined
     };
     
     setAllUsers(prev => [...prev, newUser]);
