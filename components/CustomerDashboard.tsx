@@ -1,11 +1,12 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { User, Booking, Location, BookingStatus, Role, CouncilOrder, SavedNode, Feedback, ShoppingItem } from '../types';
 import { CATEGORIES, Category, PAYMENT_NUMBERS, LANGUAGES, COLORS, TRANSPORT_RATE_PER_KM } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
 import AIAssistant from './AIAssistant';
 import TradeFeed from './TradeFeed';
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface CustomerDashboardProps {
   user: User;
@@ -30,10 +31,25 @@ interface CustomerDashboardProps {
   onSOS?: () => void;
   onDeposit?: (amount: number) => void;
   onSaveNode?: (node: SavedNode) => void;
+  onNotification: (title: string, message: string, type: 'INFO' | 'ALERT' | 'SUCCESS') => void;
 }
 
+// Haversine formula to calculate distance in KM
+const calculateDistance = (loc1: Location, loc2: Location): number => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (loc2.lat - loc1.lat) * (Math.PI / 180);
+  const dLon = (loc2.lng - loc1.lng) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(loc1.lat * (Math.PI / 180)) * Math.cos(loc2.lat * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+  const d = R * c; 
+  return parseFloat((d * 1.4).toFixed(1)); // Multiply by 1.4 to estimate road distance vs straight line
+};
+
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, allUsers = [], onAddBooking, onCancelBooking, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange 
+  user, logout, bookings, allUsers = [], onAddBooking, onCancelBooking, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange, onNotification
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -52,6 +68,18 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   // Transport Specifics
   const [tripDistance, setTripDistance] = useState<number>(0);
   const [tripDestination, setTripDestination] = useState('');
+  
+  // New: Pickup Location State
+  const [pickupMode, setPickupMode] = useState<'CURRENT' | 'CUSTOM'>('CURRENT');
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupCoords, setPickupCoords] = useState<Location>(location);
+  const [destinationCoords, setDestinationCoords] = useState<Location | null>(null);
+
+  // Suggestions State
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isForOther, setIsForOther] = useState(false);
   const [recipientName, setRecipientName] = useState('');
@@ -104,9 +132,102 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   useEffect(() => {
     if (selectedCategory?.pricingModel === 'DISTANCE') {
       const price = selectedCategory.basePrice + (tripDistance * TRANSPORT_RATE_PER_KM);
-      setHaggledPrice(price);
+      setHaggledPrice(Math.round(price));
     }
   }, [tripDistance, selectedCategory]);
+
+  // Update pickup coords when switching modes
+  useEffect(() => {
+    if (pickupMode === 'CURRENT') {
+      setPickupCoords(location);
+    }
+  }, [pickupMode, location]);
+
+  const fetchPlaceSuggestions = async (input: string) => {
+    if (input.length < 3) return;
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `List 3 popular places or landmarks in Nakonde, Zambia that match the search term "${input}". Return a simple JSON array of strings only.`,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        }
+      });
+      const data = JSON.parse(response.text || '[]');
+      setSuggestions(data);
+      setShowSuggestions(true);
+    } catch (e) {
+      console.error("Suggestion fetch failed", e);
+    }
+  };
+
+  const handleDestinationInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTripDestination(val);
+    
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      fetchPlaceSuggestions(val);
+    }, 800);
+  };
+
+  const resolveCoordinates = async (placeName: string): Promise<Location | null> => {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `What are the estimated latitude and longitude coordinates for "${placeName}" in Nakonde, Zambia? Return JSON.`,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              lat: { type: Type.NUMBER },
+              lng: { type: Type.NUMBER }
+            }
+          }
+        }
+      });
+      const data = JSON.parse(response.text || 'null');
+      return data;
+    } catch (e) {
+      console.error("Coord resolution failed", e);
+      return null;
+    }
+  };
+
+  const handleSelectSuggestion = async (place: string) => {
+    setTripDestination(place);
+    setShowSuggestions(false);
+    setIsCalculating(true);
+
+    // 1. Resolve Pickup Coords (if custom)
+    let startLoc = pickupMode === 'CURRENT' ? location : pickupCoords;
+    if (pickupMode === 'CUSTOM' && pickupAddress) {
+      const resolvedPickup = await resolveCoordinates(pickupAddress);
+      if (resolvedPickup) {
+        startLoc = resolvedPickup;
+        setPickupCoords(resolvedPickup);
+      }
+    }
+
+    // 2. Resolve Destination Coords
+    const destLoc = await resolveCoordinates(place);
+    
+    // 3. Calculate
+    if (startLoc && destLoc) {
+      setDestinationCoords(destLoc);
+      const dist = calculateDistance(startLoc, destLoc);
+      setTripDistance(dist);
+    }
+
+    setIsCalculating(false);
+  };
 
   const handleLaunchMission = () => {
     if (!selectedCategory) return;
@@ -123,18 +244,19 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
     if (selectedCategory.pricingModel === 'DISTANCE') {
       if (tripDistance <= 0 || !tripDestination) {
-        alert('Please enter a valid distance and destination');
+        onNotification('MISSING INFO', 'Please select a valid destination to calculate fare.', 'ALERT');
         return;
       }
       initialPrice = selectedCategory.basePrice + (tripDistance * TRANSPORT_RATE_PER_KM);
-      finalDesc = `Trip to ${tripDestination} (${tripDistance}km). ${missionDesc}`;
+      const pickupText = pickupMode === 'CURRENT' ? 'My Location' : pickupAddress;
+      finalDesc = `Trip: ${pickupText} -> ${tripDestination} (${tripDistance}km). ${missionDesc}`;
     }
 
     if (selectedCategory.pricingModel === 'QUOTE') {
       initialPrice = 0;
-      isNegotiated = true; // Force negotiation mode for quotes
+      isNegotiated = true; 
       if (!missionDesc.trim()) {
-        alert('Please describe your request so providers can send a quote.');
+        onNotification('DETAILS NEEDED', 'Please describe your request so providers can send a quote.', 'ALERT');
         return;
       }
     } else {
@@ -146,8 +268,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       description: finalDesc, 
       price: initialPrice, 
       negotiatedPrice: isNegotiated ? (selectedCategory.pricingModel === 'QUOTE' ? 0 : haggledPrice || initialPrice) : undefined,
-      location: location,
-      destination: selectedCategory.pricingModel === 'DISTANCE' ? { lat: location.lat + 0.01, lng: location.lng + 0.01, address: tripDestination } : undefined,
+      location: pickupMode === 'CUSTOM' ? pickupCoords : location,
+      destination: selectedCategory.pricingModel === 'DISTANCE' && destinationCoords ? { ...destinationCoords, address: tripDestination } : undefined,
       isShoppingOrder: selectedCategory.id === 'shop_for_me',
       shoppingItems: finalItems,
       recipientName: isForOther ? recipientName : undefined,
@@ -160,6 +282,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     setIsHaggling(false);
     setTripDistance(0);
     setTripDestination('');
+    setPickupMode('CURRENT');
+    setPickupAddress('');
     setIsForOther(false);
     setRecipientName('');
     setRecipientPhone('');
@@ -178,11 +302,20 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const handleSubmitKyc = () => {
     const isTransport = ['transport', 'trucking'].includes(kycCategory);
 
-    if (!kycLicense || !kycAddress) return alert('License/ID Number and Address are mandatory.');
+    if (!kycLicense || !kycAddress) {
+        onNotification('KYC ERROR', 'License/ID Number and Address are mandatory.', 'ALERT');
+        return;
+    }
 
     if (isTransport) {
-        if (!kycLicenseFile) return alert('For transport services, you must attach a photo of your Driving License.');
-        if (!kycPhotoFile && !user.avatarUrl) return alert('A profile picture is mandatory for transport providers.');
+        if (!kycLicenseFile) {
+            onNotification('KYC ERROR', 'For transport services, you must attach a photo of your Driving License.', 'ALERT');
+            return;
+        }
+        if (!kycPhotoFile && !user.avatarUrl) {
+            onNotification('KYC ERROR', 'A profile picture is mandatory for transport providers.', 'ALERT');
+            return;
+        }
     }
 
     onBecomeProvider({ 
@@ -200,7 +333,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
       <header className="px-5 py-4 flex justify-between items-center glass-nav border-b dark:border-white/5 sticky top-0 z-[50] backdrop-blur-xl safe-pt">
         <div className="flex items-center gap-3">
-          <div className="bg-emerald-700 w-10 h-10 rounded-2xl flex items-center justify-center transform -rotate-6">
+          <div className="bg-emerald-700 w-10 h-10 rounded-2xl flex items-center justify-center transform -rotate-6 shadow-md">
             <i className="fas fa-link text-white text-base"></i>
           </div>
           <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Swensi</h2>
@@ -210,9 +343,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
              <p className="text-[11px] font-black dark:text-white uppercase italic">ZMW {user.balance.toFixed(0)}</p>
            </div>
            {user.role !== Role.CUSTOMER && (
-              <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20"><i className="fa-solid fa-rotate"></i></button>
+              <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-600/20 active:scale-95 transition-all"><i className="fa-solid fa-rotate"></i></button>
            )}
-           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400"><i className="fa-solid fa-power-off text-xs"></i></button>
+           <button onClick={logout} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 active:scale-95 transition-all"><i className="fa-solid fa-power-off text-xs"></i></button>
         </div>
       </header>
 
@@ -224,8 +357,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           <div className="animate-fade-in space-y-8">
             
             {/* Welcome Section */}
-            <div className="bg-white dark:bg-slate-900 rounded-[35px] p-6 shadow-sm border border-slate-100 dark:border-white/5">
-               <div className="flex items-center gap-5 mb-6">
+            <div className="bg-white dark:bg-slate-900 rounded-[35px] p-6 shadow-sm border border-slate-100 dark:border-white/5 relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <i className="fa-solid fa-earth-africa text-6xl text-emerald-500"></i>
+               </div>
+               <div className="flex items-center gap-5 mb-6 relative z-10">
                   <div className="w-16 h-16 rounded-2xl bg-emerald-500 flex items-center justify-center text-white text-3xl shadow-lg shadow-emerald-500/30">
                      <i className="fa-regular fa-user"></i>
                   </div>
@@ -234,7 +370,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                      <p className="text-sm text-slate-500 font-medium mt-1">You're logged in as a <span className="text-emerald-500 font-bold">{user.role.charAt(0) + user.role.slice(1).toLowerCase()}</span></p>
                   </div>
                </div>
-               <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-5 flex flex-col gap-3">
+               <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-5 flex flex-col gap-3 relative z-10">
                   <div className="flex items-center gap-2">
                      <span className="text-xs font-black uppercase text-slate-400 w-16">Phone:</span>
                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{user.phone}</span>
@@ -253,7 +389,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             <div>
                <h3 className="text-lg font-black italic uppercase text-slate-900 dark:text-white mb-4">Quick Actions</h3>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <button onClick={() => document.getElementById('services-grid')?.scrollIntoView({ behavior: 'smooth' })} className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-sm text-left hover:shadow-md transition-all group">
+                  <button onClick={() => document.getElementById('services-grid')?.scrollIntoView({ behavior: 'smooth' })} className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-sm text-left hover:shadow-md transition-all group active:scale-95">
                      <div className="w-12 h-12 rounded-2xl bg-blue-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
                         <i className="fa-solid fa-magnifying-glass"></i>
                      </div>
@@ -261,7 +397,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                      <p className="text-xs text-slate-500">Find transport, beauty, skilled trades, and casual labor services</p>
                   </button>
 
-                  <button onClick={() => setActiveTab('active')} className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-sm text-left hover:shadow-md transition-all group">
+                  <button onClick={() => setActiveTab('active')} className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-sm text-left hover:shadow-md transition-all group active:scale-95">
                      <div className="w-12 h-12 rounded-2xl bg-purple-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform">
                         <i className="fa-solid fa-suitcase"></i>
                      </div>
@@ -269,7 +405,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                      <p className="text-xs text-slate-500">View your service requests</p>
                   </button>
 
-                  <button onClick={() => { setActiveTab('account'); setShowKycForm(true); }} className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-sm text-left hover:shadow-md transition-all group">
+                  <button onClick={() => { setActiveTab('account'); setShowKycForm(true); }} className="bg-white dark:bg-slate-900 p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-sm text-left hover:shadow-md transition-all group active:scale-95">
                      <div className="w-12 h-12 rounded-2xl bg-indigo-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
                         <i className="fa-solid fa-briefcase"></i>
                      </div>
@@ -305,7 +441,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-4">
                 {CATEGORIES.map(cat => (
-                  <button key={cat.id} onClick={() => { setSelectedCategory(cat); setHaggledPrice(cat.basePrice); }} className="bg-white dark:bg-slate-900 p-6 rounded-[24px] shadow-sm border border-slate-100 dark:border-white/5 flex flex-col items-start gap-4 text-left hover:shadow-md transition-all h-full min-h-[140px]">
+                  <button key={cat.id} onClick={() => { setSelectedCategory(cat); setHaggledPrice(cat.basePrice); setPickupMode('CURRENT'); setTripDistance(0); setTripDestination(''); setDestinationCoords(null); }} className="bg-white dark:bg-slate-900 p-6 rounded-[24px] shadow-sm border border-slate-100 dark:border-white/5 flex flex-col items-start gap-4 text-left hover:shadow-md transition-all h-full min-h-[140px] active:scale-95">
                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-opacity-10 dark:bg-opacity-20 ${cat.color ? cat.color.replace('text-', 'bg-') : 'bg-slate-100 dark:bg-slate-800'}`}>
                         <i className={`${cat.icon} ${cat.color || 'text-slate-500'}`}></i>
                      </div>
@@ -325,7 +461,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             <div className="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-[45px] p-8 shadow-2xl animate-zoom-in my-auto space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-2xl font-black italic uppercase leading-none">{selectedCategory.name}</h3>
-                <button onClick={() => { setSelectedCategory(null); setIsHaggling(false); setIsForOther(false); setTripDistance(0); setTripDestination(''); }} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400"><i className="fa-solid fa-xmark"></i></button>
+                <button onClick={() => { setSelectedCategory(null); setIsHaggling(false); setIsForOther(false); setTripDistance(0); setTripDestination(''); setDestinationCoords(null); }} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400 hover:text-white transition-colors active:scale-90"><i className="fa-solid fa-xmark"></i></button>
               </div>
 
               <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-[32px] space-y-4">
@@ -345,30 +481,85 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                           <p className="text-[10px] font-black text-slate-400 uppercase italic">
                              {selectedCategory.pricingModel === 'DISTANCE' ? 'Estimated Total' : 'Standard Rate'}
                           </p>
-                          <p className="text-sm font-black italic">ZMW {selectedCategory.pricingModel === 'DISTANCE' ? haggledPrice.toFixed(0) : selectedCategory.basePrice}</p>
+                          {/* Price Pulse Animation */}
+                          <div key={haggledPrice} className="animate-bounce-slight">
+                             <p className="text-sm font-black italic">ZMW {selectedCategory.pricingModel === 'DISTANCE' ? haggledPrice.toFixed(0) : selectedCategory.basePrice}</p>
+                          </div>
                       </div>
 
                       {selectedCategory.pricingModel === 'DISTANCE' && (
-                        <div className="space-y-3 pt-2">
-                           <div>
-                              <label className="text-[9px] font-black text-slate-400 uppercase italic">Destination</label>
-                              <input 
-                                value={tripDestination} 
-                                onChange={e => setTripDestination(e.target.value)} 
-                                placeholder="e.g. Mwenzo or Tunduma Border"
-                                className="w-full bg-white dark:bg-slate-800 rounded-xl px-3 py-2 text-xs font-bold border-none outline-none mt-1"
-                              />
+                        <div className="space-y-4 pt-2">
+                           {/* Pickup Location Selection - Enhanced Toggle */}
+                           <div className="bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl flex gap-1 border border-slate-200 dark:border-white/10">
+                              <button 
+                                onClick={() => setPickupMode('CURRENT')}
+                                className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${pickupMode === 'CURRENT' ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-md' : 'text-slate-400'}`}
+                              >
+                                <i className="fa-solid fa-location-crosshairs mr-1"></i> Current GPS
+                              </button>
+                              <button 
+                                onClick={() => setPickupMode('CUSTOM')}
+                                className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${pickupMode === 'CUSTOM' ? 'bg-white dark:bg-slate-800 text-blue-500 shadow-md' : 'text-slate-400'}`}
+                              >
+                                <i className="fa-solid fa-map-pin mr-1"></i> Address
+                              </button>
                            </div>
+
+                           {pickupMode === 'CUSTOM' && (
+                             <div className="relative">
+                               <input 
+                                  value={pickupAddress} 
+                                  onChange={e => setPickupAddress(e.target.value)} 
+                                  placeholder="Enter pickup place..."
+                                  className="w-full bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none outline-none focus:ring-2 ring-blue-500 pr-8"
+                                />
+                                {pickupAddress && (
+                                  <button onClick={() => setPickupAddress('')} className="absolute right-3 top-3 text-slate-400 hover:text-white"><i className="fa-solid fa-times-circle"></i></button>
+                                )}
+                             </div>
+                           )}
+
+                           {/* Destination Autocomplete - Enhanced */}
+                           <div className="relative">
+                              <label className="text-[9px] font-black text-slate-400 uppercase italic ml-1">Destination</label>
+                              <div className="relative">
+                                <input 
+                                  value={tripDestination} 
+                                  onChange={handleDestinationInput} 
+                                  placeholder="Where are you going?"
+                                  className="w-full bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none outline-none mt-1 focus:ring-2 ring-blue-500 pr-8"
+                                />
+                                {isCalculating ? (
+                                  <i className="fa-solid fa-circle-notch animate-spin absolute right-3 top-4 text-blue-500 text-xs"></i>
+                                ) : tripDestination && (
+                                  <button onClick={() => { setTripDestination(''); setTripDistance(0); }} className="absolute right-3 top-4 text-slate-400 hover:text-white"><i className="fa-solid fa-times-circle"></i></button>
+                                )}
+                              </div>
+                              
+                              {showSuggestions && suggestions.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 bg-white dark:bg-slate-800 rounded-xl shadow-xl mt-1 z-10 overflow-hidden border border-slate-100 dark:border-white/5 animate-slide-up">
+                                  {suggestions.map((place, idx) => (
+                                    <button 
+                                      key={idx} 
+                                      onClick={() => handleSelectSuggestion(place)}
+                                      className="w-full text-left px-4 py-3 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 border-b border-slate-50 dark:border-white/5 last:border-none flex items-center"
+                                    >
+                                      <i className="fa-solid fa-location-dot text-slate-400 mr-2 opacity-50"></i>{place}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                           </div>
+
                            <div>
-                              <label className="text-[9px] font-black text-slate-400 uppercase italic">Est. Distance (KM)</label>
-                              <input 
-                                type="number"
-                                value={tripDistance || ''} 
-                                onChange={e => setTripDistance(Number(e.target.value))} 
-                                placeholder="0"
-                                className="w-full bg-white dark:bg-slate-800 rounded-xl px-3 py-2 text-xs font-bold border-none outline-none mt-1"
-                              />
-                              <p className="text-[8px] text-slate-400 mt-1 text-right">Rate: ZMW {TRANSPORT_RATE_PER_KM}/km</p>
+                              <div className="flex justify-between">
+                                <label className="text-[9px] font-black text-slate-400 uppercase italic ml-1">Calculated Distance</label>
+                                <span className="text-[8px] text-slate-500 italic">Rate: ZMW {TRANSPORT_RATE_PER_KM}/km</span>
+                              </div>
+                              <div className={`w-full bg-slate-100 dark:bg-white/5 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 mt-1 flex justify-between items-center transition-all ${tripDistance > 0 ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : ''}`}>
+                                <span>{tripDistance > 0 ? `${tripDistance} km` : 'Enter destination...'}</span>
+                                {tripDistance > 0 && <i className="fa-solid fa-check-circle text-emerald-500"></i>}
+                              </div>
                            </div>
                         </div>
                       )}
@@ -395,12 +586,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 value={missionDesc} 
                 onChange={(e) => setMissionDesc(e.target.value)} 
                 placeholder={selectedCategory.pricingModel === 'QUOTE' ? "Describe exactly what you need so providers can give you a fair price..." : "Specific Mission Notes..."} 
-                className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[24px] p-5 text-sm font-black h-28 focus:ring-2 ring-emerald-600 outline-none" 
+                className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-[24px] p-5 text-sm font-black h-28 focus:ring-2 ring-emerald-600 outline-none placeholder:text-slate-500" 
               />
               
               <button 
                 onClick={() => handleLaunchMission()} 
-                className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest"
+                className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest active:scale-95 transition-all hover:bg-emerald-500"
               >
                 {selectedCategory.pricingModel === 'QUOTE' ? 'Request Price Quote' : 'Launch Mission Protocol'}
               </button>
@@ -410,7 +601,14 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in pb-10">
-             {activeBookings.length === 0 && <div className="py-20 text-center opacity-20 italic">No Active Corridor Ops</div>}
+             {activeBookings.length === 0 && (
+                <div className="py-20 text-center opacity-40 flex flex-col items-center">
+                   <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                      <i className="fa-solid fa-wind text-2xl text-slate-500"></i>
+                   </div>
+                   <p className="italic font-black uppercase text-xs tracking-widest">No Active Corridor Ops</p>
+                </div>
+             )}
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              {activeBookings.map(b => {
                 const isNegotiating = b.status === BookingStatus.NEGOTIATING;
@@ -440,8 +638,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                             <div className="space-y-3 animate-slide-up">
                               <p className="text-[10px] font-black uppercase text-blue-500 italic">Provider Quote: ZMW {displayPrice}</p>
                               <div className="grid grid-cols-2 gap-2">
-                                <button onClick={() => onAcceptNegotiation(b.id)} className="py-3 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase italic">Accept {displayPrice}</button>
-                                <button onClick={() => onRejectNegotiation(b.id)} className="py-3 bg-red-600 text-white rounded-xl text-[9px] font-black uppercase italic">Reject</button>
+                                <button onClick={() => onAcceptNegotiation(b.id)} className="py-3 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase italic active:scale-95 transition-all">Accept {displayPrice}</button>
+                                <button onClick={() => onRejectNegotiation(b.id)} className="py-3 bg-red-600 text-white rounded-xl text-[9px] font-black uppercase italic active:scale-95 transition-all">Reject</button>
                               </div>
                               <div className="flex gap-2">
                                 <input 
@@ -452,7 +650,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                                 />
                                 <button 
                                   onClick={() => counterInputs[b.id] && onCounterNegotiation(b.id, counterInputs[b.id])}
-                                  className="flex-1 bg-amber-500 text-white rounded-xl text-[9px] font-black uppercase italic"
+                                  className="flex-1 bg-amber-500 text-white rounded-xl text-[9px] font-black uppercase italic active:scale-95 transition-all"
                                 >
                                   Counter
                                 </button>
@@ -469,7 +667,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                      )}
 
                      {!isNegotiating && (
-                       <button onClick={() => onCancelBooking(b.id)} className="w-full py-3 bg-red-600/5 text-red-600 border border-red-600/20 rounded-2xl text-[9px] font-black uppercase italic">Abort Mission</button>
+                       <button onClick={() => onCancelBooking(b.id)} className="w-full py-3 bg-red-600/5 text-red-600 border border-red-600/20 rounded-2xl text-[9px] font-black uppercase italic active:scale-95 transition-all hover:bg-red-600/10">Abort Mission</button>
                      )}
                   </div>
                 );
@@ -480,9 +678,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
         {activeTab === 'account' && (
           <div className="animate-fade-in space-y-8 pb-20">
-             <div className="bg-slate-900 rounded-[40px] p-8 border border-white/5 shadow-2xl">
-                <div className="flex items-center gap-6 mb-8">
-                   <div className="w-20 h-20 rounded-[28px] bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+             <div className="bg-slate-900 rounded-[40px] p-8 border border-white/5 shadow-2xl relative overflow-hidden">
+                {/* Background Pattern */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                
+                <div className="flex items-center gap-6 mb-8 relative z-10">
+                   <div className="w-20 h-20 rounded-[28px] bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shadow-lg">
                       {user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : <i className="fa-solid fa-user text-3xl text-slate-700"></i>}
                    </div>
                    <div>
@@ -491,12 +692,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                    </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="bg-white/5 p-6 rounded-[30px] border border-white/5">
+                <div className="grid grid-cols-2 gap-4 relative z-10">
+                   <div className="bg-white/5 p-6 rounded-[30px] border border-white/5 hover:bg-white/10 transition-colors">
                       <p className="text-[8px] font-black text-slate-500 uppercase italic mb-1">My Wallet</p>
                       <p className="text-xl font-black text-white italic tracking-tighter">ZMW {user.balance.toFixed(2)}</p>
                    </div>
-                   <div className="bg-white/5 p-6 rounded-[30px] border border-white/5">
+                   <div className="bg-white/5 p-6 rounded-[30px] border border-white/5 hover:bg-white/10 transition-colors">
                       <p className="text-[8px] font-black text-slate-500 uppercase italic mb-1">Trust Score</p>
                       <p className="text-xl font-black text-emerald-500 italic tracking-tighter">{user.trustScore}%</p>
                    </div>
@@ -510,13 +711,13 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   </div>
                   <h3 className="text-base font-black italic uppercase">Become a Service Partner</h3>
                   <p className="text-[10px] text-slate-500 uppercase font-bold leading-relaxed px-4">Start earning by providing transport, customs, or trade services in the Nakonde corridor.</p>
-                  <button onClick={() => setShowKycForm(true)} className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl text-[9px] uppercase italic tracking-widest shadow-xl">Apply for Partner Terminal</button>
+                  <button onClick={() => setShowKycForm(true)} className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl text-[9px] uppercase italic tracking-widest shadow-xl active:scale-95 transition-all">Apply for Partner Terminal</button>
                </div>
              ) : (
                <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] border-2 border-blue-600 shadow-2xl space-y-6">
                   <div className="flex justify-between items-center">
                     <h3 className="text-lg font-black italic uppercase">Partner KYC</h3>
-                    <button onClick={() => setShowKycForm(false)} className="text-slate-400"><i className="fa-solid fa-xmark"></i></button>
+                    <button onClick={() => setShowKycForm(false)} className="text-slate-400 hover:text-white transition-colors"><i className="fa-solid fa-xmark"></i></button>
                   </div>
                   <div className="space-y-4">
                      <div>
@@ -569,20 +770,20 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         <label className="text-[8px] font-black text-slate-400 uppercase italic ml-2">Nakonde Home Address / Landmark</label>
                         <input value={kycAddress} onChange={e => setKycAddress(e.target.value)} className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 rounded-xl text-xs font-black italic" placeholder="e.g. Near Market Station" />
                      </div>
-                     <button onClick={handleSubmitKyc} className="w-full py-4 bg-blue-600 text-white font-black rounded-xl text-[9px] uppercase italic">Submit Verification</button>
+                     <button onClick={handleSubmitKyc} className="w-full py-4 bg-blue-600 text-white font-black rounded-xl text-[9px] uppercase italic active:scale-95 transition-all">Submit Verification</button>
                   </div>
                </div>
              )}
 
-             <button onClick={logout} className="w-full py-4 bg-red-600/5 text-red-600 rounded-2xl text-[9px] font-black uppercase italic border border-red-600/10">Sign Out</button>
+             <button onClick={logout} className="w-full py-4 bg-red-600/5 text-red-600 rounded-2xl text-[9px] font-black uppercase italic border border-red-600/10 hover:bg-red-600/10 active:scale-95 transition-all">Sign Out</button>
           </div>
         )}
       </div>
 
       <nav className="fixed bottom-6 left-6 right-6 h-20 glass-nav rounded-[32px] border border-white/10 flex justify-around items-center px-4 shadow-2xl z-50">
-        <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center ${activeTab === 'home' ? 'text-emerald-600' : 'text-slate-400'}`}><i className="fa-solid fa-house"></i></button>
-        <button onClick={() => setActiveTab('active')} className={`flex-1 flex flex-col items-center ${activeTab === 'active' ? 'text-emerald-600' : 'text-slate-400'}`}><i className="fa-solid fa-route"></i></button>
-        <button onClick={() => setActiveTab('account')} className={`flex-1 flex flex-col items-center ${activeTab === 'account' ? 'text-emerald-600' : 'text-slate-400'}`}><i className="fa-solid fa-user"></i></button>
+        <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center transition-transform active:scale-90 ${activeTab === 'home' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}><i className="fa-solid fa-house text-lg"></i></button>
+        <button onClick={() => setActiveTab('active')} className={`flex-1 flex flex-col items-center transition-transform active:scale-90 ${activeTab === 'active' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}><i className="fa-solid fa-route text-lg"></i></button>
+        <button onClick={() => setActiveTab('account')} className={`flex-1 flex flex-col items-center transition-transform active:scale-90 ${activeTab === 'account' ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}><i className="fa-solid fa-user text-lg"></i></button>
       </nav>
     </div>
   );

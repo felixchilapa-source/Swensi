@@ -463,6 +463,7 @@ const App: React.FC = () => {
           t={(k) => TRANSLATIONS[language]?.[k] || k} 
           onToggleViewMode={() => setViewMode('MANAGEMENT')}
           onSOS={handleSOS}
+          onNotification={addNotification}
         />
       );
     }
@@ -554,7 +555,7 @@ const App: React.FC = () => {
            </div>
          ))}
       </div>
-      {!user ? <Auth onLogin={handleLogin} onRegister={handleRegister} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={(k) => TRANSLATIONS[language]?.[k] || k} adminNumbers={adminNumbers} existingUsers={allUsers} /> : renderDashboard()}
+      {!user ? <Auth onLogin={handleLogin} onRegister={handleRegister} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={(k) => TRANSLATIONS[language]?.[k] || k} adminNumbers={adminNumbers} existingUsers={allUsers} onNotification={addNotification} /> : renderDashboard()}
     </div>
   );
 };
