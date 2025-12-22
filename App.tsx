@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Role, User, Booking, BookingStatus, Location, CouncilOrder, SavedNode, Feedback } from './types';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Role, User, Booking, BookingStatus, Location, CouncilOrder, SavedNode, Feedback, SystemLog } from './types';
 import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS, CATEGORIES, PLATFORM_COMMISSION_RATE, SUBSCRIPTION_PLANS } from './constants';
 import Auth from './components/Auth';
 import CustomerDashboard from './components/CustomerDashboard';
@@ -38,6 +38,10 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('swensi-council-v3');
     return saved ? JSON.parse(saved) : [];
   });
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>(() => {
+    const saved = localStorage.getItem('swensi-logs-v3');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [notifications, setNotifications] = useState<SwensiNotification[]>([]);
   const [currentLocation] = useState<Location>({ lat: -9.3283, lng: 32.7569 });
   const [adminNumbers, setAdminNumbers] = useState<string[]>(() => {
@@ -47,10 +51,16 @@ const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('swensi-theme') === 'dark');
   const [language, setLanguage] = useState(() => localStorage.getItem('swensi-lang') || 'en');
 
+  // Ringing State
+  const [incomingJob, setIncomingJob] = useState<Booking | null>(null);
+  const previousBookingsLength = useRef(bookings.length);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
   useEffect(() => { localStorage.setItem('swensi-users-v3', JSON.stringify(allUsers)); }, [allUsers]);
   useEffect(() => { localStorage.setItem('swensi-bookings-v3', JSON.stringify(bookings)); }, [bookings]);
   useEffect(() => { localStorage.setItem('swensi-feedback-v3', JSON.stringify(feedbacks)); }, [feedbacks]);
   useEffect(() => { localStorage.setItem('swensi-council-v3', JSON.stringify(councilOrders)); }, [councilOrders]);
+  useEffect(() => { localStorage.setItem('swensi-logs-v3', JSON.stringify(systemLogs)); }, [systemLogs]);
   useEffect(() => { localStorage.setItem('swensi-admins-v3', JSON.stringify(adminNumbers)); }, [adminNumbers]);
 
   useEffect(() => {
@@ -86,11 +96,94 @@ const App: React.FC = () => {
     return () => clearInterval(trackingInterval);
   }, [bookings, user?.id]);
 
+  // Provider Ringing Logic
+  useEffect(() => {
+    if (bookings.length > previousBookingsLength.current) {
+      // New booking detected
+      const newBookings = bookings.slice(0, bookings.length - previousBookingsLength.current);
+      
+      if (user && user.role === Role.PROVIDER && user.isOnline) {
+        // Check eligibility
+        const relevantJob = newBookings.find(b => 
+          (b.status === BookingStatus.PENDING || b.status === BookingStatus.NEGOTIATING) &&
+          (!b.providerId) && // Not yet taken
+          (user.serviceCategories?.includes(b.category)) // Matches category
+        );
+
+        if (relevantJob) {
+          setIncomingJob(relevantJob);
+          playRingTone();
+        }
+      }
+    }
+    previousBookingsLength.current = bookings.length;
+  }, [bookings, user]);
+
+  const playRingTone = () => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(500, ctx.currentTime); 
+      oscillator.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.5);
+      
+      gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.5);
+      
+      // Loop for a few seconds
+      let count = 0;
+      const interval = setInterval(() => {
+        if (count > 5) { clearInterval(interval); return; }
+        const osc = ctx.createOscillator();
+        const gn = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        gn.gain.setValueAtTime(0.2, ctx.currentTime);
+        gn.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        osc.connect(gn);
+        gn.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+        count++;
+      }, 800);
+
+    } catch (e) {
+      console.error("Audio play failed", e);
+    }
+  };
+
   const addNotification = useCallback((title: string, message: string, type: 'INFO' | 'ALERT' | 'SUCCESS' | 'SMS' = 'INFO') => {
     const id = Math.random().toString(36).substr(2, 9);
     setNotifications(prev => [{ id, title, message, type }, ...prev]);
     setTimeout(() => { setNotifications(prev => prev.filter(n => n.id !== id)); }, 5000);
   }, []);
+
+  const handleAddLog = useCallback((action: string, targetId?: string, severity: 'INFO' | 'WARNING' | 'CRITICAL' = 'INFO') => {
+    if (!user) return;
+    const newLog: SystemLog = {
+        id: 'LOG-' + Math.random().toString(36).substr(2, 9),
+        timestamp: Date.now(),
+        action,
+        actorId: user.id,
+        actorPhone: user.phone,
+        targetId,
+        severity
+    };
+    setSystemLogs(prev => [newLog, ...prev]);
+  }, [user]);
 
   const handleUpdateSubscription = useCallback((plan: 'BASIC' | 'PREMIUM') => {
     if (!user || user.role !== Role.PROVIDER) {
@@ -141,6 +234,10 @@ const App: React.FC = () => {
     addNotification('MISSION ABORTED', 'Booking cancelled. Funds returned to wallet.', 'ALERT');
   }, [bookings, user, addNotification]);
 
+  const handleUpdateBooking = useCallback((id: string, updates: Partial<Booking>) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+  }, []);
+
   const handleNegotiateBooking = useCallback((bookingId: string, newPrice: number, by: Role.CUSTOMER | Role.PROVIDER, providerId?: string) => {
     setBookings(prev => prev.map(b => {
       if (b.id === bookingId) {
@@ -171,7 +268,6 @@ const App: React.FC = () => {
   const handleRejectNegotiation = useCallback((bookingId: string, by: Role.CUSTOMER | Role.PROVIDER) => {
     setBookings(prev => prev.map(b => {
       if (b.id === bookingId) {
-        // If Customer rejects Provider's offer, reset to PENDING and clear providerId so others can bid
         if (by === Role.CUSTOMER) {
           return {
             ...b,
@@ -181,7 +277,6 @@ const App: React.FC = () => {
             lastOfferBy: undefined
           };
         }
-        // If Provider rejects (drops negotiation), reset to PENDING
         if (by === Role.PROVIDER) {
            return {
             ...b,
@@ -363,7 +458,7 @@ const App: React.FC = () => {
         return (
           <AdminDashboard 
             user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} councilOrders={councilOrders} feedbacks={feedbacks}
-            systemLogs={[]} onToggleBlock={(userId) => {
+            systemLogs={systemLogs} onToggleBlock={(userId) => {
               setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: !u.isActive, lastActive: Date.now() } : u));
             }} 
             onDeleteUser={() => {}} 
@@ -377,16 +472,23 @@ const App: React.FC = () => {
             adminNumbers={adminNumbers} onAddAdmin={() => {}} onRemoveAdmin={() => {}} 
             onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} onLanguageChange={setLanguage} sysDefaultLang={language} onUpdateSysDefaultLang={setLanguage} 
             t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
+            onUpdateBooking={handleUpdateBooking} 
+            onAddLog={handleAddLog}
           />
         );
       case Role.PROVIDER:
         return (
           <ProviderDashboard 
             user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} 
+            incomingJob={incomingJob} // Pass ringing job
             onUpdateStatus={(id, status, pId) => {
               setBookings(prev => prev.map(b => b.id === id ? { ...b, status, providerId: pId } : b));
+              if (incomingJob?.id === id) setIncomingJob(null); // Clear ringing
             }} 
-            onAcceptNegotiation={(id) => handleAcceptNegotiation(id, Role.PROVIDER, user.id)}
+            onAcceptNegotiation={(id) => {
+              handleAcceptNegotiation(id, Role.PROVIDER, user.id);
+              if (incomingJob?.id === id) setIncomingJob(null);
+            }}
             onCounterNegotiation={(id, price) => handleNegotiateBooking(id, price, Role.PROVIDER, user.id)}
             onRejectNegotiation={(id) => handleRejectNegotiation(id, Role.PROVIDER)}
             onConfirmCompletion={(id) => {

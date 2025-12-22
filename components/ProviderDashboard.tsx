@@ -10,6 +10,7 @@ interface ProviderDashboardProps {
   logout: () => void;
   bookings: Booking[];
   allUsers: User[];
+  incomingJob?: Booking | null; // New prop for ringing
   onUpdateStatus: (id: string, status: BookingStatus, providerId: string) => void;
   onUpdateBooking: (id: string, updates: Partial<Booking>) => void;
   onAcceptNegotiation: (id: string) => void;
@@ -27,7 +28,7 @@ interface ProviderDashboardProps {
 }
 
 const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ 
-  user, logout, bookings, allUsers, onUpdateStatus, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, onConfirmCompletion, onToggleViewMode, location, onToggleTheme, isDarkMode, onLanguageChange, t, onUpdateUser, onUpdateSubscription 
+  user, logout, bookings, allUsers, incomingJob, onUpdateStatus, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, onConfirmCompletion, onToggleViewMode, location, onToggleTheme, isDarkMode, onLanguageChange, t, onUpdateUser, onUpdateSubscription 
 }) => {
   const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'account'>('leads');
   const [counterInput, setCounterInput] = useState<{ [key: string]: number }>({});
@@ -102,9 +103,41 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
         </div>
       </header>
 
+      {/* Ringing Overlay */}
+      {incomingJob && (
+        <div className="absolute top-28 left-4 right-4 z-[100] bg-slate-900 border-2 border-emerald-500 rounded-[35px] p-6 shadow-2xl animate-bounce-slight">
+           <div className="flex items-center justify-between mb-4">
+             <div className="flex items-center gap-3">
+               <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center animate-ping">
+                 <i className="fa-solid fa-bell text-white"></i>
+               </div>
+               <div>
+                  <h3 className="text-lg font-black text-white italic uppercase leading-none">New Request</h3>
+                  <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mt-1">Accept quickly!</p>
+               </div>
+             </div>
+             <span className="text-xl font-black text-white italic">ZMW {incomingJob.negotiatedPrice || incomingJob.price}</span>
+           </div>
+           <p className="text-xs text-slate-300 italic mb-6 border-l-2 border-emerald-500 pl-3">"{incomingJob.description}"</p>
+           <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setCounterInput({})} className="py-3 bg-slate-800 text-slate-400 rounded-2xl font-black text-[10px] uppercase italic">Ignore</button>
+              <button 
+                onClick={() => {
+                   if(incomingJob.negotiatedPrice) onAcceptNegotiation(incomingJob.id);
+                   else onUpdateStatus(incomingJob.id, BookingStatus.ACCEPTED, user.id);
+                }} 
+                className="py-3 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase italic shadow-lg shadow-emerald-600/30"
+              >
+                Accept Job
+              </button>
+           </div>
+        </div>
+      )}
+
       <NewsTicker />
 
-      <div className="flex-1 overflow-y-auto pb-32 px-5 pt-6 space-y-8 no-scrollbar">
+      {/* Increased padding-bottom to pb-40 to clear nav */}
+      <div className="flex-1 overflow-y-auto pb-40 px-5 pt-6 space-y-8 no-scrollbar">
         {activeTab === 'leads' && (
           <div className="space-y-6 animate-fade-in">
             {!isSubscribed && (

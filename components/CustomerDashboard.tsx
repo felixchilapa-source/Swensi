@@ -162,7 +162,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
       <NewsTicker />
 
-      <div className="flex-1 overflow-y-auto pb-32 px-5 pt-6 space-y-10 no-scrollbar">
+      {/* Increased bottom padding to prevent nav overlap */}
+      <div className="flex-1 overflow-y-auto pb-40 px-5 pt-6 space-y-10 no-scrollbar">
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
             <div className="flex justify-between items-end">
