@@ -249,7 +249,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                </div>
             </div>
 
-            {/* Quick Actions */}
+            {/* Quick Actions - Responsive Grid */}
             <div>
                <h3 className="text-lg font-black italic uppercase text-slate-900 dark:text-white mb-4">Quick Actions</h3>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -290,7 +290,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                <span className="font-black italic uppercase tracking-wide text-sm">Serving Nakonde & Muchinga Province</span>
             </div>
 
-            {/* Services Grid (Anchored) */}
+            {/* Services Grid - Responsive (2 cols mobile, 4 cols tablet) */}
             <div id="services-grid" className="space-y-6 pt-4">
               <div className="flex justify-between items-end">
                 <div>
@@ -303,7 +303,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                  <Map center={mapCenter} markers={mapMarkers} activeMissions={mapMissions} />
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pb-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-4">
                 {CATEGORIES.map(cat => (
                   <button key={cat.id} onClick={() => { setSelectedCategory(cat); setHaggledPrice(cat.basePrice); }} className="bg-white dark:bg-slate-900 p-6 rounded-[24px] shadow-sm border border-slate-100 dark:border-white/5 flex flex-col items-start gap-4 text-left hover:shadow-md transition-all h-full min-h-[140px]">
                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-opacity-10 dark:bg-opacity-20 ${cat.color ? cat.color.replace('text-', 'bg-') : 'bg-slate-100 dark:bg-slate-800'}`}>
@@ -411,6 +411,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
         {activeTab === 'active' && (
           <div className="space-y-6 animate-fade-in pb-10">
              {activeBookings.length === 0 && <div className="py-20 text-center opacity-20 italic">No Active Corridor Ops</div>}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              {activeBookings.map(b => {
                 const isNegotiating = b.status === BookingStatus.NEGOTIATING;
                 const isProviderTurn = b.lastOfferBy === Role.PROVIDER;
@@ -473,6 +474,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   </div>
                 );
              })}
+             </div>
           </div>
         )}
 

@@ -152,87 +152,92 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                  <button onClick={() => setActiveTab('account')} className="mt-6 w-full py-3 bg-white text-orange-600 rounded-2xl text-[10px] font-black uppercase italic shadow-lg">Upgrade Now</button>
               </div>
             )}
-            {pendingLeads.map(lead => {
-              const isLeadHaggling = lead.status === BookingStatus.NEGOTIATING;
-              const isMyLock = lead.providerId === user.id;
-              const isLeadOpenOffer = isLeadHaggling && !lead.providerId;
-              
-              const isMyTurn = lead.lastOfferBy === Role.CUSTOMER;
-              const grossPrice = lead.negotiatedPrice || lead.price;
-              const commission = grossPrice * PLATFORM_COMMISSION_RATE;
-              const netPayout = grossPrice - commission;
+            
+            {/* Leads Grid - 1 Col on Mobile, 2 Cols on Tablet/Desktop */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingLeads.map(lead => {
+                  const isLeadHaggling = lead.status === BookingStatus.NEGOTIATING;
+                  const isMyLock = lead.providerId === user.id;
+                  const isLeadOpenOffer = isLeadHaggling && !lead.providerId;
+                  
+                  const isMyTurn = lead.lastOfferBy === Role.CUSTOMER;
+                  const grossPrice = lead.negotiatedPrice || lead.price;
+                  const commission = grossPrice * PLATFORM_COMMISSION_RATE;
+                  const netPayout = grossPrice - commission;
 
-              return (
-                <div key={lead.id} className={`bg-white dark:bg-slate-900 rounded-[40px] border overflow-hidden shadow-xl p-6 space-y-4 ${isLeadHaggling ? 'border-amber-500/30' : 'border-slate-100 dark:border-white/5'}`}>
-                   <div className="flex justify-between items-start">
-                      <div>
-                         <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest italic">{lead.category}</p>
-                         <h4 className="text-lg font-black text-slate-900 dark:text-white italic tracking-tighter mt-1">{lead.id}</h4>
-                         {isLeadHaggling && (
-                           <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase inline-block mt-1 ${isLeadOpenOffer ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                             {isLeadOpenOffer ? 'Open Customer Offer' : 'Active Negotiation'}
-                           </span>
-                         )}
-                      </div>
-                      <div className="text-right">
-                         <p className={`text-xl font-black italic ${isLeadHaggling ? 'text-amber-600' : 'text-emerald-600'}`}>ZMW {grossPrice}</p>
-                         <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block mt-1 italic">Net: ZMW {netPayout.toFixed(3)}</span>
-                      </div>
-                   </div>
-                   {lead.recipientName && (
-                     <div className="p-3 bg-blue-600/5 rounded-2xl border border-blue-600/10">
-                        <p className="text-[7px] font-black text-blue-500 uppercase tracking-widest italic mb-1">Target Contact</p>
-                        <p className="text-[11px] font-black text-slate-900 dark:text-white uppercase italic">{lead.recipientName} ({lead.recipientPhone})</p>
-                     </div>
-                   )}
-                   <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 italic">"{lead.description}"</p>
-                   
-                   {/* Negotiation Controls for Provider */}
-                   <div className="space-y-3 pt-2">
-                       {/* If it's a fresh lead (PENDING), provider can Accept or Bid */}
-                       {!isLeadHaggling && (
-                         <div className="flex gap-2">
-                            <button onClick={() => onUpdateStatus(lead.id, BookingStatus.ACCEPTED, user.id)} className="flex-1 bg-blue-600 text-white font-black py-4 rounded-[24px] text-[10px] uppercase italic tracking-widest">Accept ZMW {grossPrice}</button>
-                            <button onClick={() => setCounterInput({...counterInput, [lead.id]: grossPrice})} className="px-6 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-black rounded-[24px] text-[10px] uppercase italic border border-slate-200 dark:border-white/10">Bid</button>
-                         </div>
-                       )}
-
-                       {/* Input for bidding/countering (shown if 'Bid' clicked or if already haggling) */}
-                       {(counterInput[lead.id] !== undefined || isLeadHaggling) && (
-                         <div className="animate-fade-in bg-slate-50 dark:bg-white/5 p-4 rounded-3xl space-y-3">
-                            <div className="flex items-center justify-between">
-                              <label className="text-[8px] font-black uppercase text-slate-400 italic">Your Offer</label>
-                              {/* Only allow dropping negotiation if it's locked to me */}
-                              {isLeadHaggling && isMyLock && (
-                                <button onClick={() => onRejectNegotiation(lead.id)} className="text-[8px] font-black uppercase text-red-500 italic">Drop Negotiation</button>
-                              )}
-                            </div>
-                            <div className="flex gap-2">
-                              <input 
-                                type="number" 
-                                value={counterInput[lead.id] || grossPrice} 
-                                onChange={(e) => setCounterInput({...counterInput, [lead.id]: Number(e.target.value)})}
-                                className="w-24 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-black outline-none border-none"
-                              />
-                              <button 
-                                onClick={() => onCounterNegotiation(lead.id, counterInput[lead.id] || grossPrice)} 
-                                className="flex-1 bg-amber-500 text-white font-black rounded-xl text-[9px] uppercase italic"
-                              >
-                                {isLeadHaggling ? 'Send Counter' : 'Send Bid'}
-                              </button>
-                            </div>
-                            {isLeadHaggling && !isMyTurn && <p className="text-[9px] text-center text-slate-400 italic animate-pulse">Waiting for customer response...</p>}
-                            {isLeadHaggling && isMyTurn && (
-                                <button onClick={() => onAcceptNegotiation(lead.id)} className="w-full py-3 bg-emerald-600 text-white font-black rounded-xl text-[9px] uppercase italic">
-                                   Accept Customer Price
-                                </button>
+                  return (
+                    <div key={lead.id} className={`bg-white dark:bg-slate-900 rounded-[40px] border overflow-hidden shadow-xl p-6 space-y-4 ${isLeadHaggling ? 'border-amber-500/30' : 'border-slate-100 dark:border-white/5'}`}>
+                      <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest italic">{lead.category}</p>
+                            <h4 className="text-lg font-black text-slate-900 dark:text-white italic tracking-tighter mt-1">{lead.id}</h4>
+                            {isLeadHaggling && (
+                              <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase inline-block mt-1 ${isLeadOpenOffer ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                                {isLeadOpenOffer ? 'Open Customer Offer' : 'Active Negotiation'}
+                              </span>
                             )}
-                         </div>
-                       )}
-                   </div>
-                </div>
-              );
-            })}
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-xl font-black italic ${isLeadHaggling ? 'text-amber-600' : 'text-emerald-600'}`}>ZMW {grossPrice}</p>
+                            <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block mt-1 italic">Net: ZMW {netPayout.toFixed(3)}</span>
+                          </div>
+                      </div>
+                      {lead.recipientName && (
+                        <div className="p-3 bg-blue-600/5 rounded-2xl border border-blue-600/10">
+                            <p className="text-[7px] font-black text-blue-500 uppercase tracking-widest italic mb-1">Target Contact</p>
+                            <p className="text-[11px] font-black text-slate-900 dark:text-white uppercase italic">{lead.recipientName} ({lead.recipientPhone})</p>
+                        </div>
+                      )}
+                      <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 italic">"{lead.description}"</p>
+                      
+                      {/* Negotiation Controls for Provider */}
+                      <div className="space-y-3 pt-2">
+                          {/* If it's a fresh lead (PENDING), provider can Accept or Bid */}
+                          {!isLeadHaggling && (
+                            <div className="flex gap-2">
+                                <button onClick={() => onUpdateStatus(lead.id, BookingStatus.ACCEPTED, user.id)} className="flex-1 bg-blue-600 text-white font-black py-4 rounded-[24px] text-[10px] uppercase italic tracking-widest">Accept ZMW {grossPrice}</button>
+                                <button onClick={() => setCounterInput({...counterInput, [lead.id]: grossPrice})} className="px-6 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-black rounded-[24px] text-[10px] uppercase italic border border-slate-200 dark:border-white/10">Bid</button>
+                            </div>
+                          )}
+
+                          {/* Input for bidding/countering (shown if 'Bid' clicked or if already haggling) */}
+                          {(counterInput[lead.id] !== undefined || isLeadHaggling) && (
+                            <div className="animate-fade-in bg-slate-50 dark:bg-white/5 p-4 rounded-3xl space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[8px] font-black uppercase text-slate-400 italic">Your Offer</label>
+                                  {/* Only allow dropping negotiation if it's locked to me */}
+                                  {isLeadHaggling && isMyLock && (
+                                    <button onClick={() => onRejectNegotiation(lead.id)} className="text-[8px] font-black uppercase text-red-500 italic">Drop Negotiation</button>
+                                  )}
+                                </div>
+                                <div className="flex gap-2">
+                                  <input 
+                                    type="number" 
+                                    value={counterInput[lead.id] || grossPrice} 
+                                    onChange={(e) => setCounterInput({...counterInput, [lead.id]: Number(e.target.value)})}
+                                    className="w-24 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-black outline-none border-none"
+                                  />
+                                  <button 
+                                    onClick={() => onCounterNegotiation(lead.id, counterInput[lead.id] || grossPrice)} 
+                                    className="flex-1 bg-amber-500 text-white font-black rounded-xl text-[9px] uppercase italic"
+                                  >
+                                    {isLeadHaggling ? 'Send Counter' : 'Send Bid'}
+                                  </button>
+                                </div>
+                                {isLeadHaggling && !isMyTurn && <p className="text-[9px] text-center text-slate-400 italic animate-pulse">Waiting for customer response...</p>}
+                                {isLeadHaggling && isMyTurn && (
+                                    <button onClick={() => onAcceptNegotiation(lead.id)} className="w-full py-3 bg-emerald-600 text-white font-black rounded-xl text-[9px] uppercase italic">
+                                      Accept Customer Price
+                                    </button>
+                                )}
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
             {isSubscribed && pendingLeads.length === 0 && (
                <div className="py-20 text-center opacity-30">
                   <i className="fa-solid fa-satellite-dish text-2xl mb-2"></i>
@@ -244,17 +249,19 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
 
         {activeTab === 'active' && (
            <div className="space-y-6 animate-fade-in">
-              {activeJobs.map(job => (
-                <div key={job.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-xl p-6 space-y-4">
-                   <div className="flex justify-between items-center">
-                      <h4 className="text-base font-black italic uppercase">{job.category} • {job.id}</h4>
-                      <div className="text-right">
-                         <p className="text-xs font-black italic text-emerald-600">Net ZMW {(job.negotiatedPrice || job.price - job.commission).toFixed(2)}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {activeJobs.map(job => (
+                    <div key={job.id} className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-xl p-6 space-y-4">
+                      <div className="flex justify-between items-center">
+                          <h4 className="text-base font-black italic uppercase">{job.category} • {job.id}</h4>
+                          <div className="text-right">
+                            <p className="text-xs font-black italic text-emerald-600">Net ZMW {(job.negotiatedPrice || job.price - job.commission).toFixed(2)}</p>
+                          </div>
                       </div>
-                   </div>
-                   <button onClick={() => onConfirmCompletion(job.id)} className="w-full bg-emerald-600 text-white font-black py-5 rounded-2xl text-[10px] uppercase italic">Close Mission</button>
-                </div>
-              ))}
+                      <button onClick={() => onConfirmCompletion(job.id)} className="w-full bg-emerald-600 text-white font-black py-5 rounded-2xl text-[10px] uppercase italic">Close Mission</button>
+                    </div>
+                  ))}
+              </div>
            </div>
         )}
 

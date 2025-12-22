@@ -119,7 +119,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-white relative overflow-hidden">
+    <div className="flex flex-col h-full bg-slate-50 text-white relative overflow-hidden">
       <header className="px-5 py-6 border-b border-white/5 flex justify-between items-center bg-slate-950/90 backdrop-blur-xl z-50 safe-pt">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${isWorkflow ? 'bg-amber-600 border-amber-400/20' : 'bg-red-600 border-red-400/20'}`}>
@@ -181,7 +181,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <p className="text-white/60 text-[9px] font-black uppercase mb-1 tracking-widest italic">Consolidated Yield</p>
                 <p className="text-5xl font-black italic tracking-tighter">ZMW {(stats.commissions + stats.subscriptions).toFixed(2)}</p>
              </div>
-             <div className="grid grid-cols-2 gap-4">
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                <div className="bg-white/5 p-6 rounded-[32px] border border-white/5">
                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">Active Nodes</p>
                  <p className="text-2xl font-black italic text-white">{stats.activeUsers}</p>
@@ -189,6 +189,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                <div className="bg-white/5 p-6 rounded-[32px] border border-white/5">
                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">Unread Buzz</p>
                  <p className={`text-2xl font-black italic ${stats.unreadFeedback > 0 ? 'text-blue-500' : 'text-slate-500'}`}>{stats.unreadFeedback}</p>
+               </div>
+               {/* Added extra stats cards for responsive completeness */}
+               <div className="bg-white/5 p-6 rounded-[32px] border border-white/5 hidden md:block">
+                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">Subscriptions</p>
+                 <p className="text-2xl font-black italic text-white">{stats.subscriptions/20}</p>
+               </div>
+                <div className="bg-white/5 p-6 rounded-[32px] border border-white/5 hidden md:block">
+                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 italic">Commissions</p>
+                 <p className="text-2xl font-black italic text-emerald-500">ZMW {stats.commissions.toFixed(0)}</p>
                </div>
              </div>
           </div>
@@ -199,8 +208,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
              <div className="px-2">
                 <h3 className="text-xl font-black italic uppercase tracking-tighter">Partner Admission</h3>
              </div>
-             <div className="space-y-4">
-                {pendingProviders.length === 0 && <div className="py-20 text-center opacity-30 italic">No Pending Admissions</div>}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingProviders.length === 0 && <div className="py-20 text-center opacity-30 italic col-span-full">No Pending Admissions</div>}
                 {pendingProviders.map(p => (
                    <div key={p.id} className="bg-white/5 border border-white/10 rounded-[35px] overflow-hidden shadow-2xl p-6">
                       <div className="flex items-center gap-5 mb-6">
@@ -233,7 +242,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   className="w-full bg-transparent border-none outline-none text-xs font-black uppercase italic tracking-widest placeholder:text-slate-700"
                 />
              </div>
-             <div className="space-y-3">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filteredRegistry.map(u => (
                   <div key={u.id} className="bg-white/5 p-5 rounded-[28px] border border-white/5 flex items-center justify-between">
                      <div className="flex items-center gap-4">
@@ -265,7 +274,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {view === 'missions' && !isWorkflow && (
-           <div className="space-y-4">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {bookings.map(b => (
                 <div key={b.id} className="bg-white/5 p-6 rounded-[35px] border border-white/5">
                    <div className="flex justify-between items-start mb-4">

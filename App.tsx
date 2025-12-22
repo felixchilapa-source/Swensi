@@ -186,7 +186,15 @@ const App: React.FC = () => {
   }, [user]);
 
   const handleUpdateSubscription = useCallback((plan: 'BASIC' | 'PREMIUM') => {
-    if (!user || user.role !== Role.PROVIDER) {
+    if (!user) return;
+    
+    // Admin Override Logic
+    if (user.role === Role.ADMIN || VERIFIED_ADMINS.includes(user.phone)) {
+        addNotification('ADMIN OVERRIDE', 'Admins have free lifetime access.', 'SUCCESS');
+        return;
+    }
+
+    if (user.role !== Role.PROVIDER) {
       addNotification('ACCESS DENIED', 'Subscriptions are reserved for Service Partners.', 'ALERT');
       return;
     }
