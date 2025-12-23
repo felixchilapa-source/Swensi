@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Role, User, Booking, BookingStatus, Location, CouncilOrder, SavedNode, Feedback, SystemLog, ChatMessage } from './types';
 import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS, CATEGORIES, PLATFORM_COMMISSION_RATE, SUBSCRIPTION_PLANS } from './constants';
 import Auth from './components/Auth';
@@ -635,6 +636,7 @@ const App: React.FC = () => {
          ))}
       </div>
       {!user ? <Auth onLogin={handleLogin} onRegister={handleRegister} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} language={language} onLanguageChange={setLanguage} t={(k) => TRANSLATIONS[language]?.[k] || k} adminNumbers={adminNumbers} existingUsers={allUsers} onNotification={addNotification} /> : renderDashboard()}
+      <SpeedInsights />
     </div>
   );
 };
