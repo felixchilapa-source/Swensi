@@ -280,7 +280,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     }
 
     if (selectedCategory.pricingModel === 'QUOTE') {
-      initialPrice = 0;
+      // Allow user to set a budget/offer for quote-based services
+      initialPrice = haggledPrice > 0 ? haggledPrice : 0;
       isNegotiated = true; 
       if (!missionDesc.trim()) {
         onNotification('DETAILS NEEDED', 'Please describe your request so providers can send a quote.', 'ALERT');
@@ -294,7 +295,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       category: selectedCategory.id, 
       description: finalDesc, 
       price: initialPrice, 
-      negotiatedPrice: isNegotiated ? (selectedCategory.pricingModel === 'QUOTE' ? 0 : haggledPrice || initialPrice) : undefined,
+      negotiatedPrice: isNegotiated ? (haggledPrice > 0 ? haggledPrice : 0) : undefined,
       location: pickupMode === 'CUSTOM' ? pickupCoords : location,
       destination: selectedCategory.pricingModel === 'DISTANCE' && destinationCoords ? { ...destinationCoords, address: tripDestination } : undefined,
       isShoppingOrder: selectedCategory.id === 'shop_for_me',
@@ -307,6 +308,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     setMissionDesc('');
     setShoppingItems([]);
     setIsHaggling(false);
+    setHaggledPrice(0); // Reset price
     setTripDistance(0);
     setTripDestination('');
     setPickupMode('CURRENT');
@@ -469,7 +471,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-4">
                 {CATEGORIES.map(cat => (
-                  <button key={cat.id} onClick={() => { setSelectedCategory(cat); setHaggledPrice(cat.basePrice); setPickupMode('CURRENT'); setTripDistance(0); setTripDestination(''); setDestinationCoords(null); }} className="bg-white dark:bg-slate-900 p-6 rounded-[24px] shadow-sm border border-slate-100 dark:border-white/5 flex flex-col items-start gap-4 text-left hover:shadow-md transition-all h-full min-h-[140px] active:scale-95">
+                  <button key={cat.id} onClick={() => { setSelectedCategory(cat); setHaggledPrice(0); setPickupMode('CURRENT'); setTripDistance(0); setTripDestination(''); setDestinationCoords(null); }} className="bg-white dark:bg-slate-900 p-6 rounded-[24px] shadow-sm border border-slate-100 dark:border-white/5 flex flex-col items-start gap-4 text-left hover:shadow-md transition-all h-full min-h-[140px] active:scale-95">
                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-opacity-10 dark:bg-opacity-20 ${cat.color ? cat.color.replace('text-', 'bg-') : 'bg-slate-100 dark:bg-slate-800'}`}>
                         <i className={`${cat.icon} ${cat.color || 'text-slate-500'}`}></i>
                      </div>
@@ -496,12 +498,25 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                  
                  {/* PRICING DISPLAY LOGIC */}
                  {selectedCategory.pricingModel === 'QUOTE' ? (
-                   <div className="text-center py-2">
-                      <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                         <i className="fa-solid fa-file-invoice-dollar text-xl"></i>
+                   <div className="bg-slate-50 dark:bg-white/5 rounded-[32px] p-6 text-center space-y-4">
+                      <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                         <i className="fa-solid fa-hand-holding-dollar text-2xl"></i>
                       </div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase italic">On-Demand Pricing</p>
-                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mt-1">Providers will send you a quote based on your description.</p>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">Name Your Price</h4>
+                        <p className="text-[10px] text-slate-500 font-bold mt-1 max-w-[200px] mx-auto leading-relaxed">Enter your budget or leave empty to get quotes from providers.</p>
+                      </div>
+                      
+                      <div className="relative max-w-[200px] mx-auto">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-sm">ZMW</span>
+                        <input 
+                           type="number" 
+                           value={haggledPrice || ''} 
+                           onChange={(e) => setHaggledPrice(Number(e.target.value))} 
+                           className="w-full bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-white/10 p-3 pl-14 rounded-xl text-lg font-black italic text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-all placeholder:text-slate-300" 
+                           placeholder="0.00" 
+                        />
+                      </div>
                    </div>
                  ) : (
                    <>
@@ -621,7 +636,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 onClick={() => handleLaunchMission()} 
                 className="w-full py-5 bg-emerald-600 text-white font-black rounded-[24px] text-[10px] uppercase shadow-2xl italic tracking-widest active:scale-95 transition-all hover:bg-emerald-500"
               >
-                {selectedCategory.pricingModel === 'QUOTE' ? 'Request Price Quote' : 'Launch Mission Protocol'}
+                {selectedCategory.pricingModel === 'QUOTE' ? (haggledPrice > 0 ? 'Send Offer to Partners' : 'Request Price Quote') : 'Launch Mission Protocol'}
               </button>
             </div>
           </div>
