@@ -30,7 +30,8 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'beauty', name: 'Beauty', icon: 'fa-solid fa-scissors', basePrice: 0, hint: "Salons, barbers, and beauty services", color: 'text-pink-500', pricingModel: 'QUOTE' },
+  { id: 'barbershop', name: 'Barbershop', icon: 'fa-solid fa-scissors', basePrice: 0, hint: "Men's grooming and haircuts", color: 'text-indigo-500', pricingModel: 'QUOTE' },
+  { id: 'salon', name: 'Hair Salon', icon: 'fa-solid fa-wand-magic-sparkles', basePrice: 0, hint: "Ladies' hair, braiding, and beauty", color: 'text-pink-500', pricingModel: 'QUOTE' },
   { id: 'labor', name: 'Casual Labor', icon: 'fa-solid fa-person-digging', basePrice: 0, hint: "General labor and assistance services", color: 'text-amber-500', pricingModel: 'QUOTE' },
   { id: 'trades', name: 'Skilled Trades', icon: 'fa-solid fa-wrench', basePrice: 150, hint: "Plumbers, carpenters, mechanics, and other skilled professionals", color: 'text-slate-500', pricingModel: 'QUOTE' },
   { id: 'taxi', name: 'Motor Vehicle', icon: 'fa-solid fa-car', requiresLicense: true, basePrice: 50, hint: "Taxis and private rides", color: 'text-yellow-500', pricingModel: 'DISTANCE' },
