@@ -125,17 +125,20 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     ];
     const missions: Array<{ from: Location; to: Location; id: string }> = [];
 
+    // 1. Add Active Booking Providers (High Priority)
     activeBookings.forEach(b => {
       if (b.providerId) {
         const provider = allUsers.find(u => u.id === b.providerId);
         if (provider && provider.location) {
-          markers.push({
-            loc: provider.location,
-            color: '#3b82f6',
-            label: `Agent: ${provider.name}`,
-            isLive: true,
-            id: provider.id
-          });
+          if (!markers.some(m => m.id === provider.id)) {
+            markers.push({
+              loc: provider.location,
+              color: '#3b82f6',
+              label: `Agent: ${provider.name}`,
+              isLive: true,
+              id: provider.id
+            });
+          }
           if ([BookingStatus.ACCEPTED, BookingStatus.ON_TRIP].includes(b.status)) {
             missions.push({ from: location, to: provider.location, id: b.id });
           }
@@ -143,12 +146,27 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       }
     });
 
+    // 2. Add Nearby Services (Lodges, Shops, Online Providers)
     allUsers.forEach(u => {
       if (u.id !== user.id && u.location && !markers.some(m => m.id === u.id)) {
+        // Lodges
         if (u.role === Role.LODGE) {
-          markers.push({ loc: u.location, color: COLORS.HOSPITALITY, label: u.name });
-        } else if (u.role === Role.SHOP_OWNER) {
-          markers.push({ loc: u.location, color: COLORS.WARNING, label: u.name });
+          markers.push({ loc: u.location, color: COLORS.HOSPITALITY, label: u.name, id: u.id });
+        } 
+        // Shops
+        else if (u.role === Role.SHOP_OWNER) {
+          markers.push({ loc: u.location, color: COLORS.WARNING, label: u.name, id: u.id });
+        }
+        // Online Service Providers (Available)
+        else if (u.role === Role.PROVIDER && u.isOnline) {
+          const isTransport = u.serviceCategories?.some(cat => ['transport', 'taxi', 'trucking', 'bike'].includes(cat));
+          markers.push({ 
+            loc: u.location, 
+            color: isTransport ? '#eab308' : '#3b82f6', 
+            label: u.name, 
+            isLive: true, 
+            id: u.id 
+          });
         }
       }
     });
