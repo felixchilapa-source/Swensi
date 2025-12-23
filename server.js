@@ -53,6 +53,37 @@ setInterval(() => {
     }
 }, 300000);
 
+// Helper: Send SMS
+const sendSMS = async (phone, message) => {
+    // Normalize phone number for Zambia (remove leading 0, ensure +260)
+    const cleanPhone = phone.toString().replace(/\D/g, '').replace(/^0/, '').replace(/^260/, '');
+    const recipient = `+260${cleanPhone}`;
+
+    if (atClient) {
+        try {
+            const result = await atClient.SMS.send({
+                to: recipient,
+                message: message,
+                // from: 'SWENSI' // Uncomment if Sender ID is registered
+            });
+            const messageId = result.SMSMessageData?.Recipients?.[0]?.messageId || 'SENT';
+            console.log(`[REAL SMS SENT] To: ${recipient} | ID: ${messageId}`);
+            return { success: true, mode: 'REAL', id: messageId };
+        } catch (error) {
+            console.error('[SMS GATEWAY ERROR]', error);
+            return { success: false, error: error.message };
+        }
+    } else {
+        // Simulation for Dev/Demo
+        console.log('------------------------------------------------');
+        console.log(`[SMS SIMULATION]`);
+        console.log(`To: ${recipient}`);
+        console.log(`Message: "${message}"`);
+        console.log('------------------------------------------------');
+        return { success: true, mode: 'SIMULATION' };
+    }
+};
+
 // Health check
 app.get('/healthz', (req, res) => res.status(200).send('OK'));
 
@@ -76,33 +107,14 @@ app.post('/api/auth/request-otp', async (req, res) => {
   });
 
   // 3. Send SMS (Real or Simulation)
-  if (atClient) {
-      try {
-          // Real World SMS Send
-          const result = await atClient.SMS.send({
-              to: `+260${phone}`, // Force Zambia country code
-              message: `Your Swensi Verification Code is: ${code}. Valid for 10 minutes.`,
-              // from: 'SWENSI' // Only use if you have a registered Sender ID
-          });
-          
-          console.log(`[REAL SMS SENT] To: +260${phone} | ID: ${result.SMSMessageData.Recipients[0].messageId}`);
-          res.json({ success: true, message: 'OTP Sent via SMS Network' });
-
-      } catch (error) {
-          console.error('[SMS GATEWAY ERROR]', error);
-          res.status(502).json({ error: 'SMS Gateway Unreachable' });
-      }
+  const result = await sendSMS(phone, `Your Swensi Verification Code is: ${code}. Valid for 10 minutes.`);
+  
+  if (result.success) {
+      // Simulate network delay for realism in simulation
+      if (result.mode === 'SIMULATION') await new Promise(resolve => setTimeout(resolve, 1000));
+      res.json({ success: true, message: result.mode === 'SIMULATION' ? 'OTP Generated (Simulation)' : 'OTP Sent via SMS' });
   } else {
-      // Simulation for Dev/Demo
-      console.log('------------------------------------------------');
-      console.log(`[SMS SIMULATION]`);
-      console.log(`To: +260 ${phone}`);
-      console.log(`Message: "Your Swensi Verification Code is: ${code}"`);
-      console.log('------------------------------------------------');
-      
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      res.json({ success: true, message: 'OTP Generated (Simulation)' });
+      res.status(502).json({ error: 'SMS Gateway Unreachable' });
   }
 });
 
@@ -135,6 +147,19 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   } else {
     return res.status(401).json({ error: 'Invalid verification code' });
   }
+});
+
+// Generic SMS Notification Endpoint (Secured or internal use)
+app.post('/api/notifications/sms', async (req, res) => {
+    const { phone, message } = req.body;
+    if (!phone || !message) return res.status(400).json({ error: 'Phone and message required' });
+    
+    const result = await sendSMS(phone, message);
+    if (result.success) {
+        res.json({ success: true, ...result });
+    } else {
+        res.status(500).json({ error: 'Failed to send SMS', details: result.error });
+    }
 });
 
 // --------------------------------
