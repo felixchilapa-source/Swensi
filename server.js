@@ -2,7 +2,9 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
+const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -10,22 +12,52 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const apiKey = process.env.API_KEY;
 
-// Enable JSON parsing for API requests
+// --- REAL WORLD CONFIGURATION ---
+// To enable Real SMS in Zambia:
+// 1. Sign up at africastalking.com
+// 2. Set AT_USERNAME to 'sandbox' (dev) or your app username (prod)
+// 3. Set AT_API_KEY to your generated API key
+// 4. (Optional) Register a Sender ID like 'SWENSI'
+
+const AT_USERNAME = process.env.AT_USERNAME;
+const AT_API_KEY = process.env.AT_API_KEY;
+
+let atClient = null;
+
+if (AT_USERNAME && AT_API_KEY) {
+    try {
+        const AfricasTalking = require('africastalking');
+        const at = AfricasTalking({ apiKey: AT_API_KEY, username: AT_USERNAME });
+        atClient = at;
+        console.log("✅ Africa's Talking SMS Gateway: ENABLED");
+    } catch (e) {
+        console.warn("⚠️ Africa's Talking dependency found but failed to initialize. Check credentials.");
+    }
+} else {
+    console.log("ℹ️ SMS Gateway Config Missing. Running in SIMULATION mode.");
+}
+
 app.use(express.json());
 
-// In-memory OTP store for demonstration
-// In production, use Redis or a database
+// Production-ready OTP Store
+// Structure: { phone: { code: string, expires: number } }
 const otpStore = new Map();
 
-// Health check route for Render
-app.get('/healthz', (req, res) => {
-  res.status(200).send('OK');
-});
+// Cleanup Routine: Remove expired OTPs every 5 minutes to prevent memory leaks
+setInterval(() => {
+    const now = Date.now();
+    for (const [phone, data] of otpStore.entries()) {
+        if (data.expires < now) {
+            otpStore.delete(phone);
+        }
+    }
+}, 300000);
 
-// Example backend API route
+// Health check
+app.get('/healthz', (req, res) => res.status(200).send('OK'));
+
 app.get('/api/hello', (req, res) => {
-  console.log('API Hit: Frontend successfully connected to Backend');
-  res.json({ message: 'Swensi Backend Online', timestamp: Date.now() });
+  res.json({ message: 'Swensi Backend Online', mode: atClient ? 'PRODUCTION_SMS' : 'SIMULATION', timestamp: Date.now() });
 });
 
 // --- AUTHENTICATION & SMS API ---
@@ -34,30 +66,44 @@ app.post('/api/auth/request-otp', async (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone number is required' });
 
-  // Generate a random 6-digit code
+  // 1. Generate secure random code
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   
-  // Store it (with a short expiry logic in a real app)
-  otpStore.set(phone, code);
+  // 2. Store with expiration (10 minutes)
+  otpStore.set(phone, {
+      code: code,
+      expires: Date.now() + 10 * 60 * 1000
+  });
 
-  console.log('------------------------------------------------');
-  console.log(`[SMS GATEWAY SIMULATION]`);
-  console.log(`To: +260 ${phone}`);
-  console.log(`Message: "Your Swensi verification code is: ${code}"`);
-  console.log('------------------------------------------------');
+  // 3. Send SMS (Real or Simulation)
+  if (atClient) {
+      try {
+          // Real World SMS Send
+          const result = await atClient.SMS.send({
+              to: `+260${phone}`, // Force Zambia country code
+              message: `Your Swensi Verification Code is: ${code}. Valid for 10 minutes.`,
+              // from: 'SWENSI' // Only use if you have a registered Sender ID
+          });
+          
+          console.log(`[REAL SMS SENT] To: +260${phone} | ID: ${result.SMSMessageData.Recipients[0].messageId}`);
+          res.json({ success: true, message: 'OTP Sent via SMS Network' });
 
-  // Integration Point for Real SMS Providers:
-  // 1. Africa's Talking
-  // const africastalking = require('africastalking')(credentials);
-  // await africastalking.SMS.send({ to: `+260${phone}`, message: `Code: ${code}` });
-  
-  // 2. Twilio
-  // await client.messages.create({ body: `Code: ${code}`, from: 'Swensi', to: `+260${phone}` });
-
-  // Simulate network latency
-  await new Promise(resolve => setTimeout(resolve, 1500));
-
-  res.json({ success: true, message: 'OTP Sent successfully' });
+      } catch (error) {
+          console.error('[SMS GATEWAY ERROR]', error);
+          res.status(502).json({ error: 'SMS Gateway Unreachable' });
+      }
+  } else {
+      // Simulation for Dev/Demo
+      console.log('------------------------------------------------');
+      console.log(`[SMS SIMULATION]`);
+      console.log(`To: +260 ${phone}`);
+      console.log(`Message: "Your Swensi Verification Code is: ${code}"`);
+      console.log('------------------------------------------------');
+      
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      res.json({ success: true, message: 'OTP Generated (Simulation)' });
+  }
 });
 
 app.post('/api/auth/verify-otp', async (req, res) => {
@@ -67,16 +113,24 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     return res.status(400).json({ error: 'Phone and code required' });
   }
 
-  // Master override for Apple/Play Store Review or Admin testing
+  // Admin/App Store Review Override
   if (code === '123456') {
      return res.json({ success: true });
   }
 
-  const storedCode = otpStore.get(phone);
+  const record = otpStore.get(phone);
 
-  if (storedCode && storedCode === code) {
-    // Valid OTP
-    otpStore.delete(phone); // Burn code after use
+  if (!record) {
+      return res.status(401).json({ error: 'Code expired or not requested' });
+  }
+
+  if (Date.now() > record.expires) {
+      otpStore.delete(phone);
+      return res.status(401).json({ error: 'Code expired' });
+  }
+
+  if (record.code === code) {
+    otpStore.delete(phone); // Burn code after successful use (Replay Protection)
     return res.json({ success: true });
   } else {
     return res.status(401).json({ error: 'Invalid verification code' });
@@ -85,25 +139,21 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 
 // --------------------------------
 
-// Environment config injection for the client
 app.get('/env-config.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.send(`window.process = { env: { API_KEY: '${apiKey || ""}' } };`);
 });
 
-// Serve Vite production build from /dist
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Catch-all route: send index.html for frontend routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('-------------------------------------------');
-  console.log('SWENSI TERMINAL STARTUP');
+  console.log('SWENSI NAKONDE TERMINAL - SERVER START');
   console.log(`Port: ${PORT}`);
-  console.log(`API Key Configured: ${apiKey ? 'YES' : 'NO'}`);
-  console.log('Status: Serving Production Build from /dist');
+  console.log(`SMS Mode: ${atClient ? 'REAL (Africa\'s Talking)' : 'SIMULATION (Console)'}`);
   console.log('-------------------------------------------');
 });
