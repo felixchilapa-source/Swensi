@@ -18,7 +18,7 @@ interface ProviderDashboardProps {
   onCounterNegotiation: (id: string, price: number) => void;
   onRejectNegotiation: (id: string) => void;
   onConfirmCompletion: (id: string) => void;
-  onUpdateSubscription: (plan: 'BASIC' | 'PREMIUM') => void;
+  onRequestSubscription: (plan: 'BASIC' | 'PREMIUM') => void;
   onUpdateUser: (updates: Partial<User>) => void;
   location: Location;
   onToggleTheme: () => void;
@@ -31,7 +31,7 @@ interface ProviderDashboardProps {
 }
 
 const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ 
-  user, logout, bookings, allUsers, incomingJob, onUpdateStatus, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, onConfirmCompletion, onToggleViewMode, location, onToggleTheme, isDarkMode, onLanguageChange, t, onUpdateUser, onUpdateSubscription, onSendMessage, onIgnoreJob
+  user, logout, bookings, allUsers, incomingJob, onUpdateStatus, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, onConfirmCompletion, onToggleViewMode, location, onToggleTheme, isDarkMode, onLanguageChange, t, onUpdateUser, onRequestSubscription, onSendMessage, onIgnoreJob
 }) => {
   const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'account'>('leads');
   const [counterInput, setCounterInput] = useState<{ [key: string]: number }>({});
@@ -58,6 +58,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
 
   const isOnline = user.isOnline !== false; 
   const isAuthorized = user.isVerified;
+  const isRequestPending = !!user.subscriptionRequest;
   
   const isSubscribed = useMemo(() => {
     // Free access for admins
@@ -242,6 +243,13 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                  <button onClick={() => setActiveTab('account')} className="mt-6 w-full py-3 bg-white text-orange-600 rounded-2xl text-[10px] font-black uppercase italic shadow-lg">Upgrade Now</button>
               </div>
             )}
+
+            {isRequestPending && (
+              <div className="bg-gradient-to-br from-purple-500 to-indigo-600 p-6 rounded-[35px] text-white shadow-xl">
+                 <h3 className="text-lg font-black italic uppercase leading-none">Request Pending</h3>
+                 <p className="text-[10px] font-bold uppercase tracking-widest mt-2 opacity-80">Your subscription application is awaiting admin approval.</p>
+              </div>
+            )}
             
             <div className="flex items-center justify-between px-2">
                <div>
@@ -352,7 +360,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                           ) : (
                             <div className="mt-2 p-3 bg-slate-100 dark:bg-white/5 rounded-2xl text-center">
                                <p className="text-[9px] font-bold text-slate-500 uppercase italic">
-                                 {!isAuthorized ? 'Verification Pending' : 'Subscription Required'}
+                                 {!isAuthorized ? 'Verification Pending' : (isRequestPending ? 'Subscription Approval Pending' : 'Subscription Required')}
                                </p>
                             </div>
                           )}
@@ -446,20 +454,30 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
 
                 <div className="grid grid-cols-2 gap-4">
                    <button 
-                    onClick={() => onUpdateSubscription('BASIC')}
-                    className={`p-6 rounded-[30px] border-2 text-left transition-all ${!user.isPremium && isSubscribed ? 'bg-blue-600 border-blue-600 text-white' : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/10'}`}
+                    onClick={() => onRequestSubscription('BASIC')}
+                    disabled={!isAuthorized || isRequestPending || (isSubscribed && !user.isPremium)}
+                    className={`p-6 rounded-[30px] border-2 text-left transition-all relative ${!user.isPremium && isSubscribed ? 'bg-blue-600 border-blue-600 text-white' : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/10 disabled:opacity-50'}`}
                    >
                       <p className="text-[10px] font-black uppercase italic mb-1">Basic</p>
                       <p className="text-lg font-black italic tracking-tighter">ZMW 10</p>
+                      {(isRequestPending && user.subscriptionRequest?.plan === 'BASIC') && (
+                          <span className="absolute inset-0 bg-slate-900/50 flex items-center justify-center text-[10px] font-black uppercase text-white backdrop-blur-sm rounded-[28px]">Pending</span>
+                      )}
                    </button>
                    <button 
-                    onClick={() => onUpdateSubscription('PREMIUM')}
-                    className={`p-6 rounded-[30px] border-2 text-left transition-all ${user.isPremium ? 'bg-amber-500 border-amber-500 text-slate-900' : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/10'}`}
+                    onClick={() => onRequestSubscription('PREMIUM')}
+                    disabled={!isAuthorized || isRequestPending || (isSubscribed && user.isPremium)}
+                    className={`p-6 rounded-[30px] border-2 text-left transition-all relative ${user.isPremium ? 'bg-amber-500 border-amber-500 text-slate-900' : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/10 disabled:opacity-50'}`}
                    >
                       <p className="text-[10px] font-black uppercase italic mb-1">Premium</p>
                       <p className="text-lg font-black italic tracking-tighter">ZMW 20</p>
+                      {(isRequestPending && user.subscriptionRequest?.plan === 'PREMIUM') && (
+                          <span className="absolute inset-0 bg-slate-900/50 flex items-center justify-center text-[10px] font-black uppercase text-white backdrop-blur-sm rounded-[28px]">Pending</span>
+                      )}
                    </button>
                 </div>
+                {!isAuthorized && <p className="text-[9px] text-red-500 font-bold mt-4 text-center uppercase">Account verification required before purchase.</p>}
+                {isRequestPending && <p className="text-[9px] text-blue-500 font-bold mt-4 text-center uppercase">Approval pending. Please wait for admin.</p>}
              </div>
 
              <div className="p-8 bg-slate-900 rounded-[40px] border border-white/5 space-y-6 shadow-2xl">

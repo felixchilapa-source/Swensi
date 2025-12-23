@@ -106,6 +106,10 @@ export interface User {
   avatarUrl?: string;
   savedNodes?: SavedNode[];
   subscriptionExpiry?: number;
+  subscriptionRequest?: {
+    plan: 'BASIC' | 'PREMIUM';
+    timestamp: number;
+  };
   licenseNumber?: string;
   licenseDocumentUrl?: string;
   homeAddress?: string;

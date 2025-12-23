@@ -246,38 +246,79 @@ const App: React.FC = () => {
     setSystemLogs(prev => [newLog, ...prev]);
   }, [user]);
 
-  const handleUpdateSubscription = useCallback((plan: 'BASIC' | 'PREMIUM') => {
+  const handleRequestSubscription = useCallback((plan: 'BASIC' | 'PREMIUM') => {
     if (!user) return;
     
-    // Admin Override Logic
+    // Admin Override
     if (user.role === Role.ADMIN || VERIFIED_ADMINS.includes(user.phone)) {
         addNotification('ADMIN OVERRIDE', 'Admins have free lifetime access.', 'SUCCESS');
         return;
     }
 
-    if (user.role !== Role.PROVIDER) {
-      addNotification('ACCESS DENIED', 'Subscriptions are reserved for Service Partners.', 'ALERT');
-      return;
+    if (!user.isVerified) {
+        addNotification('ACCESS DENIED', 'You must be verified before requesting a subscription.', 'ALERT');
+        return;
     }
-    
+
     const planDetails = SUBSCRIPTION_PLANS[plan];
     if (user.balance < planDetails.price) {
-      addNotification('INSUFFICIENT FUNDS', `Subscription for ${planDetails.name} requires ZMW ${planDetails.price}`, 'ALERT');
+      addNotification('INSUFFICIENT FUNDS', `Wallet balance must be at least ZMW ${planDetails.price} to request this plan.`, 'ALERT');
       return;
     }
 
-    const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
     const updatedUser = { 
       ...user, 
-      balance: user.balance - planDetails.price,
-      isPremium: plan === 'PREMIUM',
-      subscriptionExpiry: expiry
+      subscriptionRequest: { plan, timestamp: Date.now() }
     };
 
     setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
     setUser(updatedUser);
-    addNotification('PLAN ACTIVATED', `${planDetails.name} is now live on your terminal node.`, 'SUCCESS');
+    addNotification('REQUEST SUBMITTED', `Application for ${planDetails.name} sent to finance for approval.`, 'INFO');
   }, [user, addNotification]);
+
+  const handleApproveSubscription = useCallback((userId: string) => {
+    const targetUser = allUsers.find(u => u.id === userId);
+    if (!targetUser || !targetUser.subscriptionRequest) return;
+
+    const plan = targetUser.subscriptionRequest.plan;
+    const planDetails = SUBSCRIPTION_PLANS[plan];
+
+    if (targetUser.balance < planDetails.price) {
+        addNotification('APPROVAL FAILED', 'User has insufficient funds.', 'ALERT');
+        return;
+    }
+
+    const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
+    const updatedUser = { 
+        ...targetUser, 
+        balance: targetUser.balance - planDetails.price,
+        isPremium: plan === 'PREMIUM',
+        subscriptionExpiry: expiry,
+        subscriptionRequest: undefined // Clear request
+    };
+
+    setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+    if (user && user.id === userId) setUser(updatedUser);
+    
+    addNotification('SUBSCRIPTION APPROVED', `${targetUser.name} is now active on ${planDetails.name}. Funds deducted.`, 'SUCCESS');
+    handleAddLog(`Approved ${plan} subscription for ${targetUser.name}`, userId, 'INFO');
+  }, [allUsers, user, addNotification, handleAddLog]);
+
+  const handleRejectSubscription = useCallback((userId: string) => {
+    const targetUser = allUsers.find(u => u.id === userId);
+    if (!targetUser) return;
+
+    const updatedUser = { 
+        ...targetUser, 
+        subscriptionRequest: undefined 
+    };
+
+    setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+    if (user && user.id === userId) setUser(updatedUser);
+    
+    addNotification('SUBSCRIPTION REJECTED', `Request for ${targetUser.name} cancelled.`, 'INFO');
+    handleAddLog(`Rejected subscription for ${targetUser.name}`, userId, 'WARNING');
+  }, [allUsers, user, addNotification, handleAddLog]);
 
   const handleCancelBooking = useCallback((bookingId: string) => {
     const booking = bookings.find(b => b.id === bookingId);
@@ -567,6 +608,8 @@ const App: React.FC = () => {
             t={(k) => TRANSLATIONS[language]?.[k] || k} onToggleViewMode={() => setViewMode('CUSTOMER')}
             onUpdateBooking={handleUpdateBooking} 
             onAddLog={handleAddLog}
+            onApproveSubscription={handleApproveSubscription}
+            onRejectSubscription={handleRejectSubscription}
           />
         );
       case Role.PROVIDER:
@@ -593,7 +636,7 @@ const App: React.FC = () => {
               addNotification('MISSION SUCCESS', 'Operation finalized.', 'SUCCESS');
             }} 
             onUpdateBooking={() => {}} 
-            onUpdateSubscription={handleUpdateSubscription} 
+            onRequestSubscription={handleRequestSubscription} 
             location={user.location || currentLocation} onToggleTheme={() => setIsDarkMode(!isDarkMode)} isDarkMode={isDarkMode} 
             onLanguageChange={setLanguage} onUpdateUser={(u) => {
               const updated = { ...user, ...u, lastActive: Date.now() };
@@ -646,4 +689,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-    

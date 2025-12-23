@@ -29,6 +29,8 @@ interface AdminDashboardProps {
   onToggleViewMode?: () => void;
   onUpdateBooking?: (id: string, updates: Partial<Booking>) => void;
   onAddLog: (action: string, targetId?: string, severity?: 'INFO' | 'WARNING' | 'CRITICAL') => void;
+  onApproveSubscription: (userId: string) => void;
+  onRejectSubscription: (userId: string) => void;
 }
 
 type AdminView = 'stats' | 'missions' | 'requests' | 'finance' | 'registry' | 'security';
@@ -40,7 +42,7 @@ interface NavItem {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-  user, logout, allUsers, bookings, councilOrders, feedbacks, systemLogs, onToggleVerification, onMarkFeedbackRead, onToggleBlock, onUpdateUserRole, t, onToggleViewMode, onUpdateBooking, onAddLog 
+  user, logout, allUsers, bookings, councilOrders, feedbacks, systemLogs, onToggleVerification, onMarkFeedbackRead, onToggleBlock, onUpdateUserRole, t, onToggleViewMode, onUpdateBooking, onAddLog, onApproveSubscription, onRejectSubscription
 }) => {
   const isWorkflow = user.role === Role.WORKFLOW;
   const isFinance = user.role === Role.FINANCE;
@@ -62,8 +64,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const commissions = bookings.filter(b => b.isPaid).reduce((acc, b) => acc + b.commission, 0);
     const subscriptions = allUsers.filter(u => u.role === Role.PROVIDER && u.subscriptionExpiry && u.subscriptionExpiry > Date.now()).length * 20;
     const pendingApprovals = allUsers.filter(u => u.role === Role.PROVIDER && !u.isVerified).length;
+    const pendingSubs = allUsers.filter(u => !!u.subscriptionRequest).length;
     const unreadFeedback = feedbacks.filter(f => !f.isRead).length;
-    return { commissions, subscriptions, totalRevenue, pendingApprovals, unreadFeedback, activeUsers: allUsers.length };
+    return { commissions, subscriptions, totalRevenue, pendingApprovals, pendingSubs, unreadFeedback, activeUsers: allUsers.length };
   }, [bookings, allUsers, feedbacks]);
 
   const navItems = useMemo((): NavItem[] => {
@@ -90,6 +93,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const pendingProviders = useMemo(() => 
     allUsers.filter(u => u.role === Role.PROVIDER && !u.isVerified), 
+  [allUsers]);
+
+  const subscriptionRequests = useMemo(() => 
+    allUsers.filter(u => !!u.subscriptionRequest),
   [allUsers]);
 
   const filteredRegistry = useMemo(() => {
@@ -343,6 +350,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {v.id === 'requests' && stats.pendingApprovals > 0 && (
                 <span className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse border border-white dark:border-slate-900"></span>
               )}
+              {v.id === 'finance' && stats.pendingSubs > 0 && (
+                <span className="absolute top-1 right-2 w-2 h-2 bg-blue-500 rounded-full animate-pulse border border-white dark:border-slate-900"></span>
+              )}
             </button>
           ))}
         </nav>
@@ -489,6 +499,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <p className="text-xs text-slate-400 mb-4 font-mono">Rate: 0.24% per completed transaction</p>
                 <p className="text-4xl font-black text-emerald-500 italic">ZMW {stats.commissions.toFixed(2)}</p>
              </div>
+
+             {/* Subscription Approval Section */}
+             {subscriptionRequests.length > 0 && (
+                <div className="space-y-3 bg-gradient-to-br from-blue-600/10 to-indigo-600/10 p-6 rounded-[35px] border border-blue-500/20">
+                   <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                      <h4 className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Pending Subscription Approvals</h4>
+                   </div>
+                   
+                   {subscriptionRequests.map(reqUser => (
+                      <div key={reqUser.id} className="bg-white dark:bg-white/10 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                         <div>
+                            <p className="text-xs font-black italic text-slate-900 dark:text-white uppercase">{reqUser.name}</p>
+                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Request: {reqUser.subscriptionRequest?.plan}</p>
+                            <p className="text-[9px] text-slate-400 mt-1">Bal: ZMW {reqUser.balance}</p>
+                         </div>
+                         <div className="flex gap-2">
+                            <button onClick={() => onRejectSubscription(reqUser.id)} className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 transition-colors">
+                               <i className="fa-solid fa-xmark text-xs"></i>
+                            </button>
+                            <button onClick={() => onApproveSubscription(reqUser.id)} className="p-3 bg-emerald-500 text-white rounded-xl shadow-lg active:scale-95 transition-transform">
+                               <i className="fa-solid fa-check text-xs"></i>
+                            </button>
+                         </div>
+                      </div>
+                   ))}
+                </div>
+             )}
 
              <div className="space-y-3">
                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Recent Transactions</h4>
