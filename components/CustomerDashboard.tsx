@@ -158,8 +158,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           markers.push({ loc: u.location, color: COLORS.WARNING, label: u.name, id: u.id });
         }
         // Online Service Providers (Available)
-        else if (u.role === Role.PROVIDER && u.isOnline) {
-          const isTransport = u.serviceCategories?.some(cat => ['transport', 'taxi', 'trucking', 'bike'].includes(cat));
+        else if (u.role === Role.PROVIDER && (u.isOnline !== false)) {
+          const isTransport = u.serviceCategories?.some(cat => ['taxi', 'bike', 'trucking', 'transport'].includes(cat));
           markers.push({ 
             loc: u.location, 
             color: isTransport ? '#eab308' : '#3b82f6', 
@@ -347,7 +347,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   };
 
   const handleSubmitKyc = () => {
-    const isTransport = ['transport', 'trucking'].includes(kycCategory);
+    const isTransport = ['taxi', 'bike', 'trucking', 'transport'].includes(kycCategory);
 
     if (!kycLicense || !kycAddress) {
         onNotification('KYC ERROR', 'License/ID Number and Address are mandatory.', 'ALERT');
@@ -673,6 +673,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              {activeBookings.map(b => {
                 const isNegotiating = b.status === BookingStatus.NEGOTIATING;
+                const isSearching = b.status === BookingStatus.PENDING;
                 const isProviderTurn = b.lastOfferBy === Role.PROVIDER;
                 const hasProvider = !!b.providerId;
                 const displayPrice = b.negotiatedPrice || b.price;
@@ -680,6 +681,23 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
                 return (
                   <div key={b.id} className={`bg-white dark:bg-slate-900 rounded-[40px] border overflow-hidden shadow-xl p-6 space-y-4 ${isNegotiating ? 'border-amber-500/50' : (statusConfig.border || 'border-slate-100 dark:border-white/5')}`}>
+                     
+                     {/* SEARCHING STATE RADAR UI */}
+                     {isSearching && !hasProvider && (
+                        <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-20 flex flex-col items-center justify-center text-center">
+                           <div className="relative w-24 h-24 mb-6">
+                              <div className="absolute inset-0 bg-blue-500/30 rounded-full animate-ping"></div>
+                              <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-pulse delay-75"></div>
+                              <div className="absolute inset-4 bg-white rounded-full shadow-lg flex items-center justify-center">
+                                 <i className="fa-solid fa-magnifying-glass text-2xl text-blue-500"></i>
+                              </div>
+                           </div>
+                           <h3 className="text-white text-xl font-black italic uppercase">Contacting Providers...</h3>
+                           <p className="text-white/80 text-xs font-bold uppercase tracking-widest mt-2">Connecting to Nakonde Network</p>
+                           <button onClick={() => onCancelBooking(b.id)} className="mt-8 px-6 py-3 bg-white text-slate-900 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg hover:scale-105 transition-transform">Cancel Search</button>
+                        </div>
+                     )}
+                     
                      <div className="flex justify-between items-start">
                         <div>
                           <h4 className="text-xl font-black italic">{b.id}</h4>
@@ -802,7 +820,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         </select>
                      </div>
 
-                     {['transport', 'trucking'].includes(kycCategory) && (
+                     {['taxi', 'bike', 'trucking', 'transport'].includes(kycCategory) && (
                         <>
                            <div>
                               <label className="text-[8px] font-black text-slate-400 uppercase italic ml-2">Driving License Photo (Mandatory)</label>

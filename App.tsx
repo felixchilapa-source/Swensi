@@ -55,6 +55,8 @@ const App: React.FC = () => {
   const [incomingJob, setIncomingJob] = useState<Booking | null>(null);
   const previousBookingsLength = useRef(bookings.length);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const ringIntervalRef = useRef<any>(null);
+  const ringTimeoutRef = useRef<any>(null);
 
   useEffect(() => { localStorage.setItem('swensi-users-v3', JSON.stringify(allUsers)); }, [allUsers]);
   useEffect(() => { localStorage.setItem('swensi-bookings-v3', JSON.stringify(bookings)); }, [bookings]);
@@ -87,7 +89,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const trackingInterval = setInterval(() => {
       setAllUsers(prev => prev.map(u => {
-        if (u.role === Role.PROVIDER && u.isOnline && u.location) {
+        if (u.role === Role.PROVIDER && (u.isOnline !== false) && u.location) {
           const activeBooking = bookings.find(b => b.providerId === u.id && [BookingStatus.ACCEPTED, BookingStatus.ON_TRIP].includes(b.status));
           let deltaLat = (Math.random() - 0.5) * 0.0002;
           let deltaLng = (Math.random() - 0.5) * 0.0002;
@@ -118,7 +120,8 @@ const App: React.FC = () => {
       // New booking detected
       const newBookings = bookings.slice(0, bookings.length - previousBookingsLength.current);
       
-      if (user && user.role === Role.PROVIDER && user.isOnline) {
+      // Check if provider is explicitly offline (isOnline === false). Undefined is treated as Online.
+      if (user && user.role === Role.PROVIDER && (user.isOnline !== false)) {
         // Check eligibility
         const relevantJob = newBookings.find(b => 
           (b.status === BookingStatus.PENDING || b.status === BookingStatus.NEGOTIATING) &&
@@ -128,58 +131,81 @@ const App: React.FC = () => {
 
         if (relevantJob) {
           setIncomingJob(relevantJob);
-          playRingTone();
+          startRinging();
+          
+          // Auto-reject after 30 seconds
+          if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+          ringTimeoutRef.current = setTimeout(() => {
+            stopRinging();
+            setIncomingJob(null);
+            addNotification("MISSED OPPORTUNITY", "Job offer expired.", "INFO");
+          }, 30000); // 30 seconds
         }
       }
     }
     previousBookingsLength.current = bookings.length;
   }, [bookings, user]);
 
-  const playRingTone = () => {
+  const startRinging = () => {
     try {
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
-      const ctx = audioContextRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
-
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(500, ctx.currentTime); 
-      oscillator.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.5);
       
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      // Play immediately
+      playBeepSequence();
 
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      oscillator.start();
-      oscillator.stop(ctx.currentTime + 0.5);
-      
-      // Beep loop
-      let count = 0;
-      const interval = setInterval(() => {
-        if (count > 4) { clearInterval(interval); return; }
-        const osc = ctx.createOscillator();
-        const gn = ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        gn.gain.setValueAtTime(0.1, ctx.currentTime);
-        gn.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-        osc.connect(gn);
-        gn.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.1);
-        count++;
-      }, 600);
+      // Loop every 2 seconds
+      if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
+      ringIntervalRef.current = setInterval(playBeepSequence, 2000);
 
     } catch (e) {
-      console.error("Audio play failed", e);
+      console.error("Audio start failed", e);
     }
   };
+
+  const stopRinging = () => {
+    if (ringIntervalRef.current) {
+      clearInterval(ringIntervalRef.current);
+      ringIntervalRef.current = null;
+    }
+    if (ringTimeoutRef.current) {
+        clearTimeout(ringTimeoutRef.current);
+        ringTimeoutRef.current = null;
+    }
+  };
+
+  const playBeepSequence = () => {
+      const ctx = audioContextRef.current;
+      if (!ctx || ctx.state === 'closed') return;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, t);
+      osc.frequency.linearRampToValueAtTime(1200, t + 0.1);
+      osc.frequency.setValueAtTime(800, t + 0.2);
+      osc.frequency.linearRampToValueAtTime(1200, t + 0.3);
+
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.5, t + 0.05);
+      gain.gain.linearRampToValueAtTime(0, t + 0.4);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.4);
+  };
+
+  // Stop ringing if incomingJob is cleared manually or accepted
+  useEffect(() => {
+    if (!incomingJob) {
+      stopRinging();
+    }
+  }, [incomingJob]);
 
   const addNotification = useCallback((title: string, message: string, type: 'INFO' | 'ALERT' | 'SUCCESS' | 'SMS' = 'INFO') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -342,6 +368,7 @@ const App: React.FC = () => {
       }
       return b;
     }));
+    stopRinging();
     addNotification('HANDSHAKE AGREED', 'Negotiation successful. Mission commencing.', 'SUCCESS');
   }, [user, addNotification]);
 
@@ -419,7 +446,18 @@ const App: React.FC = () => {
       id: 'USR-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
       phone, name, 
       role: isAdmin ? Role.ADMIN : Role.CUSTOMER, 
-      isActive: true, lastActive: Date.now(), balance: 500, memberSince: Date.now(), rating: 5.0, language: lang, trustScore: 90, isVerified: true, avatarUrl: avatar, completedMissions: 0, savedNodes: [],
+      isActive: true, 
+      isOnline: true, // Default to online so they receive bookings immediately
+      lastActive: Date.now(), 
+      balance: 500, 
+      memberSince: Date.now(), 
+      rating: 5.0, 
+      language: lang, 
+      trustScore: 90, 
+      isVerified: true, 
+      avatarUrl: avatar, 
+      completedMissions: 0, 
+      savedNodes: [],
       // Admins: No subscription property needed
       isPremium: false,
       subscriptionExpiry: undefined

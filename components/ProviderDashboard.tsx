@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Booking, BookingStatus, Role, Location } from '../types';
 import { PAYMENT_NUMBERS, SUBSCRIPTION_PLANS, LANGUAGES, CATEGORIES, PLATFORM_COMMISSION_RATE, VERIFIED_ADMINS } from '../constants';
 import Map from './Map';
@@ -33,6 +33,25 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'account'>('leads');
   const [counterInput, setCounterInput] = useState<{ [key: string]: number }>({});
   
+  // Timer state for incoming job
+  const [timeLeft, setTimeLeft] = useState(30);
+
+  useEffect(() => {
+    if (incomingJob) {
+      setTimeLeft(30);
+      const timer = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [incomingJob]);
+
   const isOnline = user.isOnline !== false; 
   const isAuthorized = user.isVerified;
   
@@ -108,33 +127,52 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
         </div>
       </header>
 
-      {/* Ringing Overlay */}
+      {/* Ringing Overlay - Full Screen "Call" Style */}
       {incomingJob && (
-        <div className="absolute top-28 left-4 right-4 z-[100] bg-slate-900 border-2 border-emerald-500 rounded-[35px] p-6 shadow-2xl animate-bounce-slight">
-           <div className="flex items-center justify-between mb-4">
-             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center animate-ping">
-                 <i className="fa-solid fa-bell text-white"></i>
+        <div className="fixed inset-0 z-[2000] bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center animate-zoom-in">
+           {/* Pulsing Background Effects */}
+           <div className="absolute inset-0 bg-emerald-600/10 animate-pulse pointer-events-none"></div>
+           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl animate-pulse"></div>
+
+           <div className="relative z-10 w-full max-w-sm px-6 text-center space-y-8">
+               <div className="space-y-2">
+                 <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-6 relative">
+                    <span className="absolute inset-0 rounded-full border-4 border-emerald-500 animate-ping opacity-20"></span>
+                    <span className="absolute inset-0 rounded-full border-2 border-emerald-500 animate-ping opacity-40 delay-75"></span>
+                    <i className="fa-solid fa-bell text-4xl text-white animate-bounce-slight"></i>
+                 </div>
+                 <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">New Request</h2>
+                 <p className="text-sm text-emerald-400 font-bold uppercase tracking-widest">{incomingJob.category} Service</p>
                </div>
-               <div>
-                  <h3 className="text-lg font-black text-white italic uppercase leading-none">New Request</h3>
-                  <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mt-1">Accept quickly!</p>
+
+               <div className="bg-white/10 rounded-[32px] p-6 backdrop-blur-md border border-white/5">
+                 <p className="text-4xl font-black text-white italic mb-2">ZMW {incomingJob.negotiatedPrice || incomingJob.price}</p>
+                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-4">
+                    <div className="h-full bg-emerald-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 30) * 100}%` }}></div>
+                 </div>
+                 <p className="text-xs text-slate-300 italic">"{incomingJob.description}"</p>
                </div>
-             </div>
-             <span className="text-xl font-black text-white italic">ZMW {incomingJob.negotiatedPrice || incomingJob.price}</span>
-           </div>
-           <p className="text-xs text-slate-300 italic mb-6 border-l-2 border-emerald-500 pl-3">"{incomingJob.description}"</p>
-           <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setCounterInput({})} className="py-3 bg-slate-800 text-slate-400 rounded-2xl font-black text-[10px] uppercase italic">Ignore</button>
-              <button 
-                onClick={() => {
-                   if(incomingJob.negotiatedPrice) onAcceptNegotiation(incomingJob.id);
-                   else onUpdateStatus(incomingJob.id, BookingStatus.ACCEPTED, user.id);
-                }} 
-                className="py-3 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase italic shadow-lg shadow-emerald-600/30"
-              >
-                Accept Job
-              </button>
+
+               <div className="grid grid-cols-2 gap-4 pt-4">
+                  <button onClick={() => setCounterInput({})} className="flex flex-col items-center gap-2 group">
+                     <div className="w-16 h-16 rounded-full bg-red-500/20 border border-red-500 text-red-500 flex items-center justify-center group-hover:bg-red-500 group-hover:text-white transition-all">
+                        <i className="fa-solid fa-xmark text-2xl"></i>
+                     </div>
+                     <span className="text-[10px] font-black uppercase text-slate-400">Ignore</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                       if(incomingJob.negotiatedPrice) onAcceptNegotiation(incomingJob.id);
+                       else onUpdateStatus(incomingJob.id, BookingStatus.ACCEPTED, user.id);
+                    }} 
+                    className="flex flex-col items-center gap-2 group"
+                  >
+                     <div className="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.5)] animate-pulse group-hover:scale-110 transition-all">
+                        <i className="fa-solid fa-check text-2xl"></i>
+                     </div>
+                     <span className="text-[10px] font-black uppercase text-white">Accept ({timeLeft}s)</span>
+                  </button>
+               </div>
            </div>
         </div>
       )}
