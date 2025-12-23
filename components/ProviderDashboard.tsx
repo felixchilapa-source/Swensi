@@ -140,52 +140,75 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
         </div>
       </header>
 
-      {/* Ringing Overlay - Full Screen "Call" Style */}
+      {/* Ringing Overlay - WhatsApp Style Call Screen */}
       {incomingJob && (
-        <div className="fixed inset-0 z-[2000] bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center animate-zoom-in">
-           {/* Pulsing Background Effects */}
-           <div className="absolute inset-0 bg-emerald-600/10 animate-pulse pointer-events-none"></div>
-           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="fixed inset-0 z-[2000] bg-[#0f1c24] flex flex-col items-center animate-zoom-in text-white safe-pt safe-pb">
+           {/* Header */}
+           <div className="mt-10 text-center space-y-2 animate-slide-down">
+              <div className="flex items-center justify-center gap-2 text-emerald-500 mb-2">
+                 <i className="fa-solid fa-lock text-xs"></i>
+                 <span className="text-[10px] font-bold uppercase tracking-widest">End-to-End Encrypted</span>
+              </div>
+              <h2 className="text-3xl font-normal">Swensi Job</h2>
+              <p className="text-slate-400 text-sm">Incoming Request...</p>
+           </div>
 
-           <div className="relative z-10 w-full max-w-sm px-6 text-center space-y-8">
-               <div className="space-y-2">
-                 <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-6 relative">
-                    <span className="absolute inset-0 rounded-full border-4 border-emerald-500 animate-ping opacity-20"></span>
-                    <span className="absolute inset-0 rounded-full border-2 border-emerald-500 animate-ping opacity-40 delay-75"></span>
-                    <i className="fa-solid fa-bell text-4xl text-white animate-bounce-slight"></i>
+           {/* Central Avatar Area */}
+           <div className="flex-1 flex flex-col items-center justify-center w-full relative">
+              {/* Ripples */}
+              <div className="absolute w-64 h-64 border border-white/5 rounded-full animate-ping opacity-20"></div>
+              <div className="absolute w-48 h-48 border border-white/10 rounded-full animate-ping opacity-30 delay-100"></div>
+              
+              <div className="w-32 h-32 bg-slate-800 rounded-full flex items-center justify-center mb-6 relative z-10 shadow-2xl border-4 border-[#0f1c24]">
+                 <i className="fa-solid fa-user text-5xl text-slate-500"></i>
+              </div>
+              
+              <div className="text-center px-8 z-10">
+                 <p className="text-xl font-bold mb-1">{incomingJob.category} Service</p>
+                 <p className="text-sm text-slate-400 mb-4">"{incomingJob.description.substring(0, 40)}..."</p>
+                 <div className="bg-white/10 px-4 py-2 rounded-full inline-block">
+                    <p className="text-xl font-black text-emerald-400">ZMW {incomingJob.negotiatedPrice || incomingJob.price}</p>
                  </div>
-                 <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">New Request</h2>
-                 <p className="text-sm text-emerald-400 font-bold uppercase tracking-widest">{incomingJob.category} Service</p>
-               </div>
+              </div>
+           </div>
 
-               <div className="bg-white/10 rounded-[32px] p-6 backdrop-blur-md border border-white/5">
-                 <p className="text-4xl font-black text-white italic mb-2">ZMW {incomingJob.negotiatedPrice || incomingJob.price}</p>
-                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-4">
+           {/* Bottom Action Bar */}
+           <div className="w-full px-10 pb-12">
+              <div className="bg-[#1f2c34] rounded-3xl p-6 flex justify-between items-center relative overflow-hidden">
+                 <div className="absolute top-0 left-0 w-full h-1 bg-slate-700">
                     <div className="h-full bg-emerald-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 30) * 100}%` }}></div>
                  </div>
-                 <p className="text-xs text-slate-300 italic">"{incomingJob.description}"</p>
-               </div>
 
-               <div className="grid grid-cols-2 gap-4 pt-4">
-                  <button onClick={() => setCounterInput({})} className="flex flex-col items-center gap-2 group">
-                     <div className="w-16 h-16 rounded-full bg-red-500/20 border border-red-500 text-red-500 flex items-center justify-center group-hover:bg-red-500 group-hover:text-white transition-all">
-                        <i className="fa-solid fa-xmark text-2xl"></i>
-                     </div>
-                     <span className="text-[10px] font-black uppercase text-slate-400">Ignore</span>
-                  </button>
-                  <button 
+                 {/* Decline */}
+                 <button onClick={() => setCounterInput({})} className="flex flex-col items-center gap-2 group">
+                    <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+                       <i className="fa-solid fa-phone-slash text-2xl"></i>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">Decline</span>
+                 </button>
+
+                 {/* Chat/Message (Optional middle button, simplified here) */}
+                 <div className="flex flex-col items-center gap-2 opacity-50">
+                    <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center">
+                       <i className="fa-solid fa-message text-lg"></i>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Message</span>
+                 </div>
+
+                 {/* Accept */}
+                 <button 
                     onClick={() => {
                        if(incomingJob.negotiatedPrice) onAcceptNegotiation(incomingJob.id);
                        else onUpdateStatus(incomingJob.id, BookingStatus.ACCEPTED, user.id);
                     }} 
-                    className="flex flex-col items-center gap-2 group"
-                  >
-                     <div className="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.5)] animate-pulse group-hover:scale-110 transition-all">
-                        <i className="fa-solid fa-check text-2xl"></i>
-                     </div>
-                     <span className="text-[10px] font-black uppercase text-white">Accept ({timeLeft}s)</span>
-                  </button>
-               </div>
+                    className="flex flex-col items-center gap-2 group animate-bounce-slight"
+                 >
+                    <div className="w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.4)] active:scale-90 transition-transform">
+                       <i className="fa-solid fa-phone text-2xl"></i>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mt-1">Accept</span>
+                 </button>
+              </div>
            </div>
         </div>
       )}

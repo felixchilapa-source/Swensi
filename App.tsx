@@ -618,15 +618,18 @@ const App: React.FC = () => {
 
   return (
     <div className={`app-container ${isDarkMode ? 'dark' : ''} safe-pb`}>
-      <div className="fixed top-6 left-6 right-6 z-[2000] pointer-events-none flex flex-col gap-3">
+      <div className="fixed top-6 left-6 right-6 z-[3000] pointer-events-none flex flex-col gap-3">
          {notifications.map(n => (
-           <div key={n.id} className="p-4 rounded-[24px] shadow-2xl backdrop-blur-xl border border-white/10 bg-slate-900/95 text-white animate-slide-up pointer-events-auto">
-             <div className="flex items-center gap-3">
-               <div className={`w-2 h-2 rounded-full ${n.type === 'SUCCESS' ? 'bg-emerald-500' : n.type === 'ALERT' ? 'bg-red-500' : 'bg-blue-500'} animate-pulse`}></div>
-               <div>
-                 <p className="text-[9px] font-black uppercase italic tracking-widest opacity-80">{n.title}</p>
-                 <p className="text-[11px] font-bold mt-1 leading-tight">{n.message}</p>
+           <div key={n.id} className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl p-4 rounded-2xl shadow-2xl border border-white/10 dark:border-white/5 flex items-start gap-4 pointer-events-auto animate-slide-down transform transition-all hover:scale-105 cursor-pointer">
+             <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-lg">
+                <i className={`fa-brands fa-whatsapp text-2xl`}></i>
+             </div>
+             <div className="flex-1 min-w-0">
+               <div className="flex justify-between items-center mb-0.5">
+                 <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">{n.title}</h4>
+                 <span className="text-[10px] text-slate-400">now</span>
                </div>
+               <p className="text-xs text-slate-600 dark:text-slate-300 leading-tight line-clamp-2">{n.message}</p>
              </div>
            </div>
          ))}
