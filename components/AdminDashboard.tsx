@@ -31,7 +31,7 @@ interface AdminDashboardProps {
   onAddLog: (action: string, targetId?: string, severity?: 'INFO' | 'WARNING' | 'CRITICAL') => void;
 }
 
-type AdminView = 'stats' | 'missions' | 'requests' | 'feedback' | 'registry' | 'security';
+type AdminView = 'stats' | 'missions' | 'requests' | 'finance' | 'registry' | 'security';
 
 interface NavItem {
   id: AdminView;
@@ -43,7 +43,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   user, logout, allUsers, bookings, councilOrders, feedbacks, systemLogs, onToggleVerification, onMarkFeedbackRead, onToggleBlock, onUpdateUserRole, t, onToggleViewMode, onUpdateBooking, onAddLog 
 }) => {
   const isWorkflow = user.role === Role.WORKFLOW;
-  const [view, setView] = useState<AdminView>(isWorkflow ? 'requests' : 'stats');
+  const isFinance = user.role === Role.FINANCE;
+  const isSuperAdmin = user.role === Role.ADMIN;
+
+  const [view, setView] = useState<AdminView>(
+    isWorkflow ? 'requests' : isFinance ? 'finance' : 'stats'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   
   // Reassign Modal State
@@ -53,28 +58,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedUserProfile, setSelectedUserProfile] = useState<User | null>(null);
   
   const stats = useMemo(() => {
+    const totalRevenue = bookings.filter(b => b.isPaid).reduce((acc, b) => acc + (b.negotiatedPrice || b.price), 0);
     const commissions = bookings.filter(b => b.isPaid).reduce((acc, b) => acc + b.commission, 0);
     const subscriptions = allUsers.filter(u => u.role === Role.PROVIDER && u.subscriptionExpiry && u.subscriptionExpiry > Date.now()).length * 20;
     const pendingApprovals = allUsers.filter(u => u.role === Role.PROVIDER && !u.isVerified).length;
     const unreadFeedback = feedbacks.filter(f => !f.isRead).length;
-    return { commissions, subscriptions, pendingApprovals, unreadFeedback, activeUsers: allUsers.length };
+    return { commissions, subscriptions, totalRevenue, pendingApprovals, unreadFeedback, activeUsers: allUsers.length };
   }, [bookings, allUsers, feedbacks]);
 
   const navItems = useMemo((): NavItem[] => {
-    const fullItems: NavItem[] = [
+    // Define all possible items
+    const allItems: NavItem[] = [
       { id: 'stats', icon: 'fa-chart-pie', label: 'ROI' },
-      { id: 'requests', icon: 'fa-user-check', label: 'Requests' },
-      { id: 'feedback', icon: 'fa-comments', label: 'Buzz' },
+      { id: 'requests', icon: 'fa-user-check', label: 'Workflow' },
+      { id: 'finance', icon: 'fa-coins', label: 'Finance' },
       { id: 'missions', icon: 'fa-route', label: 'Ops' },
-      { id: 'registry', icon: 'fa-users', label: 'Nodes' },
-      { id: 'security', icon: 'fa-shield-cat', label: 'Logs' }
+      { id: 'registry', icon: 'fa-users', label: 'Registry' },
+      { id: 'security', icon: 'fa-shield-cat', label: 'Audit' }
     ];
-    
+
+    // Filter based on Role
     if (isWorkflow) {
-      return fullItems.filter(item => ['requests', 'registry', 'security'].includes(item.id));
+      return allItems.filter(item => ['requests', 'registry', 'security'].includes(item.id));
     }
-    return fullItems;
-  }, [isWorkflow]);
+    if (isFinance) {
+      return allItems.filter(item => ['finance', 'stats', 'registry'].includes(item.id));
+    }
+    // Super Admin sees all
+    return allItems;
+  }, [isWorkflow, isFinance]);
 
   const pendingProviders = useMemo(() => 
     allUsers.filter(u => u.role === Role.PROVIDER && !u.isVerified), 
@@ -83,7 +95,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const filteredRegistry = useMemo(() => {
     return allUsers.filter(u => 
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      u.phone.includes(searchQuery)
+      u.phone.includes(searchQuery) ||
+      u.role.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [allUsers, searchQuery]);
 
@@ -123,7 +136,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleRejectApplication = (user: User) => {
       onUpdateUserRole(user.id, Role.CUSTOMER);
-      onAddLog(`Rejected provider application for ${user.name}`, user.id, 'INFO');
+      onAddLog(`Rejected provider application for ${user.name} - Reverted to Customer`, user.id, 'INFO');
       // Also unverify just in case
       if (user.isVerified) onToggleVerification(user.id);
   };
@@ -136,12 +149,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <i className={`fa-solid ${isWorkflow ? 'fa-check-double' : 'fa-tower-broadcast'} text-xs animate-pulse text-white`}></i>
           </div>
           <div>
-            <h2 className="text-base font-black uppercase italic leading-none">{isWorkflow ? 'Workflow Console' : 'Admin Console'}</h2>
-            <p className="text-[7px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">{isWorkflow ? 'Approval Pipeline' : 'Corridor Oversight'}</p>
+            <h2 className="text-base font-black uppercase italic leading-none">
+              {isWorkflow ? 'Workflow Console' : isFinance ? 'Finance Desk' : 'Admin Console'}
+            </h2>
+            <p className="text-[7px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">
+              {isWorkflow ? 'Approval Pipeline' : isFinance ? 'Payout Settlements' : 'Corridor Oversight'}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
-          {!isWorkflow && (
+          {!isWorkflow && !isFinance && (
             <button onClick={onToggleViewMode} className="w-10 h-10 rounded-2xl bg-emerald-600/10 text-emerald-600 dark:text-emerald-500 flex items-center justify-center border border-emerald-600/20 active:scale-95 transition-all"><i className="fa-solid fa-cart-plus"></i></button>
           )}
           <button onClick={logout} className="w-9 h-9 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center border border-red-500/20 active:scale-95 transition-all"><i className="fa-solid fa-power-off text-xs"></i></button>
@@ -166,20 +183,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        <h3 className="text-lg font-black italic uppercase text-slate-900 dark:text-white leading-none">{selectedUserProfile.name}</h3>
                        <div className="mt-2">
                          {/* Role Selector */}
-                         <select 
-                            value={selectedUserProfile.role}
-                            onChange={(e) => {
-                                const newRole = e.target.value as Role;
-                                onUpdateUserRole(selectedUserProfile.id, newRole);
-                                setSelectedUserProfile({...selectedUserProfile, role: newRole});
-                                onAddLog(`Role changed for ${selectedUserProfile.name} to ${newRole}`, selectedUserProfile.id, 'CRITICAL');
-                            }}
-                            className="bg-blue-600/10 text-blue-600 dark:text-blue-400 border-none rounded-lg px-2 py-1 text-[9px] font-black uppercase outline-none cursor-pointer"
-                         >
-                            {Object.values(Role).map(r => (
-                                <option key={r} value={r}>{r}</option>
-                            ))}
-                         </select>
+                         {isSuperAdmin && (
+                           <select 
+                              value={selectedUserProfile.role}
+                              onChange={(e) => {
+                                  const newRole = e.target.value as Role;
+                                  onUpdateUserRole(selectedUserProfile.id, newRole);
+                                  setSelectedUserProfile({...selectedUserProfile, role: newRole});
+                                  onAddLog(`Role changed for ${selectedUserProfile.name} to ${newRole}`, selectedUserProfile.id, 'CRITICAL');
+                              }}
+                              className="bg-blue-600/10 text-blue-600 dark:text-blue-400 border-none rounded-lg px-2 py-1 text-[9px] font-black uppercase outline-none cursor-pointer"
+                           >
+                              {Object.values(Role).map(r => (
+                                  <option key={r} value={r}>{r}</option>
+                              ))}
+                           </select>
+                         )}
+                         {!isSuperAdmin && (
+                           <span className="text-[9px] font-black uppercase bg-slate-100 px-2 py-1 rounded-lg text-slate-500">{selectedUserProfile.role}</span>
+                         )}
                        </div>
                     </div>
                  </div>
@@ -325,7 +347,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           ))}
         </nav>
 
-        {view === 'stats' && !isWorkflow && (
+        {view === 'stats' && (
           <div className="space-y-4 animate-fade-in">
              <div className="bg-gradient-to-br from-red-600 to-slate-900 p-8 rounded-[40px] shadow-xl relative overflow-hidden text-white">
                 <p className="text-white/60 text-[9px] font-black uppercase mb-1 tracking-widest italic">Consolidated Yield</p>
@@ -390,7 +412,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <input 
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search Phone or Name..." 
+                  placeholder="Search Phone, Name or Role..." 
                   className="w-full bg-transparent border-none outline-none text-xs font-black uppercase italic tracking-widest placeholder:text-slate-400 text-slate-900 dark:text-white"
                 />
              </div>
@@ -413,21 +435,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        </button>
                      </div>
                      
+                     {/* Inline Actions - Only show simple block/role change if NOT finance */}
                      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-white/5">
                         <button onClick={() => { onToggleBlock(u.id); onAddLog(`Toggled block for ${u.name}`, u.id, 'WARNING'); }} className={`flex-1 py-2 rounded-xl text-[7px] font-black uppercase italic ${u.isActive ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                            {u.isActive ? 'Block' : 'Unblock'}
                         </button>
-                        {/* Inline Role Dropdown */}
-                        <select 
-                           value={u.role}
-                           onChange={(e) => {
-                             onUpdateUserRole(u.id, e.target.value as Role);
-                             onAddLog(`Role changed for ${u.name} to ${e.target.value}`, u.id, 'CRITICAL');
-                           }}
-                           className="flex-1 bg-blue-500/10 text-blue-500 rounded-xl text-[7px] font-black uppercase italic outline-none px-2 cursor-pointer"
-                        >
-                           {Object.values(Role).map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
+                        
+                        {/* Only Admin can change roles easily from here */}
+                        {isSuperAdmin && (
+                           <select 
+                              value={u.role}
+                              onChange={(e) => {
+                                 onUpdateUserRole(u.id, e.target.value as Role);
+                                 onAddLog(`Role changed for ${u.name} to ${e.target.value}`, u.id, 'CRITICAL');
+                              }}
+                              className="flex-1 bg-blue-500/10 text-blue-500 rounded-xl text-[7px] font-black uppercase italic outline-none px-2 cursor-pointer"
+                           >
+                              {Object.values(Role).map(r => <option key={r} value={r}>{r}</option>)}
+                           </select>
+                        )}
                      </div>
                   </div>
                 ))}
@@ -435,7 +461,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {view === 'missions' && !isWorkflow && (
+        {view === 'missions' && !isWorkflow && !isFinance && (
            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {bookings.map(b => (
                 <div key={b.id} className="bg-white dark:bg-white/5 p-6 rounded-[35px] border border-slate-100 dark:border-white/5 shadow-sm">
@@ -452,6 +478,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                    </div>
                 </div>
               ))}
+           </div>
+        )}
+
+        {view === 'finance' && (
+           <div className="space-y-6 animate-fade-in">
+             <div className="bg-slate-900 rounded-[35px] p-6 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10"><i className="fa-solid fa-coins text-6xl"></i></div>
+                <h3 className="text-lg font-black uppercase italic tracking-widest mb-1">Total Commission Intake</h3>
+                <p className="text-xs text-slate-400 mb-4 font-mono">Rate: 0.24% per completed transaction</p>
+                <p className="text-4xl font-black text-emerald-500 italic">ZMW {stats.commissions.toFixed(2)}</p>
+             </div>
+
+             <div className="space-y-3">
+               <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Recent Transactions</h4>
+               {bookings.filter(b => b.isPaid && b.status === BookingStatus.COMPLETED).slice(0, 10).map(b => (
+                 <div key={b.id} className="bg-white dark:bg-white/5 p-4 rounded-2xl border border-slate-100 dark:border-white/5 flex justify-between items-center">
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-slate-500">{b.id}</p>
+                      <p className="text-[10px] font-bold text-slate-800 dark:text-slate-200">Trip: ZMW {(b.negotiatedPrice || b.price).toFixed(2)}</p>
+                    </div>
+                    <div className="text-right">
+                       <p className="text-[9px] font-black uppercase text-slate-500">Commission</p>
+                       <p className="text-xs font-black text-emerald-500">+ ZMW {b.commission.toFixed(3)}</p>
+                    </div>
+                 </div>
+               ))}
+             </div>
            </div>
         )}
 

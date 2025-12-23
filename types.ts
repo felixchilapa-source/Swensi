@@ -5,7 +5,9 @@ export enum Role {
   ADMIN = 'ADMIN',
   WORKFLOW = 'WORKFLOW',
   SHOP_OWNER = 'SHOP_OWNER',
-  LODGE = 'LODGE'
+  LODGE = 'LODGE',
+  FINANCE = 'FINANCE',
+  MODERATOR = 'MODERATOR'
 }
 
 export enum BookingStatus {
