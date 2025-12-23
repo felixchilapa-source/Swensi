@@ -183,7 +183,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
                   <input 
                     type="tel" 
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      if (val.length <= 10) setPhone(val);
+                    }}
                     placeholder="09XXXXXXXX"
                     className="flex-1 outline-none text-xl font-black text-white bg-transparent placeholder:text-slate-700"
                   />
