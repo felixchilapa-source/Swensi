@@ -572,6 +572,10 @@ const App: React.FC = () => {
           <ProviderDashboard 
             user={user} logout={() => setUser(null)} bookings={bookings} allUsers={allUsers} 
             incomingJob={incomingJob} // Pass ringing job
+            onIgnoreJob={() => {
+              stopRinging();
+              setIncomingJob(null);
+            }}
             onUpdateStatus={(id, status, pId) => {
               setBookings(prev => prev.map(b => b.id === id ? { ...b, status, providerId: pId } : b));
               if (incomingJob?.id === id) setIncomingJob(null); // Clear ringing

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Booking, BookingStatus, Role, Location } from '../types';
 import { PAYMENT_NUMBERS, SUBSCRIPTION_PLANS, LANGUAGES, CATEGORIES, PLATFORM_COMMISSION_RATE, VERIFIED_ADMINS } from '../constants';
@@ -26,10 +27,11 @@ interface ProviderDashboardProps {
   t: (key: string) => string;
   onToggleViewMode?: () => void;
   onSendMessage?: (bookingId: string, text: string) => void;
+  onIgnoreJob?: () => void;
 }
 
 const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ 
-  user, logout, bookings, allUsers, incomingJob, onUpdateStatus, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, onConfirmCompletion, onToggleViewMode, location, onToggleTheme, isDarkMode, onLanguageChange, t, onUpdateUser, onUpdateSubscription, onSendMessage
+  user, logout, bookings, allUsers, incomingJob, onUpdateStatus, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, onConfirmCompletion, onToggleViewMode, location, onToggleTheme, isDarkMode, onLanguageChange, t, onUpdateUser, onUpdateSubscription, onSendMessage, onIgnoreJob
 }) => {
   const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'account'>('leads');
   const [counterInput, setCounterInput] = useState<{ [key: string]: number }>({});
@@ -187,7 +189,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                  </div>
 
                  {/* Decline */}
-                 <button onClick={() => setCounterInput({})} className="flex flex-col items-center gap-2 group">
+                 <button onClick={() => onIgnoreJob && onIgnoreJob()} className="flex flex-col items-center gap-2 group">
                     <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-90 transition-transform">
                        <i className="fa-solid fa-phone-slash text-2xl"></i>
                     </div>
