@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Role, User, Booking, BookingStatus, Location, CouncilOrder, SavedNode, Feedback, SystemLog } from './types';
+import { Role, User, Booking, BookingStatus, Location, CouncilOrder, SavedNode, Feedback, SystemLog, ChatMessage } from './types';
 import { SUPER_ADMIN, VERIFIED_ADMINS, TRANSLATIONS, CATEGORIES, PLATFORM_COMMISSION_RATE, SUBSCRIPTION_PLANS } from './constants';
 import Auth from './components/Auth';
 import CustomerDashboard from './components/CustomerDashboard';
@@ -212,6 +212,23 @@ const App: React.FC = () => {
     setNotifications(prev => [{ id, title, message, type }, ...prev]);
     setTimeout(() => { setNotifications(prev => prev.filter(n => n.id !== id)); }, 5000);
   }, []);
+
+  const handleSendMessage = useCallback((bookingId: string, text: string) => {
+    if (!user) return;
+    setBookings(prev => prev.map(b => {
+      if (b.id === bookingId) {
+        const newMessage: ChatMessage = {
+          id: 'msg-' + Math.random().toString(36).substr(2, 9),
+          senderId: user.id,
+          text,
+          timestamp: Date.now(),
+          isRead: false
+        };
+        return { ...b, chatHistory: [...(b.chatHistory || []), newMessage] };
+      }
+      return b;
+    }));
+  }, [user]);
 
   const handleAddLog = useCallback((action: string, targetId?: string, severity: 'INFO' | 'WARNING' | 'CRITICAL' = 'INFO') => {
     if (!user) return;
@@ -519,6 +536,7 @@ const App: React.FC = () => {
           onToggleViewMode={() => setViewMode('MANAGEMENT')}
           onSOS={handleSOS}
           onNotification={addNotification}
+          onSendMessage={handleSendMessage}
         />
       );
     }
@@ -577,6 +595,7 @@ const App: React.FC = () => {
               setAllUsers(prev => prev.map(usr => usr.id === user.id ? updated : usr));
             }} t={(k) => TRANSLATIONS[language]?.[k] || k} 
             onToggleViewMode={() => setViewMode('CUSTOMER')}
+            onSendMessage={handleSendMessage}
           />
         );
       case Role.LODGE:

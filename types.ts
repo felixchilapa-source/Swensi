@@ -54,6 +54,14 @@ export interface ShoppingItem {
   isAvailable: boolean;
 }
 
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  text: string;
+  timestamp: number;
+  isRead: boolean;
+}
+
 export interface CouncilOrder {
   id: string;
   bookingId: string;
@@ -145,7 +153,8 @@ export interface Booking {
   customerTrustSnapshot?: number;
   providerTrustSnapshot?: number;
   
-  // Negotiation Fields
+  // Chat & Negotiation
+  chatHistory?: ChatMessage[];
   negotiatedPrice?: number;
   lastOfferBy?: Role.CUSTOMER | Role.PROVIDER;
   negotiationHistory?: Array<{ price: number, by: Role.CUSTOMER | Role.PROVIDER, timestamp: number }>;

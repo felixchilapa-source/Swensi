@@ -6,6 +6,7 @@ import Map from './Map';
 import NewsTicker from './NewsTicker';
 import AIAssistant from './AIAssistant';
 import TradeFeed from './TradeFeed';
+import ChatInterface from './ChatInterface';
 import { GoogleGenAI, Type } from "@google/genai";
 
 interface CustomerDashboardProps {
@@ -32,6 +33,7 @@ interface CustomerDashboardProps {
   onDeposit?: (amount: number) => void;
   onSaveNode?: (node: SavedNode) => void;
   onNotification: (title: string, message: string, type: 'INFO' | 'ALERT' | 'SUCCESS') => void;
+  onSendMessage?: (bookingId: string, text: string) => void;
 }
 
 // Haversine formula to calculate distance in KM
@@ -76,7 +78,7 @@ const getStatusConfig = (status: BookingStatus) => {
 };
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, allUsers = [], onAddBooking, onCancelBooking, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange, onNotification
+  user, logout, bookings, allUsers = [], onAddBooking, onCancelBooking, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange, onNotification, onSendMessage
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -91,6 +93,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [isHaggling, setIsHaggling] = useState(false);
   const [haggledPrice, setHaggledPrice] = useState<number>(0);
   const [counterInputs, setCounterInputs] = useState<{[key:string]: number}>({});
+  const [activeChatBooking, setActiveChatBooking] = useState<Booking | null>(null);
 
   // Transport Specifics
   const [tripDistance, setTripDistance] = useState<number>(0);
@@ -378,6 +381,16 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       <AIAssistant />
+
+      {activeChatBooking && onSendMessage && (
+        <ChatInterface 
+          messages={activeChatBooking.chatHistory || []} 
+          currentUser={user}
+          otherUserName={allUsers?.find(u => u.id === activeChatBooking.providerId)?.name || 'Provider'}
+          onSendMessage={(text) => onSendMessage(activeChatBooking.id, text)}
+          onClose={() => setActiveChatBooking(null)}
+        />
+      )}
 
       <header className="px-5 py-4 flex justify-between items-center glass-nav border-b dark:border-white/5 sticky top-0 z-[50] backdrop-blur-xl safe-pt">
         <div className="flex items-center gap-3">
@@ -750,7 +763,21 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                      )}
 
                      {!isNegotiating && (
-                       <button onClick={() => onCancelBooking(b.id)} className="w-full py-3 bg-red-600/5 text-red-600 border border-red-600/20 rounded-2xl text-[9px] font-black uppercase italic active:scale-95 transition-all hover:bg-red-600/10">Abort Mission</button>
+                       <div className="space-y-3">
+                          {hasProvider && (
+                             <div className="flex gap-2">
+                                <button onClick={() => setActiveChatBooking(b)} className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase italic active:scale-95 transition-all flex items-center justify-center gap-2">
+                                   <i className="fa-solid fa-comment"></i> Chat
+                                </button>
+                                {allUsers?.find(u => u.id === b.providerId)?.phone && (
+                                   <a href={`tel:${allUsers?.find(u => u.id === b.providerId)?.phone}`} className="flex-1 py-3 bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase italic active:scale-95 transition-all flex items-center justify-center gap-2">
+                                      <i className="fa-solid fa-phone"></i> Call
+                                   </a>
+                                )}
+                             </div>
+                          )}
+                          <button onClick={() => onCancelBooking(b.id)} className="w-full py-3 bg-red-600/5 text-red-600 border border-red-600/20 rounded-2xl text-[9px] font-black uppercase italic active:scale-95 transition-all hover:bg-red-600/10">Abort Mission</button>
+                       </div>
                      )}
                   </div>
                 );

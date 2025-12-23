@@ -4,6 +4,7 @@ import { User, Booking, BookingStatus, Role, Location } from '../types';
 import { PAYMENT_NUMBERS, SUBSCRIPTION_PLANS, LANGUAGES, CATEGORIES, PLATFORM_COMMISSION_RATE, VERIFIED_ADMINS } from '../constants';
 import Map from './Map';
 import NewsTicker from './NewsTicker';
+import ChatInterface from './ChatInterface';
 
 interface ProviderDashboardProps {
   user: User;
@@ -25,13 +26,15 @@ interface ProviderDashboardProps {
   onLanguageChange: (lang: string) => void;
   t: (key: string) => string;
   onToggleViewMode?: () => void;
+  onSendMessage?: (bookingId: string, text: string) => void;
 }
 
 const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ 
-  user, logout, bookings, allUsers, incomingJob, onUpdateStatus, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, onConfirmCompletion, onToggleViewMode, location, onToggleTheme, isDarkMode, onLanguageChange, t, onUpdateUser, onUpdateSubscription 
+  user, logout, bookings, allUsers, incomingJob, onUpdateStatus, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, onConfirmCompletion, onToggleViewMode, location, onToggleTheme, isDarkMode, onLanguageChange, t, onUpdateUser, onUpdateSubscription, onSendMessage
 }) => {
   const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'account'>('leads');
   const [counterInput, setCounterInput] = useState<{ [key: string]: number }>({});
+  const [activeChatBooking, setActiveChatBooking] = useState<Booking | null>(null);
   
   // Timer state for incoming job
   const [timeLeft, setTimeLeft] = useState(30);
@@ -98,6 +101,16 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
+      {activeChatBooking && onSendMessage && (
+        <ChatInterface 
+          messages={activeChatBooking.chatHistory || []} 
+          currentUser={user}
+          otherUserName={activeChatBooking.recipientName || 'Customer'}
+          onSendMessage={(text) => onSendMessage(activeChatBooking.id, text)}
+          onClose={() => setActiveChatBooking(null)}
+        />
+      )}
+
       <header className="px-5 py-5 bg-secondary text-white sticky top-0 z-50 shadow-2xl safe-pt">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
@@ -216,6 +229,9 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                   const commission = grossPrice * PLATFORM_COMMISSION_RATE;
                   const netPayout = grossPrice - commission;
 
+                  // Contact Privacy Logic
+                  const maskedPhone = (lead.recipientPhone || lead.customerPhone).substring(0, 7) + '****';
+
                   return (
                     <div key={lead.id} className={`relative rounded-[32px] overflow-hidden shadow-sm hover:shadow-xl transition-all ${isDirectRequest ? 'bg-amber-50 dark:bg-amber-900/10 border-2 border-amber-500' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10'}`}>
                       {/* Ticket Stub Design - Left Border */}
@@ -240,12 +256,13 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                               </div>
                           </div>
 
-                          {lead.recipientName && (
-                            <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-500/20">
-                                <p className="text-[7px] font-black text-blue-500 uppercase tracking-widest italic mb-1">Target Contact</p>
-                                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase italic">{lead.recipientName} ({lead.recipientPhone})</p>
-                            </div>
-                          )}
+                          <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-white/5 flex justify-between items-center opacity-70">
+                              <div>
+                                <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest italic mb-1">Contact (Hidden)</p>
+                                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase italic">{maskedPhone}</p>
+                              </div>
+                              <i className="fa-solid fa-eye-slash text-slate-400"></i>
+                          </div>
                           
                           <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 italic line-clamp-2">"{lead.description}"</p>
                           
@@ -333,6 +350,23 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({
                       
                       <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5 relative z-10">
                          <p className="text-xs italic text-slate-600 dark:text-slate-300">"{job.description}"</p>
+                      </div>
+
+                      {/* Communication & Contact Reveal */}
+                      <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-500/10 relative z-10 flex items-center justify-between">
+                         <div>
+                            <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest italic mb-1">Customer</p>
+                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{job.recipientName || 'Client'}</p>
+                            <a href={`tel:${job.recipientPhone || job.customerPhone}`} className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mt-1 block hover:underline">{job.recipientPhone || job.customerPhone}</a>
+                         </div>
+                         <div className="flex gap-2">
+                            <button onClick={() => setActiveChatBooking(job)} className="w-10 h-10 rounded-full bg-blue-600 text-white shadow-lg flex items-center justify-center active:scale-95 transition-all">
+                               <i className="fa-solid fa-comment"></i>
+                            </button>
+                            <a href={`tel:${job.recipientPhone || job.customerPhone}`} className="w-10 h-10 rounded-full bg-emerald-500 text-white shadow-lg flex items-center justify-center active:scale-95 transition-all">
+                               <i className="fa-solid fa-phone"></i>
+                            </a>
+                         </div>
                       </div>
 
                       <button onClick={() => onConfirmCompletion(job.id)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-5 rounded-2xl text-[10px] uppercase italic shadow-lg shadow-emerald-600/30 active:scale-95 transition-all relative z-10">Close Mission</button>
