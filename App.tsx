@@ -15,39 +15,41 @@ interface SwensiNotification {
   type: 'INFO' | 'ALERT' | 'SUCCESS' | 'SMS';
 }
 
+// Helper for safe localStorage parsing
+const safeParse = <T,>(key: string, fallback: T): T => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch (e) {
+    console.error(`Error parsing ${key} from localStorage`, e);
+    // Clear corrupt data
+    localStorage.removeItem(key);
+    return fallback;
+  }
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [viewMode, setViewMode] = useState<'MANAGEMENT' | 'CUSTOMER'>('CUSTOMER');
+  
+  // Safe initialization
   const [allUsers, setAllUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('swensi-users-v3');
-    const users: User[] = saved ? JSON.parse(saved) : [];
-    return users.map(u => ({
+    const users = safeParse<User[]>('swensi-users-v3', []);
+    return Array.isArray(users) ? users.map(u => ({
       ...u,
       location: u.location || { lat: -9.3283 + (Math.random() - 0.5) * 0.01, lng: 32.7569 + (Math.random() - 0.5) * 0.01 }
-    }));
+    })) : [];
   });
-  const [bookings, setBookings] = useState<Booking[]>(() => {
-    const saved = localStorage.getItem('swensi-bookings-v3');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>(() => {
-    const saved = localStorage.getItem('swensi-feedback-v3');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [councilOrders, setCouncilOrders] = useState<CouncilOrder[]>(() => {
-    const saved = localStorage.getItem('swensi-council-v3');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [systemLogs, setSystemLogs] = useState<SystemLog[]>(() => {
-    const saved = localStorage.getItem('swensi-logs-v3');
-    return saved ? JSON.parse(saved) : [];
-  });
+  
+  const [bookings, setBookings] = useState<Booking[]>(() => safeParse<Booking[]>('swensi-bookings-v3', []));
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>(() => safeParse<Feedback[]>('swensi-feedback-v3', []));
+  const [councilOrders, setCouncilOrders] = useState<CouncilOrder[]>(() => safeParse<CouncilOrder[]>('swensi-council-v3', []));
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>(() => safeParse<SystemLog[]>('swensi-logs-v3', []));
+  const [adminNumbers, setAdminNumbers] = useState<string[]>(() => safeParse<string[]>('swensi-admins-v3', VERIFIED_ADMINS));
+  
   const [notifications, setNotifications] = useState<SwensiNotification[]>([]);
   const [currentLocation] = useState<Location>({ lat: -9.3283, lng: 32.7569 });
-  const [adminNumbers, setAdminNumbers] = useState<string[]>(() => {
-    const saved = localStorage.getItem('swensi-admins-v3');
-    return saved ? JSON.parse(saved) : VERIFIED_ADMINS;
-  });
+  
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('swensi-theme') === 'dark');
   const [language, setLanguage] = useState(() => localStorage.getItem('swensi-lang') || 'en');
 
@@ -644,3 +646,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+    

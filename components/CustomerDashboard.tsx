@@ -47,7 +47,7 @@ const calculateDistance = (loc1: Location, loc2: Location): number => {
     Math.sin(dLon / 2) * Math.sin(dLon / 2); 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
   const d = R * c; 
-  return parseFloat((d * 1.4).toFixed(1)); // Multiply by 1.4 to estimate road distance vs straight line
+  return parseFloat((d * 1.5).toFixed(1)); // Multiply by 1.5 to estimate road distance (roads in Nakonde are not straight)
 };
 
 const getStatusConfig = (status: BookingStatus) => {
@@ -126,9 +126,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     const markers: Array<{ loc: Location; color: string; label: string; isLive?: boolean; id?: string }> = [
       { loc: location, color: '#059669', label: 'Me', isLive: true, id: user.id }
     ];
+    // Add Start/End markers during route calculation
+    if (pickupMode === 'CUSTOM' && pickupCoords) {
+       markers.push({ loc: pickupCoords, color: '#3b82f6', label: 'Pickup', id: 'pickup' });
+    }
+    if (destinationCoords) {
+       markers.push({ loc: destinationCoords, color: '#ef4444', label: 'Dest', id: 'dest' });
+    }
+
     const missions: Array<{ from: Location; to: Location; id: string }> = [];
 
-    // 1. Add Active Booking Providers (High Priority)
+    // 1. Add Active Booking Providers
     activeBookings.forEach(b => {
       if (b.providerId) {
         const provider = allUsers.find(u => u.id === b.providerId);
@@ -149,19 +157,14 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       }
     });
 
-    // 2. Add Nearby Services (Lodges, Shops, Online Providers)
+    // 2. Add Nearby Services
     allUsers.forEach(u => {
       if (u.id !== user.id && u.location && !markers.some(m => m.id === u.id)) {
-        // Lodges
         if (u.role === Role.LODGE) {
           markers.push({ loc: u.location, color: COLORS.HOSPITALITY, label: u.name, id: u.id });
-        } 
-        // Shops
-        else if (u.role === Role.SHOP_OWNER) {
+        } else if (u.role === Role.SHOP_OWNER) {
           markers.push({ loc: u.location, color: COLORS.WARNING, label: u.name, id: u.id });
-        }
-        // Online Service Providers (Available)
-        else if (u.role === Role.PROVIDER && (u.isOnline !== false)) {
+        } else if (u.role === Role.PROVIDER && (u.isOnline !== false)) {
           const isTransport = u.serviceCategories?.some(cat => ['taxi', 'bike', 'trucking', 'transport'].includes(cat));
           markers.push({ 
             loc: u.location, 
@@ -175,7 +178,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     });
 
     return { mapMarkers: markers, mapMissions: missions };
-  }, [allUsers, activeBookings, location, user.id]);
+  }, [allUsers, activeBookings, location, user.id, pickupCoords, destinationCoords, pickupMode]);
 
   useEffect(() => {
     if (selectedCategory?.pricingModel === 'DISTANCE') {
@@ -184,7 +187,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     }
   }, [tripDistance, selectedCategory]);
 
-  // Update pickup coords when switching modes
   useEffect(() => {
     if (pickupMode === 'CURRENT') {
       setPickupCoords(location);
@@ -197,20 +199,23 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `List 3 popular places or landmarks in Nakonde, Zambia that match the search term "${input}". Return a simple JSON array of strings only.`,
+        contents: `List 3 popular places or landmarks in Nakonde, Zambia that match the search term "${input}". Return ONLY a JSON array of strings. Example: ["Nakonde Market", "ZRA Border"]`,
         config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING }
-          }
+          responseMimeType: 'application/json'
         }
       });
-      const data = JSON.parse(response.text || '[]');
-      setSuggestions(data);
+      const text = response.text || '[]';
+      // Safety cleanup
+      const jsonStr = text.replace(/```json|```/g, '').trim();
+      const data = JSON.parse(jsonStr);
+      setSuggestions(Array.isArray(data) ? data : []);
       setShowSuggestions(true);
     } catch (e) {
       console.error("Suggestion fetch failed", e);
+      // Fallback
+      if (input.toLowerCase().includes('mar')) setSuggestions(['Nakonde Market', 'Market Square']);
+      else if (input.toLowerCase().includes('bor')) setSuggestions(['Border Post', 'One Stop Border']);
+      else setShowSuggestions(false);
     }
   };
 
@@ -225,34 +230,55 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   };
 
   const resolveCoordinates = async (placeName: string): Promise<Location | null> => {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `What are the estimated latitude and longitude coordinates for "${placeName}" in Nakonde, Zambia? Return JSON.`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              lat: { type: Type.NUMBER },
-              lng: { type: Type.NUMBER }
-            }
-          }
-        }
-      });
-      const data = JSON.parse(response.text || 'null');
-      return data;
-    } catch (e) {
-      console.error("Coord resolution failed", e);
-      return null;
-    }
+     // Check for explicit coordinates format "lat,lng" or "lat, lng"
+     const coordMatch = placeName.match(/^(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)$/);
+     if (coordMatch) {
+        return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[3]) };
+     }
+
+     // Local Fallbacks for speed/reliability in Nakonde
+     const lower = placeName.toLowerCase();
+     if (lower.includes("market")) return { lat: -9.3175, lng: 32.7610 };
+     if (lower.includes("border") || lower.includes("one stop")) return { lat: -9.3105, lng: 32.7635 };
+     if (lower.includes("tunduma")) return { lat: -9.3030, lng: 32.7660 };
+     if (lower.includes("station") || lower.includes("bus")) return { lat: -9.3220, lng: 32.7580 };
+     if (lower.includes("hospital")) return { lat: -9.3300, lng: 32.7550 };
+     if (lower.includes("secondary")) return { lat: -9.3350, lng: 32.7520 };
+     if (lower.includes("guest") || lower.includes("lodge")) return { lat: -9.3250, lng: 32.7590 };
+
+     try {
+       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+       const response = await ai.models.generateContent({
+         model: 'gemini-3-flash-preview',
+         contents: `Find the precise coordinates for "${placeName}" in Nakonde, Zambia. 
+         Return valid JSON: { "lat": number, "lng": number }.
+         If the exact place isn't found, estimate based on nearby landmarks.`,
+         config: {
+            // Do NOT use responseMimeType='application/json' when using tools in some versions,
+            // but for 'gemini-3-flash-preview' without tools it works well.
+            // We'll use googleSearch tool to ground the result.
+            tools: [{googleSearch: {}}], 
+         }
+       });
+       
+       const text = response.text || "{}";
+       // Extract JSON from text manually, as tool usage might wrap it in text
+       const match = text.match(/\{[\s\S]*\}/);
+       if (match) {
+          const data = JSON.parse(match[0]);
+          if (data.lat && data.lng) return { lat: data.lat, lng: data.lng };
+       }
+       return null;
+     } catch (e) {
+       console.error("AI Resolve Error", e);
+       return null;
+     }
   };
 
-  const handleSelectSuggestion = async (place: string) => {
-    setTripDestination(place);
-    setShowSuggestions(false);
+  const calculateRoute = async (destinationName: string) => {
+    if (!destinationName) return;
     setIsCalculating(true);
+    setShowSuggestions(false);
 
     // 1. Resolve Pickup Coords (if custom)
     let startLoc = pickupMode === 'CURRENT' ? location : pickupCoords;
@@ -265,16 +291,25 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     }
 
     // 2. Resolve Destination Coords
-    const destLoc = await resolveCoordinates(place);
+    const destLoc = await resolveCoordinates(destinationName);
     
     // 3. Calculate
     if (startLoc && destLoc) {
       setDestinationCoords(destLoc);
+      setMapCenter(destLoc); // Move map to destination
       const dist = calculateDistance(startLoc, destLoc);
       setTripDistance(dist);
+      onNotification('ROUTE CALCULATED', `Distance: ${dist}km`, 'SUCCESS');
+    } else {
+      onNotification('LOCATION ERROR', 'Could not pinpoint location. Try opening Google Maps to find coordinates.', 'ALERT');
     }
 
     setIsCalculating(false);
+  };
+
+  const handleSelectSuggestion = async (place: string) => {
+    setTripDestination(place);
+    await calculateRoute(place);
   };
 
   const handleLaunchMission = () => {
@@ -595,19 +630,44 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
                            {/* Destination Autocomplete - Enhanced */}
                            <div className="relative">
-                              <label className="text-[9px] font-black text-slate-400 uppercase italic ml-1">Destination</label>
-                              <div className="relative">
-                                <input 
-                                  value={tripDestination} 
-                                  onChange={handleDestinationInput} 
-                                  placeholder="Where are you going?"
-                                  className="w-full bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none outline-none mt-1 focus:ring-2 ring-blue-500 pr-8"
-                                />
-                                {isCalculating ? (
-                                  <i className="fa-solid fa-circle-notch animate-spin absolute right-3 top-4 text-blue-500 text-xs"></i>
-                                ) : tripDestination && (
-                                  <button onClick={() => { setTripDestination(''); setTripDistance(0); }} className="absolute right-3 top-4 text-slate-400 hover:text-white"><i className="fa-solid fa-times-circle"></i></button>
-                                )}
+                              <label className="text-[9px] font-black text-slate-400 uppercase italic ml-1 mb-1 block">Destination</label>
+                              
+                              <div className="flex gap-2 items-start mb-2">
+                                <a 
+                                  href="https://www.google.com/maps" 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 text-[9px] font-black uppercase py-2 px-3 rounded-xl transition-all flex items-center gap-1"
+                                >
+                                  <i className="fa-brands fa-google"></i> Open Maps
+                                </a>
+                                <p className="text-[9px] text-slate-400 leading-tight py-1">
+                                  Tip: Search on Google Maps, copy coords (e.g. -9.32, 32.76) or place name, and paste below.
+                                </p>
+                              </div>
+
+                              <div className="flex gap-2 items-center">
+                                <div className="relative flex-1">
+                                  <input 
+                                    value={tripDestination} 
+                                    onChange={handleDestinationInput} 
+                                    onBlur={() => { if(tripDestination && !tripDistance) calculateRoute(tripDestination) }}
+                                    placeholder="Enter place or coords..."
+                                    className="w-full bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none outline-none mt-1 focus:ring-2 ring-blue-500 pr-8"
+                                  />
+                                  {isCalculating ? (
+                                    <i className="fa-solid fa-circle-notch animate-spin absolute right-3 top-4 text-blue-500 text-xs"></i>
+                                  ) : tripDestination && (
+                                    <button onClick={() => { setTripDestination(''); setTripDistance(0); }} className="absolute right-3 top-4 text-slate-400 hover:text-white"><i className="fa-solid fa-times-circle"></i></button>
+                                  )}
+                                </div>
+                                <button 
+                                  onClick={() => calculateRoute(tripDestination)}
+                                  disabled={isCalculating || !tripDestination}
+                                  className="h-[42px] mt-1 px-4 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                                >
+                                  Calc
+                                </button>
                               </div>
                               
                               {showSuggestions && suggestions.length > 0 && (
@@ -631,7 +691,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                                 <span className="text-[8px] text-slate-500 italic">Rate: ZMW {TRANSPORT_RATE_PER_KM}/km</span>
                               </div>
                               <div className={`w-full bg-slate-100 dark:bg-white/5 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 mt-1 flex justify-between items-center transition-all ${tripDistance > 0 ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : ''}`}>
-                                <span>{tripDistance > 0 ? `${tripDistance} km` : 'Enter destination...'}</span>
+                                <span>{tripDistance > 0 ? `${tripDistance} km` : 'Enter destination & Calc...'}</span>
                                 {tripDistance > 0 && <i className="fa-solid fa-check-circle text-emerald-500"></i>}
                               </div>
                            </div>
