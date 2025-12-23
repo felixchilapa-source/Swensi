@@ -34,7 +34,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
   const isTargetAdmin = useMemo(() => adminNumbers.includes(phone), [phone, adminNumbers]);
   const userExists = useMemo(() => existingUsers.some(u => u.phone === phone), [phone, existingUsers]);
 
-  const requestOtp = () => {
+  const requestOtp = async () => {
     if (phone.length < 9) {
       onNotification('INVALID INPUT', 'Please enter a valid phone number (at least 9 digits)', 'ALERT');
       return;
@@ -45,26 +45,59 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
     }
     
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/auth/request-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone })
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        setStep(2);
+        onNotification('SMS DISPATCHED', `Verification code sent to +260 ${phone}`, 'SUCCESS');
+      } else {
+        onNotification('NETWORK ERROR', data.error || 'Failed to send OTP', 'ALERT');
+      }
+    } catch (error) {
+       onNotification('SYSTEM OFFLINE', 'Could not reach SMS gateway', 'ALERT');
+    } finally {
       setLoading(false);
-      setStep(2);
-      onNotification('OTP SENT', `Code sent to +260 ${phone}`, 'SUCCESS');
-    }, 1200);
+    }
   };
 
-  const verifyOtp = () => {
-    if (otp === '123456') {
-      if (isTargetAdmin) {
-        setStep(3);
-      } else {
-        if (userExists) {
-          onLogin(phone, language);
+  const verifyOtp = async () => {
+    if (!otp || otp.length < 6) {
+       onNotification('INPUT ERROR', 'Enter the full 6-digit code', 'ALERT');
+       return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, code: otp })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        if (isTargetAdmin && otp === '123456') { // Allow admin override flow
+          setStep(3);
         } else {
-          setStep('profile_setup');
+          if (userExists) {
+            onLogin(phone, language);
+          } else {
+            setStep('profile_setup');
+          }
         }
+      } else {
+        onNotification('SECURITY ALERT', 'Invalid Verification Code. Check SMS.', 'ALERT');
       }
-    } else {
-      onNotification('SECURITY ALERT', 'Invalid Security Code. Use 123456 for demo.', 'ALERT');
+    } catch (error) {
+       onNotification('CONNECTION ERROR', 'Verification failed. Try again.', 'ALERT');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -228,7 +261,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
           <div className="w-full max-w-[360px] animate-slide-up space-y-8 text-center">
             <div className="space-y-2">
               <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">Secure Terminal</h2>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Code sent to +260 {phone}</p>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Enter code sent to +260 {phone}</p>
             </div>
             <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[40px] p-8 shadow-2xl space-y-8">
               <input 
@@ -240,11 +273,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onRegister, onToggleTheme, isDarkM
                 className="w-full border-2 rounded-[24px] py-6 text-center text-5xl font-black tracking-[0.2em] outline-none border-slate-700/50 bg-slate-900/50 text-white focus:border-blue-500 shadow-inner"
               />
               <div className="space-y-4">
-                <button onClick={verifyOtp} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[24px] shadow-lg uppercase italic tracking-widest active:scale-95 transition-all">{t('verify_phone')}</button>
+                <button onClick={verifyOtp} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[24px] shadow-lg uppercase italic tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
+                  {loading && <i className="fa-solid fa-circle-notch animate-spin"></i>}
+                  {t('verify_phone')}
+                </button>
                 <button onClick={() => setStep(1)} className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest transition-colors">Change Phone Number</button>
               </div>
             </div>
-            <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest italic opacity-50 animate-pulse">Demo Bypass: 123456</p>
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic opacity-30">SMS Gateway: Active</p>
           </div>
         )}
 
