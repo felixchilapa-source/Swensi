@@ -48,6 +48,33 @@ const calculateDistance = (loc1: Location, loc2: Location): number => {
   return parseFloat((d * 1.4).toFixed(1)); // Multiply by 1.4 to estimate road distance vs straight line
 };
 
+const getStatusConfig = (status: BookingStatus) => {
+  switch (status) {
+    case BookingStatus.PENDING:
+      return { color: 'text-slate-500', bg: 'bg-slate-100 dark:bg-slate-800', border: 'border-slate-200 dark:border-slate-700', icon: 'fa-hourglass-start', label: 'Searching' };
+    case BookingStatus.NEGOTIATING:
+      return { color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/30', icon: 'fa-comments-dollar', label: 'Negotiating' };
+    case BookingStatus.ACCEPTED:
+      return { color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'fa-thumbs-up', label: 'Accepted' };
+    case BookingStatus.ON_TRIP:
+      return { color: 'text-indigo-500', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20', icon: 'fa-route', label: 'On Trip' };
+    case BookingStatus.GOODS_IN_TRANSIT:
+      return { color: 'text-cyan-500', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', icon: 'fa-truck-fast', label: 'In Transit' };
+    case BookingStatus.DELIVERED:
+      return { color: 'text-teal-500', bg: 'bg-teal-500/10', border: 'border-teal-500/20', icon: 'fa-box-open', label: 'Delivered' };
+    case BookingStatus.COMPLETED:
+      return { color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: 'fa-flag-checkered', label: 'Completed' };
+    case BookingStatus.CANCELLED:
+      return { color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20', icon: 'fa-ban', label: 'Cancelled' };
+    case BookingStatus.ROOM_ASSIGNED:
+      return { color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: 'fa-bed', label: 'Room Assigned' };
+    case BookingStatus.SO_TICKING:
+      return { color: 'text-pink-500', bg: 'bg-pink-500/10', border: 'border-pink-500/20', icon: 'fa-stopwatch', label: 'Processing' };
+    default:
+      return { color: 'text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800', border: 'border-slate-200 dark:border-slate-700', icon: 'fa-circle-question', label: status };
+  }
+};
+
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
   user, logout, bookings, allUsers = [], onAddBooking, onCancelBooking, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange, onNotification
 }) => {
@@ -352,7 +379,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
       <NewsTicker />
 
-      {/* Increased bottom padding to prevent nav overlap */}
+      {/* Increased padding-bottom to pb-40 to clear nav */}
       <div className="flex-1 overflow-y-auto pb-40 px-5 pt-6 space-y-10 no-scrollbar">
         {activeTab === 'home' && (
           <div className="animate-fade-in space-y-8">
@@ -517,7 +544,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                                 {pickupAddress && (
                                   <button onClick={() => setPickupAddress('')} className="absolute right-3 top-3 text-slate-400 hover:text-white"><i className="fa-solid fa-times-circle"></i></button>
                                 )}
-                             </div>
+                              </div>
                            )}
 
                            {/* Destination Autocomplete - Enhanced */}
@@ -616,13 +643,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 const isProviderTurn = b.lastOfferBy === Role.PROVIDER;
                 const hasProvider = !!b.providerId;
                 const displayPrice = b.negotiatedPrice || b.price;
+                const statusConfig = getStatusConfig(b.status);
 
                 return (
-                  <div key={b.id} className={`bg-white dark:bg-slate-900 rounded-[40px] border overflow-hidden shadow-xl p-6 space-y-4 ${isNegotiating ? 'border-amber-500/50' : 'border-slate-100 dark:border-white/5'}`}>
+                  <div key={b.id} className={`bg-white dark:bg-slate-900 rounded-[40px] border overflow-hidden shadow-xl p-6 space-y-4 ${isNegotiating ? 'border-amber-500/50' : (statusConfig.border || 'border-slate-100 dark:border-white/5')}`}>
                      <div className="flex justify-between items-start">
                         <div>
                           <h4 className="text-xl font-black italic">{b.id}</h4>
-                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full mt-2 inline-block ${isNegotiating ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-600/10 text-emerald-600'}`}>{b.status}</span>
+                          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl mt-2 ${statusConfig.bg} ${statusConfig.color} border border-current/10`}>
+                             <i className={`fa-solid ${statusConfig.icon} text-xs`}></i>
+                             <span className="text-[9px] font-black uppercase tracking-wide">{statusConfig.label}</span>
+                          </div>
                         </div>
                         {displayPrice > 0 ? (
                            <p className={`text-lg font-black italic ${isNegotiating ? 'text-amber-500' : 'text-emerald-600'}`}>ZMW {displayPrice}</p>
