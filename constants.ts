@@ -41,7 +41,7 @@ export const CATEGORIES: Category[] = [
 ];
 
 export const SUPER_ADMIN = '0961179384';
-export const VERIFIED_ADMINS = ['0961179384', '0965722947'];
+export const VERIFIED_ADMINS = ['0961179384', '0973310250', '0965722947'];
 
 export const PAYMENT_NUMBERS = {
   MTN: '0961179384',
