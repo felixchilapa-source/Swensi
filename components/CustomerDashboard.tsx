@@ -78,7 +78,7 @@ const getStatusConfig = (status: BookingStatus) => {
 };
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ 
-  user, logout, bookings, allUsers = [], onAddBooking, onCancelBooking, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange, onNotification, onSendMessage
+  user, logout, bookings, councilOrders, allUsers = [], onAddBooking, onCancelBooking, onAcceptNegotiation, onCounterNegotiation, onRejectNegotiation, location, onSOS, onDeposit, onBecomeProvider, onToggleViewMode, onSaveNode, onSendFeedback, t, onToggleTheme, isDarkMode, onLanguageChange, onNotification, onSendMessage
 }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'active' | 'account'>('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -653,6 +653,54 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         </div>
                       )}
                    </>
+                 )}
+              </div>
+
+              {/* Book for Other UI */}
+              <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-[24px] border border-slate-100 dark:border-white/5">
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                       <div className="w-10 h-10 rounded-2xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
+                          <i className="fa-solid fa-user-group"></i>
+                       </div>
+                       <div>
+                          <p className="text-[10px] font-black uppercase text-slate-500 italic">Book for Someone Else?</p>
+                          <p className="text-[8px] text-slate-400 font-medium">Driver/Provider will contact them directly</p>
+                       </div>
+                    </div>
+                    <button onClick={() => setIsForOther(!isForOther)} className={`w-12 h-6 rounded-full relative transition-all ${isForOther ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isForOther ? 'right-1' : 'left-1'}`}></div>
+                    </button>
+                 </div>
+                 
+                 {isForOther && (
+                    <div className="grid grid-cols-1 gap-3 mt-4 animate-slide-up">
+                       <div className="space-y-1">
+                          <label className="text-[8px] font-black uppercase text-slate-400 ml-2">Recipient Name</label>
+                          <input 
+                             value={recipientName}
+                             onChange={(e) => setRecipientName(e.target.value)}
+                             placeholder="Enter name"
+                             className="w-full bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none outline-none focus:ring-2 ring-blue-500"
+                          />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[8px] font-black uppercase text-slate-400 ml-2">Recipient Phone</label>
+                          <div className="flex items-center bg-white dark:bg-slate-800 rounded-xl px-4 py-1 focus-within:ring-2 ring-blue-500">
+                             <span className="text-xs font-bold text-slate-400 mr-2">+260</span>
+                             <input 
+                                type="tel"
+                                value={recipientPhone}
+                                onChange={(e) => {
+                                   const val = e.target.value.replace(/\D/g, '');
+                                   if (val.length <= 10) setRecipientPhone(val);
+                                }}
+                                placeholder="09XXXXXXXX"
+                                className="flex-1 bg-transparent py-2 text-xs font-bold border-none outline-none"
+                             />
+                          </div>
+                       </div>
+                    </div>
                  )}
               </div>
               
